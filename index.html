@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a1c2e" />
+  <meta name="description" content="Risk — klassinen strategialautapeli. Pelaa selaimessa tai asenna Android-puhelimeen." />
+  <title>Risk — Valloituspeli</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header id="hud">
+      <div id="hud-left">
+        <span id="turn-badge" class="badge">Vuoro 1</span>
+        <span id="phase-badge" class="badge phase">—</span>
+      </div>
+      <div id="current-player">
+        <span id="cp-dot" class="dot"></span>
+        <span id="cp-name">—</span>
+        <span id="reinforce-badge" class="badge hl" hidden>+0</span>
+      </div>
+      <button id="btn-menu" class="icon-btn" aria-label="Valikko">☰</button>
+    </header>
+
+    <div id="players-panel" aria-label="Pelaajat"></div>
+
+    <main id="map-wrap">
+      <svg id="map" xmlns="http://www.w3.org/2000/svg" aria-label="Maailmankartta"></svg>
+      <div id="zoom-controls">
+        <button id="zoom-in" class="icon-btn" aria-label="Lähennä">＋</button>
+        <button id="zoom-out" class="icon-btn" aria-label="Loitonna">－</button>
+        <button id="zoom-reset" class="icon-btn" aria-label="Nollaa">⤢</button>
+      </div>
+      <div id="battle-banner" hidden></div>
+      <div id="toast" hidden></div>
+    </main>
+
+    <section id="log" aria-label="Tapahtumaloki"></section>
+
+    <footer id="controls"></footer>
+  </div>
+
+  <!-- Asetusnäkymä / uusi peli -->
+  <div class="overlay" id="modal-setup">
+    <div class="dialog">
+      <h1 class="logo">RISK</h1>
+      <p class="subtitle">Valloita maailma</p>
+      <label class="field">
+        <span>Pelaajia yhteensä</span>
+        <div class="stepper">
+          <button data-step="players" data-dir="-1">−</button>
+          <strong id="cfg-players">3</strong>
+          <button data-step="players" data-dir="1">+</button>
+        </div>
+      </label>
+      <label class="field">
+        <span>Ihmispelaajia (hot-seat)</span>
+        <div class="stepper">
+          <button data-step="humans" data-dir="-1">−</button>
+          <strong id="cfg-humans">1</strong>
+          <button data-step="humans" data-dir="1">+</button>
+        </div>
+      </label>
+      <p class="hint">Loput ovat tekoälyä. Värit jaetaan automaattisesti.</p>
+      <button id="btn-start" class="primary big">Aloita peli</button>
+      <p class="version">Toimii selaimessa ja asennettavissa Android-puhelimeen (PWA).</p>
+    </div>
+  </div>
+
+  <!-- Korttien vaihto -->
+  <div class="overlay" id="modal-trade" hidden>
+    <div class="dialog">
+      <h2>Vaihda Risk-kortit</h2>
+      <p class="hint" id="trade-hint">Valitse kolme korttia: kolme samaa, yksi kutakin tai jokeri mukana.</p>
+      <div id="trade-cards" class="cards"></div>
+      <div class="row">
+        <button id="trade-auto" class="ghost">Vaihda automaattisesti</button>
+        <button id="trade-do" class="primary" disabled>Vaihda valitut</button>
+      </div>
+      <button id="trade-close" class="ghost">Sulje</button>
+    </div>
+  </div>
+
+  <!-- Valloituksen joukkojen siirto -->
+  <div class="overlay" id="modal-conquest" hidden>
+    <div class="dialog">
+      <h2>Valloitus!</h2>
+      <p class="hint" id="conquest-text"></p>
+      <input type="range" id="conquest-range" />
+      <div class="range-val"><span id="conquest-val">1</span> armeijaa eteenpäin</div>
+      <button id="conquest-confirm" class="primary big">Siirrä joukot</button>
+    </div>
+  </div>
+
+  <!-- Linnoituksen joukkojen siirto -->
+  <div class="overlay" id="modal-fortify" hidden>
+    <div class="dialog">
+      <h2>Linnoita</h2>
+      <p class="hint" id="fortify-text"></p>
+      <input type="range" id="fortify-range" />
+      <div class="range-val"><span id="fortify-val">1</span> armeijaa</div>
+      <div class="row">
+        <button id="fortify-cancel" class="ghost">Peruuta</button>
+        <button id="fortify-confirm" class="primary">Siirrä ja päätä vuoro</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pelin loppu -->
+  <div class="overlay" id="modal-gameover" hidden>
+    <div class="dialog">
+      <h1 class="logo">🏆</h1>
+      <h2 id="gameover-text">—</h2>
+      <button id="gameover-new" class="primary big">Uusi peli</button>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

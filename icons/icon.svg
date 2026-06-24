@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="40%" r="75%">
+      <stop offset="0%" stop-color="#16324f"/>
+      <stop offset="100%" stop-color="#081523"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <!-- tyylitelty maapallo + valloitusnuolet -->
+  <circle cx="256" cy="256" r="150" fill="none" stroke="#2f7bd6" stroke-width="10" opacity="0.55"/>
+  <path d="M120 240 Q200 180 300 220 T410 250" fill="none" stroke="#3aa84a" stroke-width="14" stroke-linecap="round" opacity="0.8"/>
+  <circle cx="180" cy="210" r="26" fill="#d63b3b" stroke="#8e2424" stroke-width="6"/>
+  <circle cx="320" cy="300" r="26" fill="#ffd34d" stroke="#946a12" stroke-width="6"/>
+  <circle cx="256" cy="160" r="22" fill="#2f7bd6" stroke="#1d4f8a" stroke-width="6"/>
+  <text x="256" y="430" font-family="system-ui,Arial,sans-serif" font-size="92" font-weight="900"
+        text-anchor="middle" fill="#ffd34d" letter-spacing="6">RISK</text>
+</svg>

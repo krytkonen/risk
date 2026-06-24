@@ -1,0 +1,12 @@
+{
+  "appId": "fi.krytkonen.risk",
+  "appName": "Risk",
+  "webDir": "www",
+  "backgroundColor": "#0a1c2e",
+  "android": {
+    "allowMixedContent": false
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}
