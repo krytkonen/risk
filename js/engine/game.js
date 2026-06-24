@@ -2,7 +2,7 @@
 // linnoitus), vahvistuslaskenta, valloitus, pelaajan putoaminen ja
 // voittoehto. Puhdas moduuli – ei DOM-riippuvuuksia, testattavissa Nodella.
 
-import { TERRITORIES, TERRITORY_IDS, CONTINENTS, continentTerritories } from '../data/territories.js';
+import { TERRITORIES, TERRITORY_IDS, CONTINENTS, continentTerritories, setActiveMap } from '../data/territories.js';
 import { makeRng, randomSeed } from './rng.js';
 import { resolveAttack } from './combat.js';
 import { buildDeck, shuffle, setValue, isValidSet } from './cards.js';
@@ -20,37 +20,41 @@ export function startingArmiesFor(playerCount) {
 // Verbien taivutusapu (2. persoona yksikkö, mennyt aika)
 // ---------------------------------------------------------------------------
 
-/** Taivutuskartta: 3. persoona → 2. persoona menneessä ajassa */
+/** Taivutuskartta: 3. persoona → 2. persoona (ihmispelaaja "Sinä") */
 const VERB_2ND = {
   'valloitti': 'valloitit',
   'sai': 'sait',
   'siirsi': 'siirsit',
   'putosi': 'putosit',
+  'aloittaa': 'aloitat',
+  'vaihtoi': 'vaihdoit',
+  'voitti': 'voitit',
+  'hallitsee': 'hallitset',
 };
 
 /**
  * Muodostaa lokiviestin jossa pelaajan nimi on subjektina.
- * Jos pelaajan nimi on 'Sinä', käytetään 2. persoonan taivutusta.
+ * Jos pelaajan nimi on 'Sinä', käytetään 2. persoonan taivutusta
+ * (esim. "Sinä valloitit" eikä "Sinä valloitti").
  * @param {string} playerName pelaajan nimi
  * @param {string} verb verbi 3. persoonassa (esim. 'valloitti')
- * @param {string} rest lauseen loppuosa
+ * @param {string} [rest] lauseen loppuosa
  */
-function playerVerb(playerName, verb, rest) {
-  if (playerName === 'Sinä') {
-    const v2 = VERB_2ND[verb] || verb;
-    return `${playerName} ${v2} ${rest}`;
-  }
-  return `${playerName} ${verb} ${rest}`;
+function playerVerb(playerName, verb, rest = '') {
+  const v = (playerName === 'Sinä') ? (VERB_2ND[verb] || verb) : verb;
+  return rest ? `${playerName} ${v} ${rest}` : `${playerName} ${v}`;
 }
 
 /**
  * Luo uuden pelin.
- * @param {{players: {name:string,color:string,isAI:boolean}[], seed?:number}} opts
+ * @param {{players: {name:string,color:string,isAI:boolean}[], seed?:number, mapId?:string}} opts
  */
-export function createGame({ players, seed }) {
+export function createGame({ players, seed, mapId }) {
   if (!players || players.length < 2 || players.length > 6) {
     throw new Error('Pelaajia oltava 2–6');
   }
+  // Aktivoi valittu kartta (oletus säilyy jos mapId puuttuu).
+  if (mapId) setActiveMap(mapId);
   const usedSeed = seed ?? randomSeed();
   const rng = makeRng(usedSeed);
 
@@ -87,7 +91,7 @@ export function createGame({ players, seed }) {
 
   state.current = 0;
   startReinforcement(state);
-  log(state, `Peli alkaa. ${state.players[state.current].name} aloittaa.`, 'info');
+  log(state, `Peli alkaa. ${playerVerb(state.players[state.current].name, 'aloittaa')}.`, 'info');
   return state;
 }
 
@@ -193,7 +197,7 @@ export function tradeCards(state, indices) {
   const sorted = [...indices].sort((a, b) => b - a);
   for (const i of sorted) state.discard.push(player.cards.splice(i, 1)[0]);
 
-  log(state, `${player.name} vaihtoi korttisarjan: +${bonus} armeijaa${territoryBonus ? ` (+${territoryBonus} aluebonus)` : ''}.`, 'info');
+  log(state, `${playerVerb(player.name, 'vaihtoi', 'korttisarjan:')} +${bonus} armeijaa${territoryBonus ? ` (+${territoryBonus} aluebonus)` : ''}.`, 'info');
   return { ok: true, bonus, territoryBonus };
 }
 
@@ -281,7 +285,7 @@ function eliminatePlayer(state, loserIndex, conquerorIndex) {
   const conqueror = state.players[conquerorIndex];
   conqueror.cards.push(...loser.cards);
   loser.cards = [];
-  log(state, `${loser.name} putosi pelistä! ${playerVerb(conqueror.name, 'sai', 'kortit.')}`, 'eliminate');
+  log(state, `${playerVerb(loser.name, 'putosi', 'pelistä!')} ${playerVerb(conqueror.name, 'sai', 'kortit.')}`, 'eliminate');
 }
 
 function checkWin(state) {
@@ -289,7 +293,7 @@ function checkWin(state) {
   if (alive.length === 1) {
     state.winner = alive[0].index;
     state.phase = PHASES.GAMEOVER;
-    log(state, `${alive[0].name} voitti pelin!`, 'win');
+    log(state, `${playerVerb(alive[0].name, 'voitti', 'pelin!')}`, 'win');
     return;
   }
   // Maailmanherruus: yksi pelaaja omistaa kaikki alueet.
@@ -298,7 +302,7 @@ function checkWin(state) {
     const w = [...owners][0];
     state.winner = w;
     state.phase = PHASES.GAMEOVER;
-    log(state, `${state.players[w].name} hallitsee maailmaa!`, 'win');
+    log(state, `${playerVerb(state.players[w].name, 'hallitsee', 'maailmaa!')}`, 'win');
   }
 }
 
@@ -375,7 +379,7 @@ export function endTurn(state) {
   state.current = next;
   startReinforcement(state);
   if (state.phase !== PHASES.GAMEOVER) {
-    log(state, `${state.players[state.current].name} aloittaa vuoron (+${state.reinforcements} armeijaa).`, 'turn');
+    log(state, `${playerVerb(state.players[state.current].name, 'aloittaa', 'vuoron')} (+${state.reinforcements} armeijaa).`, 'turn');
   }
   return { ok: true };
 }

@@ -10,7 +10,7 @@ import {
 import { isValidSet } from './engine/cards.js';
 import { runAITurn } from './engine/ai.js';
 import { resolveBalancedBlitz } from './engine/combat.js';
-import { TERRITORIES } from './data/territories.js';
+import { TERRITORIES, MAP_LIST, DEFAULT_MAP } from './data/territories.js';
 import { buildMap, updateMap, PLAYER_COLORS } from './ui/render.js';
 
 const $ = (id) => document.getElementById(id);
@@ -82,7 +82,7 @@ const ui = { selected: null, attackTarget: null, validTargets: new Set(), busy: 
 // Pelin aloitus
 // ---------------------------------------------------------------------------
 
-const cfg = { players: 3, humans: 1 };
+const cfg = { players: 3, humans: 1, mapId: DEFAULT_MAP };
 
 function setupHandlers() {
   document.querySelectorAll('[data-step]').forEach((btn) => {
@@ -95,6 +95,7 @@ function setupHandlers() {
       refreshSetup();
     });
   });
+  buildMapPicker();
   $('btn-start').addEventListener('click', startGame);
   $('gameover-new').addEventListener('click', () => { show('modal-gameover', false); show('modal-setup', true); });
   $('btn-menu').addEventListener('click', () => { if (confirm('Aloita uusi peli?')) show('modal-setup', true); });
@@ -116,6 +117,24 @@ function setupHandlers() {
   setupZoom();
 }
 
+function buildMapPicker() {
+  const wrap = $('map-picker');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  MAP_LIST.forEach((m) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'map-opt' + (m.id === cfg.mapId ? ' sel' : '');
+    b.textContent = m.name;
+    b.dataset.map = m.id;
+    b.addEventListener('click', () => {
+      cfg.mapId = m.id;
+      wrap.querySelectorAll('.map-opt').forEach((el) => el.classList.toggle('sel', el.dataset.map === m.id));
+    });
+    wrap.appendChild(b);
+  });
+}
+
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 function refreshSetup() { $('cfg-players').textContent = cfg.players; $('cfg-humans').textContent = cfg.humans; }
 
@@ -130,7 +149,7 @@ function startGame() {
       isAI: !isHuman,
     });
   }
-  state = createGame({ players });
+  state = createGame({ players, mapId: cfg.mapId });
   ui.selected = null; ui.validTargets = new Set(); ui.busy = false;
   mapRefs = buildMap($('map'), onTerritoryTap).nodeRefs;
   show('modal-setup', false);
@@ -349,7 +368,7 @@ function clearSelection() { ui.selected = null; ui.attackTarget = null; ui.valid
 function openConquest() {
   const pc = state.pendingConquest;
   $('conquest-text').textContent =
-    `Valtasit ${TERRITORIES[pc.toId].name}! Siirrä ${pc.minMove}–${pc.maxMove} armeijaa alueelle.`;
+    `Valtasit ${TERRITORIES[pc.toId].gen}! Siirrä ${pc.minMove}–${pc.maxMove} armeijaa alueelle.`;
   const r = $('conquest-range');
   r.min = pc.minMove; r.max = pc.maxMove; r.value = pc.minMove;
   $('conquest-val').textContent = pc.minMove;
@@ -358,10 +377,12 @@ function openConquest() {
 }
 function confirmConquest() {
   const v = Number($('conquest-range').value);
+  const conqueredId = state.pendingConquest?.toId;
   resolveConquest(state, v);
   show('modal-conquest', false);
   hideBattle();
   sfx('conquer');
+  flashConquest(conqueredId);
   if (state.phase === PHASES.GAMEOVER) { render(); return gameOver(); }
   ui.attackTarget = null;
   if (state.territories[ui.selected]?.armies < 2) clearSelection();
@@ -622,6 +643,13 @@ function flashNode(id) {
   if (!r) return;
   r.circle.setAttribute('r', 24);
   setTimeout(() => r.circle.setAttribute('r', 21), 120);
+}
+
+function flashConquest(id) {
+  const r = id && mapRefs[id];
+  if (!r) return;
+  r.g.classList.add('just-conquered');
+  setTimeout(() => r.g.classList.remove('just-conquered'), 600);
 }
 
 function gameOver() {

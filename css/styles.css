@@ -103,11 +103,63 @@ body {
 }
 #map { width: 100%; height: 100%; display: block; touch-action: none; }
 .territory { cursor: pointer; }
-.territory .node { transition: r 0.1s; }
+.territory .node { transition: r 0.1s, fill 0.2s; }
 .territory.selectable .node { cursor: pointer; }
-.army-count { paint-order: stroke; stroke: rgba(0,0,0,0.55); stroke-width: 3px; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5)); }
-.terr-name { fill: #cfe0f0; opacity: 0.85; paint-order: stroke; stroke: rgba(0,0,0,0.5); stroke-width: 2.5px; pointer-events: none; }
+.territory:hover .node { filter: url(#node-shadow) brightness(1.08); }
+.army-count {
+  paint-order: stroke;
+  stroke: rgba(0,0,0,0.7);
+  stroke-width: 3.5px;
+  fill: #fff;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
+  pointer-events: none;
+}
+.terr-name {
+  fill: #d6e6f5; opacity: 0.9;
+  paint-order: stroke; stroke: rgba(0,8,16,0.65); stroke-width: 2.6px;
+  font-weight: 600;
+  pointer-events: none;
+}
 .cont-label { pointer-events: none; }
+.cont-panel { pointer-events: none; }
+
+/* Sea routes: hieno hidas hohto, land borders staattisia */
+.edge-sea { animation: sea-flow 3.2s linear infinite; }
+.edge-sea-glow { animation: sea-glow 3s ease-in-out infinite; }
+@keyframes sea-flow {
+  to { stroke-dashoffset: -26; }
+}
+@keyframes sea-glow {
+  0%, 100% { stroke-opacity: 0.08; }
+  50% { stroke-opacity: 0.2; }
+}
+
+/* Halo-korostusten pulssaus */
+.halo { transition: stroke-opacity 0.15s; }
+.halo.halo-target { animation: halo-target-pulse 0.9s ease-in-out infinite; }
+.halo.halo-selected { animation: halo-selected-pulse 1.4s ease-in-out infinite; }
+.halo.halo-valid { animation: halo-valid-pulse 1.8s ease-in-out infinite; }
+@keyframes halo-target-pulse {
+  0%, 100% { stroke-opacity: 1; transform: scale(1); }
+  50% { stroke-opacity: 0.55; transform: scale(1.12); }
+}
+@keyframes halo-selected-pulse {
+  0%, 100% { stroke-opacity: 1; }
+  50% { stroke-opacity: 0.65; }
+}
+@keyframes halo-valid-pulse {
+  0%, 100% { stroke-opacity: 0.85; }
+  50% { stroke-opacity: 0.5; }
+}
+.halo { transform-box: fill-box; transform-origin: center; }
+
+/* Armeijamäärän pop kun luku muuttuu */
+.army-count.count-pop { animation: count-pop 0.32s ease-out; transform-box: fill-box; transform-origin: center; }
+@keyframes count-pop {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.55); }
+  100% { transform: scale(1); }
+}
 
 #zoom-controls {
   position: absolute;
@@ -136,28 +188,65 @@ body {
   max-width: 92%;
 }
 /* Battle animations */
-@keyframes shake {
+.territory .node { transform-box: fill-box; transform-origin: center; }
+
+@keyframes attack-recoil {
+  0% { transform: translate(0,0) scale(1); }
+  20% { transform: translate(-3px,-2px) scale(1.06); }
+  45% { transform: translate(4px,2px) scale(0.97); }
+  70% { transform: translate(-3px,3px) scale(1.02); }
+  100% { transform: translate(0,0) scale(1); }
+}
+@keyframes attack-glow {
+  0%, 100% { filter: url(#node-shadow); }
+  40% { filter: url(#node-shadow) drop-shadow(0 0 7px rgba(255,211,77,0.9)); }
+}
+@keyframes defend-impact {
   0%, 100% { transform: translate(0,0); }
-  25% { transform: translate(-4px,-2px); }
-  50% { transform: translate(4px,2px); }
-  75% { transform: translate(-2px,4px); }
+  15% { transform: translate(5px,1px); }
+  30% { transform: translate(-5px,2px); }
+  50% { transform: translate(4px,-2px); }
+  70% { transform: translate(-3px,1px); }
+}
+@keyframes defend-flash {
+  0%, 100% { filter: url(#node-shadow); }
+  30% { filter: url(#node-shadow) drop-shadow(0 0 8px rgba(255,60,60,1)) brightness(1.5); }
 }
 @keyframes pulse-win {
-  0%, 100% { r: 21; }
-  50% { r: 26; }
+  0% { r: 21; }
+  40% { r: 28; }
+  100% { r: 21; }
 }
-@keyframes flash-attack {
-  0%, 100% { opacity: 1; }
-  40% { opacity: 0.3; }
+@keyframes conquer-ring {
+  0% { r: 21; stroke-opacity: 0.95; stroke-width: 5; }
+  100% { r: 42; stroke-opacity: 0; stroke-width: 1; }
 }
-.territory.attacking .node { animation: shake 0.3s ease-in-out; }
-.territory.defending .node { animation: flash-attack 0.3s ease-in-out; }
-.territory.just-conquered .node { animation: pulse-win 0.4s ease-out; }
 
-/* Improved dice display */
+.territory.attacking .node { animation: attack-recoil 0.35s ease-in-out, attack-glow 0.35s ease-in-out; }
+.territory.defending .node { animation: defend-impact 0.35s ease-in-out, defend-flash 0.35s ease-in-out; }
+.territory.just-conquered .node { animation: pulse-win 0.5s ease-out; }
+/* Voiton rengaspurske: animoidaan halo-ympyrä kun alue vallataan. */
+.territory.just-conquered .halo {
+  stroke: #ffe27a;
+  animation: conquer-ring 0.6s ease-out;
+}
+
+/* Improved dice display – jokainen noppa pomppaa esiin uudelleenrenderöinnissä */
 .dice { font-size: 26px; letter-spacing: 3px; margin: 4px 0; }
 .dice .att { color: #ffd34d; text-shadow: 0 0 8px rgba(255,211,77,0.6); }
 .dice .def { color: #8fd0ff; text-shadow: 0 0 8px rgba(143,208,255,0.6); }
+/* Animaatio soi automaattisesti kun span luodaan (innerHTML uusitaan joka kierros). */
+.dice span { display: inline-block; animation: dice-pop 0.4s cubic-bezier(0.34,1.56,0.64,1); }
+.dice .att:nth-child(2) { animation-delay: 0.04s; }
+.dice .att:nth-child(3) { animation-delay: 0.08s; }
+.dice .def:nth-child(2) { animation-delay: 0.04s; }
+.dice .def:nth-child(3) { animation-delay: 0.08s; }
+@keyframes dice-pop {
+  0% { transform: scale(0.2) rotate(-120deg); opacity: 0; }
+  55% { transform: scale(1.25) rotate(12deg); opacity: 1; }
+  75% { transform: scale(0.95) rotate(-4deg); }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
 
 /* Battle banner improvement */
 #battle-banner {
@@ -282,6 +371,22 @@ button.big { padding: 16px; font-size: 17px; }
 .stepper strong { font-size: 20px; min-width: 24px; }
 .hint { color: var(--muted); font-size: 13px; margin: 10px 0; }
 .version { color: var(--muted); font-size: 11px; margin-top: 16px; opacity: 0.7; }
+
+/* Karttavalitsin */
+.field-col { display: flex; flex-direction: column; gap: 8px; margin: 14px 0; font-weight: 600; text-align: left; }
+.map-picker { display: flex; flex-wrap: wrap; gap: 8px; }
+.map-picker .map-opt {
+  flex: 1 1 calc(50% - 8px);
+  min-height: 44px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 700;
+  background: var(--panel2);
+  border: 2px solid transparent;
+  border-radius: 10px;
+  color: var(--text);
+}
+.map-picker .map-opt.sel { border-color: var(--accent); color: var(--accent); background: #244b70; }
 .row { display: flex; gap: 8px; margin-top: 12px; }
 .primary.big { margin-top: 8px; }
 
