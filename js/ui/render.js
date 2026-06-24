@@ -115,6 +115,7 @@ export function buildMap(svg, onTap) {
  */
 export function updateMap(refs, state, ui = {}) {
   const selected = ui.selected || null;
+  const attackTarget = ui.attackTarget || null;
   const targets = ui.validTargets || new Set();
   for (const id of TERRITORY_IDS) {
     const t = state.territories[id];
@@ -127,6 +128,7 @@ export function updateMap(refs, state, ui = {}) {
 
     let haloOpacity = 0, haloColor = '#ffd34d', haloR = NODE_R + 5;
     if (id === selected) { haloOpacity = 1; haloColor = '#ffd34d'; haloR = NODE_R + 6; }
+    else if (id === attackTarget) { haloOpacity = 1; haloColor = '#ff8800'; haloR = NODE_R + 6; }
     else if (targets.has(id)) { haloOpacity = 0.95; haloColor = '#ff5757'; }
     r.halo.setAttribute('stroke', haloColor);
     r.halo.setAttribute('stroke-opacity', haloOpacity);
