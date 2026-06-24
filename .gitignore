@@ -8,3 +8,6 @@ android/build/
 
 # Built APK artifacts
 *.apk
+
+# Claude Code internal
+.claude/
