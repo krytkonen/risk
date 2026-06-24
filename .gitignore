@@ -5,3 +5,6 @@ android/.gradle/
 android/build/
 *.log
 .DS_Store
+
+# Built APK artifacts
+*.apk
