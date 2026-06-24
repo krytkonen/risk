@@ -6,6 +6,7 @@ import {
   createGame, PHASES, ownedBy, placeArmies, endReinforcement, tradeCards,
   mustTradeCards, canAttack, attack, resolveConquest, endAttack, fortify,
   areConnected, endTurn, calcReinforcements, snapshot, applyBlitzResult,
+  isBlizzard, visibleTerritories,
 } from './engine/game.js';
 import { isValidSet } from './engine/cards.js';
 import { runAITurn } from './engine/ai.js';
@@ -82,7 +83,7 @@ const ui = { selected: null, attackTarget: null, validTargets: new Set(), busy: 
 // Pelin aloitus
 // ---------------------------------------------------------------------------
 
-const cfg = { players: 3, humans: 1, mapId: DEFAULT_MAP };
+const cfg = { players: 3, humans: 1, mapId: DEFAULT_MAP, fogOfWar: false, blizzard: false };
 
 function setupHandlers() {
   document.querySelectorAll('[data-step]').forEach((btn) => {
@@ -96,6 +97,15 @@ function setupHandlers() {
     });
   });
   buildMapPicker();
+  // Pelimoodikytkimet (sumu, lumimyrsky).
+  document.querySelectorAll('[data-toggle]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.toggle;
+      cfg[key] = !cfg[key];
+      btn.classList.toggle('on', cfg[key]);
+      btn.setAttribute('aria-pressed', cfg[key] ? 'true' : 'false');
+    });
+  });
   $('btn-start').addEventListener('click', startGame);
   $('gameover-new').addEventListener('click', () => { show('modal-gameover', false); show('modal-setup', true); });
   $('btn-menu').addEventListener('click', () => { if (confirm('Aloita uusi peli?')) show('modal-setup', true); });
@@ -149,7 +159,11 @@ function startGame() {
       isAI: !isHuman,
     });
   }
-  state = createGame({ players, mapId: cfg.mapId });
+  state = createGame({
+    players,
+    mapId: cfg.mapId,
+    options: { fogOfWar: cfg.fogOfWar, blizzard: cfg.blizzard },
+  });
   ui.selected = null; ui.validTargets = new Set(); ui.busy = false;
   mapRefs = buildMap($('map'), onTerritoryTap).nodeRefs;
   show('modal-setup', false);
@@ -278,38 +292,13 @@ function doSingleAttack() {
   render();
 }
 
-async function doBlitz() {
-  const fromId = ui.selected, toId = ui.attackTarget;
-  if (!fromId || !toId) return;
-  ui.busy = true; render();
-  while (
-    (state.territories[fromId]?.armies ?? 0) >= 2 &&
-    (state.territories[toId]?.armies ?? 0) > 0 &&
-    !state.pendingConquest
-  ) {
-    animateAttack(fromId, toId);
-    const res = attack(state, fromId, toId);
-    if (!res.ok) break;
-    sfx('attack');
-    showBattle(fromId, toId, res);
-    render();
-    await delay(220);
-  }
-  ui.busy = false;
-  if (state.pendingConquest) { render(); openConquest(); return; }
-  hideBattle();
-  if ((state.territories[fromId]?.armies ?? 0) < 2) clearSelection();
-  else { ui.attackTarget = null; recomputeAttackTargets(); }
-  render();
-}
-
 async function doBalancedBlitz() {
   const fromId = ui.selected, toId = ui.attackTarget;
   if (!fromId || !toId) return;
   ui.busy = true; render();
   const fromA = state.territories[fromId].armies;
   const toA = state.territories[toId].armies;
-  const result = resolveBalancedBlitz(fromA, toA, state.rng);
+  const result = resolveBalancedBlitz(fromA, toA, state.rng, isBlizzard(state, toId));
   // Näytä jokainen kierros animoituna
   for (const round of result.rounds) {
     animateAttack(fromId, toId);
@@ -468,9 +457,23 @@ function autoTrade() {
 // Renderöinti
 // ---------------------------------------------------------------------------
 
+/** Sumun katselijan indeksi: vuorossa oleva ihminen, muuten ensimmäinen ihminen. */
+function fogViewer() {
+  if (!state.players[state.current].isAI) return state.current;
+  const h = state.players.find((p) => !p.isAI);
+  return h ? h.index : state.current;
+}
+
 function render() {
   if (!state) return;
-  updateMap(mapRefs, state, ui);
+  const view = {
+    selected: ui.selected,
+    attackTarget: ui.attackTarget,
+    validTargets: ui.validTargets,
+    blizzards: state.options?.blizzard ? new Set(state.blizzards) : new Set(),
+    visible: state.options?.fogOfWar ? visibleTerritories(state, fogViewer()) : null,
+  };
+  updateMap(mapRefs, state, view);
   renderHUD();
   renderPlayers();
   renderLog();
@@ -525,7 +528,7 @@ function renderControls() {
   c.innerHTML = '';
   const me = state.players[state.current];
   if (me.isAI || ui.busy) {
-    const msg = me.isAI ? `Tekoäly (${me.name}) pelaa…` : 'Blitz käynnissä…';
+    const msg = me.isAI ? `Tekoäly (${me.name}) pelaa…` : 'Taistelu käynnissä…';
     c.innerHTML = `<span class="hint-text">${msg}</span>`;
     return;
   }
@@ -567,10 +570,10 @@ function renderControls() {
     } else {
       const fa = state.territories[ui.selected].armies;
       const ta = state.territories[ui.attackTarget].armies;
-      addHint(row, `${TERRITORIES[ui.selected].name}(${fa}) → ${TERRITORIES[ui.attackTarget].name}(${ta})`);
+      const frost = isBlizzard(state, ui.attackTarget) ? ' ❄' : '';
+      addHint(row, `${TERRITORIES[ui.selected].name}(${fa}) → ${TERRITORIES[ui.attackTarget].name}(${ta})${frost}`);
       addBtn(row, 'Peru', 'ghost', () => { clearSelection(); render(); });
       addBtn(row, 'Hyökkää', 'danger', doSingleAttack);
-      addBtn(row, 'Blitz!', 'danger', doBlitz);
       addBtn(row, 'Tasapainotettu Blitz', 'danger', doBalancedBlitz);
     }
     addBtn(row, 'Lopeta →', 'primary', () => {

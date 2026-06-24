@@ -47,9 +47,10 @@ function playerVerb(playerName, verb, rest = '') {
 
 /**
  * Luo uuden pelin.
- * @param {{players: {name:string,color:string,isAI:boolean}[], seed?:number, mapId?:string}} opts
+ * @param {{players: {name:string,color:string,isAI:boolean}[], seed?:number,
+ *           mapId?:string, options?:{fogOfWar?:boolean, blizzard?:boolean}}} opts
  */
-export function createGame({ players, seed, mapId }) {
+export function createGame({ players, seed, mapId, options }) {
   if (!players || players.length < 2 || players.length > 6) {
     throw new Error('Pelaajia oltava 2–6');
   }
@@ -61,6 +62,7 @@ export function createGame({ players, seed, mapId }) {
   const state = {
     seed: usedSeed,
     rng,
+    options: { fogOfWar: !!options?.fogOfWar, blizzard: !!options?.blizzard },
     players: players.map((p, i) => ({
       index: i,
       name: p.name,
@@ -70,6 +72,7 @@ export function createGame({ players, seed, mapId }) {
       alive: true,
     })),
     territories: {},
+    blizzards: [],
     current: 0,
     phase: PHASES.REINFORCE,
     reinforcements: 0,
@@ -90,9 +93,51 @@ export function createGame({ players, seed, mapId }) {
   deployStartingArmies(state);
 
   state.current = 0;
+  applyBlizzard(state);
   startReinforcement(state);
   log(state, `Peli alkaa. ${playerVerb(state.players[state.current].name, 'aloittaa')}.`, 'info');
+  if (state.options.blizzard && state.blizzards.length) {
+    log(state, `❄ Lumimyrsky: ${state.blizzards.map((id) => TERRITORIES[id].name).join(', ')}.`, 'info');
+  }
   return state;
+}
+
+// --- Pelimoodit: lumimyrsky & sumu ---------------------------------------
+
+/**
+ * Arpoo uudet lumimyrskyalueet (n. 12 % kartasta). Lumimyrskyn peittämään
+ * alueeseen hyökätessä hyökkääjä heittää korkeintaan 2 noppaa, joten ne
+ * toimivat tilapäisinä pullonkauloina. Ei vaikutusta jos moodi pois päältä.
+ */
+export function applyBlizzard(state) {
+  if (!state.options?.blizzard) { state.blizzards = []; return; }
+  const ids = [...TERRITORY_IDS];
+  const count = Math.max(2, Math.round(ids.length * 0.12));
+  const shuffled = shuffle(ids, state.rng);
+  state.blizzards = shuffled.slice(0, count);
+}
+
+/** Onko alue lumimyrskyn peitossa? */
+export function isBlizzard(state, id) {
+  return !!(state.options?.blizzard && state.blizzards?.includes(id));
+}
+
+/**
+ * Sumu (fog of war): pelaaja näkee vain omat alueensa ja niiden naapurit.
+ * Palauttaa Setin alueista, jotka annettu pelaaja näkee.
+ * @param {object} state
+ * @param {number} viewerIndex
+ * @returns {Set<string>}
+ */
+export function visibleTerritories(state, viewerIndex) {
+  const visible = new Set();
+  for (const id of TERRITORY_IDS) {
+    if (state.territories[id].owner === viewerIndex) {
+      visible.add(id);
+      for (const n of TERRITORIES[id].adj) visible.add(n);
+    }
+  }
+  return visible;
 }
 
 // --- Alkujako -------------------------------------------------------------
@@ -241,7 +286,7 @@ export function attack(state, fromId, toId) {
   if (!canAttack(state, fromId, toId)) return { ok: false, reason: 'Hyökkäys ei sallittu' };
 
   const from = state.territories[fromId];
-  const attackerDiceUsed = Math.min(3, from.armies - 1);
+  const attackerDiceUsed = Math.min(isBlizzard(state, toId) ? 2 : 3, from.armies - 1);
   const r = resolveAttack(state, fromId, toId, state.rng);
 
   if (r.conquered) {
@@ -377,6 +422,7 @@ export function endTurn(state) {
   }
   if (next <= state.current) state.turnCount++;
   state.current = next;
+  applyBlizzard(state); // lumimyrsky siirtyy joka vuoro
   startReinforcement(state);
   if (state.phase !== PHASES.GAMEOVER) {
     log(state, `${playerVerb(state.players[state.current].name, 'aloittaa', 'vuoron')} (+${state.reinforcements} armeijaa).`, 'turn');
@@ -394,7 +440,7 @@ export function applyBlitzResult(state, fromId, toId, finalAttacker, finalDefend
   from.armies = finalAttacker;
   to.armies = finalDefender;
   if (finalDefender <= 0) {
-    const minMove = Math.max(1, Math.min(3, finalAttacker - 1));
+    const minMove = Math.max(1, Math.min(isBlizzard(state, toId) ? 2 : 3, finalAttacker - 1));
     const maxMove = finalAttacker - 1;
     state.pendingConquest = { fromId, toId, minMove, maxMove };
     const playerName = state.players[state.current].name;

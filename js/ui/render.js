@@ -96,7 +96,82 @@ function buildDefs() {
   ng.appendChild(el('stop', { offset: '100%', 'stop-color': NEUTRAL_DARK }));
   defs.appendChild(ng);
 
+  // Sumun peittämä (fog of war) alue: tumma, ei paljasta omistajaa.
+  const fg = el('radialGradient', { id: 'node-grad-fog', cx: '38%', cy: '32%', r: '72%' });
+  fg.appendChild(el('stop', { offset: '0%', 'stop-color': '#2b3a49' }));
+  fg.appendChild(el('stop', { offset: '100%', 'stop-color': '#161f29' }));
+  defs.appendChild(fg);
+
   return defs;
+}
+
+// --- Mannermuodot: konveksi peite pehmennettynä maamassaksi ----------------
+
+/** Konveksi peite (Andrew'n monotone chain). */
+function convexHull(points) {
+  const pts = points.slice().sort((a, b) => a.x - b.x || a.y - b.y);
+  if (pts.length <= 2) return pts;
+  const cross = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+  const lower = [];
+  for (const p of pts) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop();
+    lower.push(p);
+  }
+  const upper = [];
+  for (let i = pts.length - 1; i >= 0; i--) {
+    const p = pts[i];
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop();
+    upper.push(p);
+  }
+  lower.pop(); upper.pop();
+  return lower.concat(upper);
+}
+
+/** Suljettu pehmeä polku (Catmull-Rom → bezier) pistejoukon läpi. */
+function smoothClosedPath(pts) {
+  const n = pts.length;
+  const f = (v) => v.toFixed(1);
+  let d = `M ${f(pts[0].x)} ${f(pts[0].y)} `;
+  for (let i = 0; i < n; i++) {
+    const p0 = pts[(i - 1 + n) % n], p1 = pts[i], p2 = pts[(i + 1) % n], p3 = pts[(i + 2) % n];
+    const c1x = p1.x + (p2.x - p0.x) / 6, c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6, c2y = p2.y - (p3.y - p1.y) / 6;
+    d += `C ${f(c1x)} ${f(c1y)}, ${f(c2x)} ${f(c2y)}, ${f(p2.x)} ${f(p2.y)} `;
+  }
+  return d + 'Z';
+}
+
+/**
+ * Mannermuodon polku: alueiden koordinaattien konveksi peite, laajennettu
+ * ulospäin keskipisteestä ja pehmennetty. Pienille mantereille (1–2 aluetta)
+ * muodostetaan kahdeksankulmainen "saari" bounding boxin ympärille.
+ */
+function continentShape(contId, pad = 50) {
+  const ids = continentTerritories(contId);
+  const points = ids.map((i) => ({ x: TERRITORIES[i].x, y: TERRITORIES[i].y }));
+  const cx = points.reduce((s, p) => s + p.x, 0) / points.length;
+  const cy = points.reduce((s, p) => s + p.y, 0) / points.length;
+
+  let hull = convexHull(points);
+  if (hull.length < 3) {
+    // Liian vähän pisteitä peitteeksi: tee kahdeksankulmio bbox-keskuksen ympäri.
+    const xs = points.map((p) => p.x), ys = points.map((p) => p.y);
+    const w = Math.max(40, Math.max(...xs) - Math.min(...xs)) / 2 + pad;
+    const h = Math.max(40, Math.max(...ys) - Math.min(...ys)) / 2 + pad;
+    const oct = [];
+    for (let k = 0; k < 8; k++) {
+      const ang = (Math.PI * 2 * k) / 8 - Math.PI / 2;
+      oct.push({ x: cx + Math.cos(ang) * w, y: cy + Math.sin(ang) * h });
+    }
+    return smoothClosedPath(oct);
+  }
+  // Laajenna jokainen peitteen kärki säteittäin ulospäin keskipisteestä.
+  const expanded = hull.map((p) => {
+    const dx = p.x - cx, dy = p.y - cy;
+    const len = Math.hypot(dx, dy) || 1;
+    return { x: p.x + (dx / len) * pad, y: p.y + (dy / len) * pad };
+  });
+  return smoothClosedPath(expanded);
 }
 
 /** Rakentaa staattisen kartan kerran (mantereet + viivat + napit). */
@@ -125,34 +200,32 @@ export function buildMap(svg, onTap) {
   const gMap = el('g', { id: 'g-map' });
   svg.appendChild(gMap);
 
-  // Mannerlaatikot taustalle – pyöristetyt läpikuultavat paneelit + varjo + sisäkehä.
+  // Mantereet maamassan muotoisina: alueiden konveksista peitteestä
+  // pehmennetty "rantaviiva", täyttö mantereen värillä + varjo.
   const gCont = el('g', { id: 'g-continents' });
   for (const contId of Object.keys(CONTINENTS)) {
     const b = continentBounds(contId);
     const color = CONTINENTS[contId].color;
-    const panel = el('g', { 'class': 'cont-panel', filter: 'url(#cont-shadow)' });
-    panel.appendChild(el('rect', {
-      x: b.x, y: b.y, width: b.w, height: b.h, rx: 30, ry: 30,
-      fill: color, 'fill-opacity': 0.12,
-    }));
-    // Sisempi vaalea kehä (inner glow -tunne).
-    panel.appendChild(el('rect', {
-      x: b.x + 2.5, y: b.y + 2.5, width: b.w - 5, height: b.h - 5, rx: 27, ry: 27,
-      fill: 'none', stroke: color, 'stroke-opacity': 0.5, 'stroke-width': 1.4,
-    }));
-    gCont.appendChild(panel);
+    const path = continentShape(contId);
+    const land = el('g', { 'class': 'cont-panel', filter: 'url(#cont-shadow)' });
+    // Maamassa: pehmeä täyttö + tummempi rantaviiva.
+    land.appendChild(el('path', { d: path, fill: color, 'fill-opacity': 0.18 }));
+    land.appendChild(el('path', { d: path, fill: 'none', stroke: color, 'stroke-opacity': 0.55, 'stroke-width': 2, 'stroke-linejoin': 'round' }));
+    gCont.appendChild(land);
 
-    // Otsikkomerkki (nimi + bonus) hienovaraisella taustalla.
+    // Otsikkomerkki (nimi + bonus) mantereen yläreunaan.
     const labelG = el('g', { 'class': 'cont-label' });
     const txt = `${CONTINENTS[contId].name}  +${CONTINENTS[contId].bonus}`;
     const padX = 9, lblH = 20;
     const lblW = txt.length * 7.6 + padX * 2;
+    const lx = Math.max(6, Math.min(b.x + b.w / 2 - lblW / 2, 1000 - lblW - 6));
+    const ly = Math.max(4, b.y + 4);
     labelG.appendChild(el('rect', {
-      x: b.x + 10, y: b.y + 8, width: lblW, height: lblH, rx: 10, ry: 10,
-      fill: '#04101c', 'fill-opacity': 0.45, stroke: color, 'stroke-opacity': 0.45, 'stroke-width': 1,
+      x: lx, y: ly, width: lblW, height: lblH, rx: 10, ry: 10,
+      fill: '#04101c', 'fill-opacity': 0.5, stroke: color, 'stroke-opacity': 0.5, 'stroke-width': 1,
     }));
     const label = el('text', {
-      x: b.x + 10 + padX, y: b.y + 8 + lblH / 2, fill: color,
+      x: lx + padX, y: ly + lblH / 2, fill: color,
       'font-size': 13, 'font-weight': 700, 'dominant-baseline': 'central',
     });
     label.textContent = txt;
@@ -206,12 +279,15 @@ export function buildMap(svg, onTap) {
     const count = el('text', { x: t.x, y: t.y, 'class': 'army-count', 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 18, 'font-weight': 800 });
     const name = el('text', { x: t.x, y: t.y + NODE_R + 12, 'class': 'terr-name', 'text-anchor': 'middle', 'font-size': 10.5 });
     name.textContent = t.name;
-    g.appendChild(halo); g.appendChild(circle); g.appendChild(count); g.appendChild(name);
+    // Lumimyrskymerkki (❄) – piilossa kunnes alue on myrskyn peitossa.
+    const frost = el('text', { x: t.x + NODE_R - 2, y: t.y - NODE_R + 4, 'class': 'frost', 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 16, opacity: 0 });
+    frost.textContent = '❄';
+    g.appendChild(halo); g.appendChild(circle); g.appendChild(count); g.appendChild(name); g.appendChild(frost);
     const handler = (ev) => { ev.preventDefault(); ev.stopPropagation(); onTap(id); };
     g.addEventListener('click', handler);
     g.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') handler(ev); });
     gNodes.appendChild(g);
-    nodeRefs[id] = { g, halo, circle, count, name };
+    nodeRefs[id] = { g, halo, circle, count, name, frost };
   }
   gMap.appendChild(gNodes);
 
@@ -222,17 +298,25 @@ export function buildMap(svg, onTap) {
  * Päivittää napit pelitilan mukaan.
  * @param {object} refs buildMapin palauttama nodeRefs
  * @param {object} state pelitila
- * @param {{selected?:string, attackTarget?:string, validTargets?:Set<string>, lastBattle?:object}} ui
+ * @param {{selected?:string, attackTarget?:string, validTargets?:Set<string>,
+ *          visible?:Set<string>, blizzards?:Set<string>}} ui
  */
 export function updateMap(refs, state, ui = {}) {
   const selected = ui.selected || null;
   const attackTarget = ui.attackTarget || null;
   const targets = ui.validTargets || new Set();
+  const fog = ui.visible || null; // jos annettu, sumu päällä: vain nämä näkyvät
+  const blizzards = ui.blizzards || new Set();
   for (const id of TERRITORY_IDS) {
     const t = state.territories[id];
     const r = refs[id];
     const owner = t.owner;
-    if (owner == null) {
+    const hidden = fog && !fog.has(id); // sumun peittämä vihollisalue
+
+    if (hidden) {
+      r.circle.setAttribute('fill', 'url(#node-grad-fog)');
+      r.circle.setAttribute('stroke', '#0c141d');
+    } else if (owner == null) {
       r.circle.setAttribute('fill', 'url(#node-grad-neutral)');
       r.circle.setAttribute('stroke', NEUTRAL_DARK);
     } else {
@@ -241,8 +325,8 @@ export function updateMap(refs, state, ui = {}) {
       r.circle.setAttribute('stroke', PLAYER_COLORS_DARK[idx]);
     }
 
-    // Armeijamäärä – pop-animaatio kun luku muuttuu.
-    const armies = String(t.armies);
+    // Armeijamäärä – pop-animaatio kun luku muuttuu. Sumussa '?'.
+    const armies = hidden ? '?' : String(t.armies);
     if (r.count.getAttribute('data-val') !== armies) {
       r.count.setAttribute('data-val', armies);
       r.count.textContent = armies;
@@ -252,7 +336,14 @@ export function updateMap(refs, state, ui = {}) {
       try { void r.count.getBBox(); } catch (_) { /* getBBox voi heittää jos ei näkyvissä */ }
       r.count.classList.add('count-pop');
     }
-    r.count.setAttribute('fill', '#fff');
+    r.count.setAttribute('fill', hidden ? '#9fb6cf' : '#fff');
+
+    // Lumimyrsky-merkki ja "jäätynyt" rantaviiva.
+    if (r.frost) {
+      const frozen = blizzards.has(id) && !hidden;
+      r.frost.setAttribute('opacity', frozen ? 1 : 0);
+      r.g.classList.toggle('frozen', frozen);
+    }
 
     let haloOpacity = 0, haloColor = '#ffd34d', haloR = NODE_R + 5;
     // Tilakohtaiset CSS-luokat halojen pulssausta varten.

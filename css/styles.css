@@ -231,6 +231,21 @@ body {
   animation: conquer-ring 0.6s ease-out;
 }
 
+/* Lumimyrsky: jäätynyt rantaviiva + hohtava ❄-merkki. */
+.territory.frozen .node { stroke: #d6f0ff !important; }
+.territory .frost {
+  fill: #eaf7ff;
+  paint-order: stroke;
+  stroke: #2b6c9e;
+  stroke-width: 2.5px;
+  pointer-events: none;
+  animation: frost-pulse 2.2s ease-in-out infinite;
+}
+@keyframes frost-pulse {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
+}
+
 /* Improved dice display – jokainen noppa pomppaa esiin uudelleenrenderöinnissä */
 .dice { font-size: 26px; letter-spacing: 3px; margin: 4px 0; }
 .dice .att { color: #ffd34d; text-shadow: 0 0 8px rgba(255,211,77,0.6); }
@@ -387,6 +402,27 @@ button.big { padding: 16px; font-size: 17px; }
   color: var(--text);
 }
 .map-picker .map-opt.sel { border-color: var(--accent); color: var(--accent); background: #244b70; }
+
+/* Pelimoodikytkimet */
+.mode-picker { display: flex; gap: 8px; }
+.mode-picker .mode-opt {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-height: 56px;
+  padding: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  background: var(--panel2);
+  border: 2px solid transparent;
+  border-radius: 10px;
+  color: var(--text);
+}
+.mode-picker .mode-opt small { font-weight: 400; font-size: 10.5px; color: var(--muted); }
+.mode-picker .mode-opt.on { border-color: var(--accent); color: var(--accent); background: #244b70; }
+.mode-picker .mode-opt.on small { color: var(--accent); opacity: 0.8; }
 .row { display: flex; gap: 8px; margin-top: 12px; }
 .primary.big { margin-top: 8px; }
 
