@@ -5,10 +5,11 @@
 import {
   createGame, PHASES, ownedBy, placeArmies, endReinforcement, tradeCards,
   mustTradeCards, canAttack, attack, resolveConquest, endAttack, fortify,
-  areConnected, endTurn, calcReinforcements, snapshot,
+  areConnected, endTurn, calcReinforcements, snapshot, applyBlitzResult,
 } from './engine/game.js';
 import { isValidSet } from './engine/cards.js';
 import { runAITurn } from './engine/ai.js';
+import { resolveBalancedBlitz } from './engine/combat.js';
 import { TERRITORIES } from './data/territories.js';
 import { buildMap, updateMap, PLAYER_COLORS } from './ui/render.js';
 
@@ -230,9 +231,24 @@ function tapAttack(id) {
   toast('Ei sallittu kohde.');
 }
 
+// ---------------------------------------------------------------------------
+// Animaatiot
+// ---------------------------------------------------------------------------
+
+function animateAttack(fromId, toId) {
+  const fr = mapRefs[fromId], tr = mapRefs[toId];
+  if (fr) { fr.g.classList.add('attacking'); setTimeout(() => fr.g.classList.remove('attacking'), 350); }
+  if (tr) { tr.g.classList.add('defending'); setTimeout(() => tr.g.classList.remove('defending'), 350); }
+}
+
+// ---------------------------------------------------------------------------
+// Hyökkäyskomennot
+// ---------------------------------------------------------------------------
+
 function doSingleAttack() {
   const fromId = ui.selected, toId = ui.attackTarget;
   if (!fromId || !toId) return;
+  animateAttack(fromId, toId);
   const res = attack(state, fromId, toId);
   if (!res.ok) { toast(res.reason || 'Hyökkäys ei onnistunut.'); return; }
   sfx('attack');
@@ -252,6 +268,7 @@ async function doBlitz() {
     (state.territories[toId]?.armies ?? 0) > 0 &&
     !state.pendingConquest
   ) {
+    animateAttack(fromId, toId);
     const res = attack(state, fromId, toId);
     if (!res.ok) break;
     sfx('attack');
@@ -259,6 +276,29 @@ async function doBlitz() {
     render();
     await delay(220);
   }
+  ui.busy = false;
+  if (state.pendingConquest) { render(); openConquest(); return; }
+  hideBattle();
+  if ((state.territories[fromId]?.armies ?? 0) < 2) clearSelection();
+  else { ui.attackTarget = null; recomputeAttackTargets(); }
+  render();
+}
+
+async function doBalancedBlitz() {
+  const fromId = ui.selected, toId = ui.attackTarget;
+  if (!fromId || !toId) return;
+  ui.busy = true; render();
+  const fromA = state.territories[fromId].armies;
+  const toA = state.territories[toId].armies;
+  const result = resolveBalancedBlitz(fromA, toA, state.rng);
+  // Näytä jokainen kierros animoituna
+  for (const round of result.rounds) {
+    animateAttack(fromId, toId);
+    showBattle(fromId, toId, round);
+    render();
+    await delay(180);
+  }
+  applyBlitzResult(state, fromId, toId, result.finalAttacker, result.finalDefender);
   ui.busy = false;
   if (state.pendingConquest) { render(); openConquest(); return; }
   hideBattle();
@@ -510,6 +550,7 @@ function renderControls() {
       addBtn(row, 'Peru', 'ghost', () => { clearSelection(); render(); });
       addBtn(row, 'Hyökkää', 'danger', doSingleAttack);
       addBtn(row, 'Blitz!', 'danger', doBlitz);
+      addBtn(row, 'Tasapainotettu Blitz', 'danger', doBalancedBlitz);
     }
     addBtn(row, 'Lopeta →', 'primary', () => {
       const r = endAttack(state); if (!r.ok) { toast(r.reason); return; }
@@ -585,7 +626,10 @@ function flashNode(id) {
 
 function gameOver() {
   const w = state.players[state.winner];
-  $('gameover-text').textContent = `${w.name} valloitti maailman!`;
+  const text = (!w.isAI && cfg.humans === 1)
+    ? 'Sinä valloitit maailman!'
+    : `${w.name} valloitti maailman!`;
+  $('gameover-text').textContent = text;
   show('modal-gameover', true);
 }
 

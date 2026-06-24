@@ -16,6 +16,33 @@ export function startingArmiesFor(playerCount) {
   return STARTING_ARMIES[playerCount] ?? Math.max(20, 50 - playerCount * 5);
 }
 
+// ---------------------------------------------------------------------------
+// Verbien taivutusapu (2. persoona yksikkö, mennyt aika)
+// ---------------------------------------------------------------------------
+
+/** Taivutuskartta: 3. persoona → 2. persoona menneessä ajassa */
+const VERB_2ND = {
+  'valloitti': 'valloitit',
+  'sai': 'sait',
+  'siirsi': 'siirsit',
+  'putosi': 'putosit',
+};
+
+/**
+ * Muodostaa lokiviestin jossa pelaajan nimi on subjektina.
+ * Jos pelaajan nimi on 'Sinä', käytetään 2. persoonan taivutusta.
+ * @param {string} playerName pelaajan nimi
+ * @param {string} verb verbi 3. persoonassa (esim. 'valloitti')
+ * @param {string} rest lauseen loppuosa
+ */
+function playerVerb(playerName, verb, rest) {
+  if (playerName === 'Sinä') {
+    const v2 = VERB_2ND[verb] || verb;
+    return `${playerName} ${v2} ${rest}`;
+  }
+  return `${playerName} ${verb} ${rest}`;
+}
+
 /**
  * Luo uuden pelin.
  * @param {{players: {name:string,color:string,isAI:boolean}[], seed?:number}} opts
@@ -201,7 +228,7 @@ export function canAttack(state, fromId, toId) {
 }
 
 /**
- * Suorittaa yhden hyökkäyserän. Jos puolustaja tuhoutuu, asettaa
+ * Suorittaa yhden hyökkäyserän. Jos puolustaja tuhostuu, asettaa
  * pendingConquest-tilan; kutsujan on kutsuttava resolveConquest.
  */
 export function attack(state, fromId, toId) {
@@ -217,7 +244,8 @@ export function attack(state, fromId, toId) {
     const minMove = Math.max(1, Math.min(attackerDiceUsed, from.armies - 1));
     const maxMove = from.armies - 1;
     state.pendingConquest = { fromId, toId, minMove, maxMove };
-    log(state, `${state.players[state.current].name} valloitti ${TERRITORIES[toId].name}!`, 'attack');
+    const playerName = state.players[state.current].name;
+    log(state, playerVerb(playerName, 'valloitti', `${TERRITORIES[toId].gen}!`), 'attack');
   }
   return { ok: true, ...r };
 }
@@ -253,7 +281,7 @@ function eliminatePlayer(state, loserIndex, conquerorIndex) {
   const conqueror = state.players[conquerorIndex];
   conqueror.cards.push(...loser.cards);
   loser.cards = [];
-  log(state, `${loser.name} putosi pelistä! ${conqueror.name} sai kortit.`, 'eliminate');
+  log(state, `${loser.name} putosi pelistä! ${playerVerb(conqueror.name, 'sai', 'kortit.')}`, 'eliminate');
 }
 
 function checkWin(state) {
@@ -310,7 +338,8 @@ export function fortify(state, fromId, toId, count) {
   if (!areConnected(state, fromId, toId, state.current)) return { ok: false, reason: 'Alueet eivät yhdistä' };
   from.armies -= count;
   to.armies += count;
-  log(state, `${state.players[state.current].name} siirsi ${count} armeijaa ${TERRITORIES[fromId].name} → ${TERRITORIES[toId].name}.`, 'fortify');
+  const playerName = state.players[state.current].name;
+  log(state, `${playerVerb(playerName, 'siirsi', `${count} armeijaa`)} ${TERRITORIES[fromId].name} → ${TERRITORIES[toId].name}.`, 'fortify');
   endTurn(state);
   return { ok: true };
 }
@@ -331,7 +360,8 @@ export function endTurn(state) {
     const c = drawCard(state);
     if (c) {
       state.players[state.current].cards.push(c);
-      log(state, `${state.players[state.current].name} sai Risk-kortin.`, 'info');
+      const playerName = state.players[state.current].name;
+      log(state, `${playerVerb(playerName, 'sai', 'Risk-kortin.')}`, 'info');
     }
   }
   // Seuraava elossa oleva pelaaja.
@@ -348,6 +378,25 @@ export function endTurn(state) {
     log(state, `${state.players[state.current].name} aloittaa vuoron (+${state.reinforcements} armeijaa).`, 'turn');
   }
   return { ok: true };
+}
+
+/**
+ * Soveltaa tasapainotetun blitzin tuloksen pelitilaan.
+ * Asettaa armeijat ja käynnistää valloituslogiiikan tarvittaessa.
+ */
+export function applyBlitzResult(state, fromId, toId, finalAttacker, finalDefender) {
+  const from = state.territories[fromId];
+  const to = state.territories[toId];
+  from.armies = finalAttacker;
+  to.armies = finalDefender;
+  if (finalDefender <= 0) {
+    const minMove = Math.max(1, Math.min(3, finalAttacker - 1));
+    const maxMove = finalAttacker - 1;
+    state.pendingConquest = { fromId, toId, minMove, maxMove };
+    const playerName = state.players[state.current].name;
+    log(state, playerVerb(playerName, 'valloitti', `${TERRITORIES[toId].gen}!`), 'attack');
+    state.conqueredThisTurn = true;
+  }
 }
 
 /** Kevyt tilannekuva UI:lle / debuggaukseen. */

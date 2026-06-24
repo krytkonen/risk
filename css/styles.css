@@ -105,7 +105,7 @@ body {
 .territory { cursor: pointer; }
 .territory .node { transition: r 0.1s; }
 .territory.selectable .node { cursor: pointer; }
-.army-count { paint-order: stroke; stroke: rgba(0,0,0,0.55); stroke-width: 3px; }
+.army-count { paint-order: stroke; stroke: rgba(0,0,0,0.55); stroke-width: 3px; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5)); }
 .terr-name { fill: #cfe0f0; opacity: 0.85; paint-order: stroke; stroke: rgba(0,0,0,0.5); stroke-width: 2.5px; pointer-events: none; }
 .cont-label { pointer-events: none; }
 
@@ -135,9 +135,47 @@ body {
   pointer-events: none;
   max-width: 92%;
 }
-.dice { font-size: 22px; letter-spacing: 3px; margin: 4px 0; }
-.dice .att { color: #ffd34d; }
-.dice .def { color: #8fd0ff; }
+/* Battle animations */
+@keyframes shake {
+  0%, 100% { transform: translate(0,0); }
+  25% { transform: translate(-4px,-2px); }
+  50% { transform: translate(4px,2px); }
+  75% { transform: translate(-2px,4px); }
+}
+@keyframes pulse-win {
+  0%, 100% { r: 21; }
+  50% { r: 26; }
+}
+@keyframes flash-attack {
+  0%, 100% { opacity: 1; }
+  40% { opacity: 0.3; }
+}
+.territory.attacking .node { animation: shake 0.3s ease-in-out; }
+.territory.defending .node { animation: flash-attack 0.3s ease-in-out; }
+.territory.just-conquered .node { animation: pulse-win 0.4s ease-out; }
+
+/* Improved dice display */
+.dice { font-size: 26px; letter-spacing: 3px; margin: 4px 0; }
+.dice .att { color: #ffd34d; text-shadow: 0 0 8px rgba(255,211,77,0.6); }
+.dice .def { color: #8fd0ff; text-shadow: 0 0 8px rgba(143,208,255,0.6); }
+
+/* Battle banner improvement */
+#battle-banner {
+  font-size: 15px;
+  padding: 10px 18px;
+}
+
+/* Notify button */
+button.notify { border: 2px solid var(--accent); }
+button.ghost.notify { border-color: var(--accent); color: var(--accent); }
+
+/* Reinforcement counter badge */
+.reinforce-count {
+  position: absolute; top: -6px; right: -6px;
+  background: var(--accent); color: #2a2200;
+  border-radius: 999px; font-size: 10px; font-weight: 800;
+  padding: 2px 5px; pointer-events: none;
+}
 .battle-losses { font-size: 12px; margin-top: 2px; }
 .battle-losses .att { color: #ffd34d; }
 .battle-losses .def { color: #8fd0ff; }
