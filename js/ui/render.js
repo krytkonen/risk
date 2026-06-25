@@ -102,6 +102,13 @@ function buildDefs() {
   fg.appendChild(el('stop', { offset: '100%', 'stop-color': '#161f29' }));
   defs.appendChild(fg);
 
+  // Lumimyrskyn sulkema alue: jäinen vaalea sini-valkoinen.
+  const bz = el('radialGradient', { id: 'node-grad-blizzard', cx: '38%', cy: '30%', r: '74%' });
+  bz.appendChild(el('stop', { offset: '0%', 'stop-color': '#f2fbff' }));
+  bz.appendChild(el('stop', { offset: '55%', 'stop-color': '#cfe9f7' }));
+  bz.appendChild(el('stop', { offset: '100%', 'stop-color': '#8fb6cc' }));
+  defs.appendChild(bz);
+
   return defs;
 }
 
@@ -279,8 +286,8 @@ export function buildMap(svg, onTap) {
     const count = el('text', { x: t.x, y: t.y, 'class': 'army-count', 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 18, 'font-weight': 800 });
     const name = el('text', { x: t.x, y: t.y + NODE_R + 12, 'class': 'terr-name', 'text-anchor': 'middle', 'font-size': 10.5 });
     name.textContent = t.name;
-    // Lumimyrskymerkki (❄) – piilossa kunnes alue on myrskyn peitossa.
-    const frost = el('text', { x: t.x + NODE_R - 2, y: t.y - NODE_R + 4, 'class': 'frost', 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 16, opacity: 0 });
+    // Lumimyrskymerkki (❄) keskellä – näkyy kun alue on suljettu.
+    const frost = el('text', { x: t.x, y: t.y, 'class': 'frost', 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 22, opacity: 0 });
     frost.textContent = '❄';
     g.appendChild(halo); g.appendChild(circle); g.appendChild(count); g.appendChild(name); g.appendChild(frost);
     const handler = (ev) => { ev.preventDefault(); ev.stopPropagation(); onTap(id); };
@@ -311,9 +318,13 @@ export function updateMap(refs, state, ui = {}) {
     const t = state.territories[id];
     const r = refs[id];
     const owner = t.owner;
-    const hidden = fog && !fog.has(id); // sumun peittämä vihollisalue
+    const blocked = blizzards.has(id);          // lumimyrskyn sulkema (pysyvä)
+    const hidden = !blocked && fog && !fog.has(id); // sumun peittämä vihollisalue
 
-    if (hidden) {
+    if (blocked) {
+      r.circle.setAttribute('fill', 'url(#node-grad-blizzard)');
+      r.circle.setAttribute('stroke', '#6f9cb8');
+    } else if (hidden) {
       r.circle.setAttribute('fill', 'url(#node-grad-fog)');
       r.circle.setAttribute('stroke', '#0c141d');
     } else if (owner == null) {
@@ -325,8 +336,8 @@ export function updateMap(refs, state, ui = {}) {
       r.circle.setAttribute('stroke', PLAYER_COLORS_DARK[idx]);
     }
 
-    // Armeijamäärä – pop-animaatio kun luku muuttuu. Sumussa '?'.
-    const armies = hidden ? '?' : String(t.armies);
+    // Armeijamäärä – pop-animaatio kun luku muuttuu. Suljetussa ei lukua, sumussa '?'.
+    const armies = blocked ? '' : (hidden ? '?' : String(t.armies));
     if (r.count.getAttribute('data-val') !== armies) {
       r.count.setAttribute('data-val', armies);
       r.count.textContent = armies;
@@ -338,11 +349,17 @@ export function updateMap(refs, state, ui = {}) {
     }
     r.count.setAttribute('fill', hidden ? '#9fb6cf' : '#fff');
 
-    // Lumimyrsky-merkki ja "jäätynyt" rantaviiva.
+    // Lumimyrskyn ❄-merkki suljetun alueen keskellä + jäätynyt kehä.
     if (r.frost) {
-      const frozen = blizzards.has(id) && !hidden;
-      r.frost.setAttribute('opacity', frozen ? 1 : 0);
-      r.g.classList.toggle('frozen', frozen);
+      r.frost.setAttribute('opacity', blocked ? 1 : 0);
+      r.g.classList.toggle('frozen', blocked);
+    }
+    // Suljettua aluetta ei voi valita.
+    if (blocked) {
+      r.halo.setAttribute('stroke-opacity', 0);
+      r.halo.classList.remove('halo-selected', 'halo-target', 'halo-valid');
+      r.g.classList.remove('selectable');
+      continue;
     }
 
     let haloOpacity = 0, haloColor = '#ffd34d', haloR = NODE_R + 5;

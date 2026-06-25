@@ -218,6 +218,7 @@ function afterHumanTurnEnd() {
 function onTerritoryTap(id) {
   if (ui.busy || state.phase === PHASES.GAMEOVER) return;
   if (state.players[state.current].isAI) return;
+  if (isBlizzard(state, id)) return toast('❄ Lumimyrskyn sulkema alue – ei pelattavissa.');
   if (!anyModalOpen()) {
     if (state.phase === PHASES.REINFORCE) tapReinforce(id);
     else if (state.phase === PHASES.ATTACK) tapAttack(id);
@@ -298,7 +299,7 @@ async function doBalancedBlitz() {
   ui.busy = true; render();
   const fromA = state.territories[fromId].armies;
   const toA = state.territories[toId].armies;
-  const result = resolveBalancedBlitz(fromA, toA, state.rng, isBlizzard(state, toId));
+  const result = resolveBalancedBlitz(fromA, toA, state.rng);
   // Näytä jokainen kierros animoituna
   for (const round of result.rounds) {
     animateAttack(fromId, toId);
@@ -570,8 +571,7 @@ function renderControls() {
     } else {
       const fa = state.territories[ui.selected].armies;
       const ta = state.territories[ui.attackTarget].armies;
-      const frost = isBlizzard(state, ui.attackTarget) ? ' ❄' : '';
-      addHint(row, `${TERRITORIES[ui.selected].name}(${fa}) → ${TERRITORIES[ui.attackTarget].name}(${ta})${frost}`);
+      addHint(row, `${TERRITORIES[ui.selected].name}(${fa}) → ${TERRITORIES[ui.attackTarget].name}(${ta})`);
       addBtn(row, 'Peru', 'ghost', () => { clearSelection(); render(); });
       addBtn(row, 'Hyökkää', 'danger', doSingleAttack);
       addBtn(row, 'Tasapainotettu Blitz', 'danger', doBalancedBlitz);

@@ -9,11 +9,9 @@ import { rollDie } from './rng.js';
  * @param {number} attackerArmies hyökkäävän alueen armeijat (>=2)
  * @param {number} defenderArmies puolustavan alueen armeijat (>=1)
  * @param {() => number} rng
- * @param {boolean} [blizzard] lumimyrsky kohteessa: hyökkääjä heittää korkeintaan 2 noppaa
  */
-export function rollBattle(attackerArmies, defenderArmies, rng, blizzard = false) {
-  const maxAtt = blizzard ? 2 : 3;
-  const attackerDiceCount = Math.min(maxAtt, Math.max(0, attackerArmies - 1));
+export function rollBattle(attackerArmies, defenderArmies, rng) {
+  const attackerDiceCount = Math.min(3, Math.max(0, attackerArmies - 1));
   const defenderDiceCount = Math.min(2, defenderArmies);
 
   const attackerDice = [];
@@ -46,12 +44,11 @@ export function rollBattle(attackerArmies, defenderArmies, rng, blizzard = false
 export function resolveAttack(state, fromId, toId, rng) {
   const from = state.territories[fromId];
   const to = state.territories[toId];
-  const blizzard = !!(state.options?.blizzard && state.blizzards?.includes(toId));
-  const r = rollBattle(from.armies, to.armies, rng, blizzard);
+  const r = rollBattle(from.armies, to.armies, rng);
   from.armies -= r.attackerLosses;
   to.armies -= r.defenderLosses;
   const conquered = to.armies <= 0;
-  return { ...r, conquered, blizzard };
+  return { ...r, conquered };
 }
 
 // ---------------------------------------------------------------------------
@@ -70,19 +67,18 @@ const DICE_OUTCOMES = {
 };
 
 // Memoized voittotodennäköisyys koko blitz-taistelulle.
-// blizzard rajaa hyökkääjän noppamäärän kahteen koko taistelun ajaksi.
 const _wpCache = {};
-export function calcBlitzWinProb(a, d, blizzard = false) {
+export function calcBlitzWinProb(a, d) {
   if (a <= 1) return 0;
   if (d <= 0) return 1;
-  const key = `${a}:${d}:${blizzard ? 1 : 0}`;
+  const key = `${a}:${d}`;
   if (key in _wpCache) return _wpCache[key];
-  const aDice = Math.min(blizzard ? 2 : 3, a - 1);
+  const aDice = Math.min(3, a - 1);
   const dDice = Math.min(2, d);
   const outcomes = DICE_OUTCOMES[`${aDice},${dDice}`] || DICE_OUTCOMES['1,1'];
   let p = 0;
   for (const [prob, aL, dL] of outcomes) {
-    p += prob * calcBlitzWinProb(a - aL, d - dL, blizzard);
+    p += prob * calcBlitzWinProb(a - aL, d - dL);
   }
   _wpCache[key] = p;
   return p;
@@ -122,21 +118,20 @@ function makeDiceForOutcome(aDiceCount, dDiceCount, aLoss, dLoss) {
  * @param {number} fromArmies hyökkäävät armeijat
  * @param {number} defArmies puolustavan alueen armeijat
  * @param {() => number} rng satunnaislukugeneraattori
- * @param {boolean} [blizzard] lumimyrsky kohteessa: hyökkääjä korkeintaan 2 noppaa
  * @returns {{rounds: object[], finalAttacker: number, finalDefender: number, conquered: boolean}}
  */
-export function resolveBalancedBlitz(fromArmies, defArmies, rng, blizzard = false) {
-  const p = calcBlitzWinProb(fromArmies, defArmies, blizzard);
+export function resolveBalancedBlitz(fromArmies, defArmies, rng) {
+  const p = calcBlitzWinProb(fromArmies, defArmies);
   const attackerWins = rng() < p;
   let a = fromArmies, d = defArmies;
   const rounds = [];
   while (a > 1 && d > 0) {
-    const aDice = Math.min(blizzard ? 2 : 3, a - 1);
+    const aDice = Math.min(3, a - 1);
     const dDice = Math.min(2, d);
     const outcomes = DICE_OUTCOMES[`${aDice},${dDice}`] || DICE_OUTCOMES['1,1'];
     // Vinosta tuloksia ennalta määrättyä voittajaa kohti
     const weighted = outcomes.map(([prob, aL, dL]) => {
-      const fp = calcBlitzWinProb(a - aL, d - dL, blizzard);
+      const fp = calcBlitzWinProb(a - aL, d - dL);
       const w = attackerWins ? fp : (1 - fp);
       return [prob * (w + 0.1), aL, dL]; // +0.1 estää nollapainon
     });

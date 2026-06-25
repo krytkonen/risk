@@ -88,16 +88,19 @@ export function createGame({ players, seed, mapId, options }) {
 
   for (const id of TERRITORY_IDS) state.territories[id] = { owner: null, armies: 0 };
 
-  state.deck = shuffle(buildDeck(TERRITORY_IDS), rng);
+  // Lumimyrsky: valitse pysyvästi suljetut alueet ennen jakoa.
+  pickBlizzards(state);
+  const playable = playableIds(state);
+
+  state.deck = shuffle(buildDeck(playable), rng);
   distributeTerritories(state);
   deployStartingArmies(state);
 
   state.current = 0;
-  applyBlizzard(state);
   startReinforcement(state);
   log(state, `Peli alkaa. ${playerVerb(state.players[state.current].name, 'aloittaa')}.`, 'info');
   if (state.options.blizzard && state.blizzards.length) {
-    log(state, `❄ Lumimyrsky: ${state.blizzards.map((id) => TERRITORIES[id].name).join(', ')}.`, 'info');
+    log(state, `❄ Lumimyrsky sulkee: ${state.blizzards.map((id) => TERRITORIES[id].name).join(', ')}.`, 'info');
   }
   return state;
 }
@@ -105,26 +108,57 @@ export function createGame({ players, seed, mapId, options }) {
 // --- Pelimoodit: lumimyrsky & sumu ---------------------------------------
 
 /**
- * Arpoo uudet lumimyrskyalueet (n. 12 % kartasta). Lumimyrskyn peittämään
- * alueeseen hyökätessä hyökkääjä heittää korkeintaan 2 noppaa, joten ne
- * toimivat tilapäisinä pullonkauloina. Ei vaikutusta jos moodi pois päältä.
+ * Valitsee pysyvät lumimyrskyalueet (n. 10 % kartasta) pelin alussa.
+ * Lumimyrskyalue on koko pelin ajan suljettu: ei omistajaa eikä joukkoja,
+ * sitä ei voi vallata eikä sen läpi pääse, eikä sitä lasketa mantereen
+ * bonukseen. Valinta säilyttää muun kartan yhtenäisyyden, jotta peli ei
+ * voi jäädä jumiin saartuneiden alueiden takia.
  */
-export function applyBlizzard(state) {
-  if (!state.options?.blizzard) { state.blizzards = []; return; }
-  const ids = [...TERRITORY_IDS];
-  const count = Math.max(2, Math.round(ids.length * 0.12));
-  const shuffled = shuffle(ids, state.rng);
-  state.blizzards = shuffled.slice(0, count);
+function pickBlizzards(state) {
+  state.blizzards = [];
+  if (!state.options?.blizzard) return;
+  const target = Math.max(2, Math.round(TERRITORY_IDS.length * 0.10));
+  const blocked = new Set();
+  for (const cand of shuffle([...TERRITORY_IDS], state.rng)) {
+    if (blocked.size >= target) break;
+    blocked.add(cand);
+    if (!remainderConnected(blocked)) blocked.delete(cand); // ei saa katkaista karttaa
+  }
+  state.blizzards = [...blocked];
 }
 
-/** Onko alue lumimyrskyn peitossa? */
+/** Onko jäljellä oleva (ei-suljettu) kartta yhtenäinen, kun `blocked` poistetaan? */
+function remainderConnected(blocked) {
+  const open = TERRITORY_IDS.filter((id) => !blocked.has(id));
+  if (open.length === 0) return false;
+  const seen = new Set([open[0]]);
+  const q = [open[0]];
+  while (q.length) {
+    const cur = q.shift();
+    for (const n of TERRITORIES[cur].adj) {
+      if (blocked.has(n) || seen.has(n)) continue;
+      seen.add(n);
+      q.push(n);
+    }
+  }
+  return seen.size === open.length;
+}
+
+/** Onko alue lumimyrskyn sulkema (pelin ajan)? */
 export function isBlizzard(state, id) {
-  return !!(state.options?.blizzard && state.blizzards?.includes(id));
+  return !!(state.blizzards && state.blizzards.includes(id));
+}
+
+/** Pelattavat alueet: kaikki paitsi lumimyrskyn sulkemat. */
+export function playableIds(state) {
+  if (!state.blizzards || state.blizzards.length === 0) return TERRITORY_IDS;
+  return TERRITORY_IDS.filter((id) => !state.blizzards.includes(id));
 }
 
 /**
  * Sumu (fog of war): pelaaja näkee vain omat alueensa ja niiden naapurit.
- * Palauttaa Setin alueista, jotka annettu pelaaja näkee.
+ * Lumimyrskyn sulkemat alueet (maasto) näkyvät aina. Palauttaa Setin
+ * alueista, jotka annettu pelaaja näkee.
  * @param {object} state
  * @param {number} viewerIndex
  * @returns {Set<string>}
@@ -132,6 +166,7 @@ export function isBlizzard(state, id) {
 export function visibleTerritories(state, viewerIndex) {
   const visible = new Set();
   for (const id of TERRITORY_IDS) {
+    if (isBlizzard(state, id)) { visible.add(id); continue; }
     if (state.territories[id].owner === viewerIndex) {
       visible.add(id);
       for (const n of TERRITORIES[id].adj) visible.add(n);
@@ -143,7 +178,7 @@ export function visibleTerritories(state, viewerIndex) {
 // --- Alkujako -------------------------------------------------------------
 
 function distributeTerritories(state) {
-  const ids = shuffle([...TERRITORY_IDS], state.rng);
+  const ids = shuffle(playableIds(state), state.rng);
   const n = state.players.length;
   ids.forEach((id, i) => {
     const owner = i % n;
@@ -177,24 +212,28 @@ export function log(state, msg, type = 'info') {
   if (state.log.length > 200) state.log.shift();
 }
 
+/**
+ * Pelaaja hallitsee mantereen, jos omistaa kaikki sen avoimet (ei lumimyrskyn
+ * sulkemat) alueet. Lumimyrskyalueita ei tarvitse miehittää bonukseen.
+ */
+function controlsContinent(state, contId, playerIndex) {
+  const open = continentTerritories(contId).filter((t) => !isBlizzard(state, t));
+  return open.length > 0 && open.every((t) => state.territories[t].owner === playerIndex);
+}
+
 /** Vahvistusten määrä pelaajalle: max(3, alueet/3) + mannerbonukset. */
 export function calcReinforcements(state, playerIndex) {
   const owned = ownedBy(state, playerIndex);
   let n = Math.max(3, Math.floor(owned.length / 3));
   for (const contId of Object.keys(CONTINENTS)) {
-    const terrs = continentTerritories(contId);
-    if (terrs.every((t) => state.territories[t].owner === playerIndex)) {
-      n += CONTINENTS[contId].bonus;
-    }
+    if (controlsContinent(state, contId, playerIndex)) n += CONTINENTS[contId].bonus;
   }
   return n;
 }
 
-/** Mantereet jotka pelaaja hallitsee kokonaan. */
+/** Mantereet jotka pelaaja hallitsee kokonaan (lumimyrskyalueet pois lukien). */
 export function controlledContinents(state, playerIndex) {
-  return Object.keys(CONTINENTS).filter((contId) =>
-    continentTerritories(contId).every((t) => state.territories[t].owner === playerIndex)
-  );
+  return Object.keys(CONTINENTS).filter((contId) => controlsContinent(state, contId, playerIndex));
 }
 
 // --- Vuorovaiheet ---------------------------------------------------------
@@ -270,6 +309,7 @@ export function canAttack(state, fromId, toId) {
   const from = state.territories[fromId];
   const to = state.territories[toId];
   if (!from || !to) return false;
+  if (isBlizzard(state, fromId) || isBlizzard(state, toId)) return false; // suljettu maasto
   if (from.owner !== state.current) return false;
   if (to.owner === state.current) return false;
   if (from.armies < 2) return false;
@@ -286,7 +326,7 @@ export function attack(state, fromId, toId) {
   if (!canAttack(state, fromId, toId)) return { ok: false, reason: 'Hyökkäys ei sallittu' };
 
   const from = state.territories[fromId];
-  const attackerDiceUsed = Math.min(isBlizzard(state, toId) ? 2 : 3, from.armies - 1);
+  const attackerDiceUsed = Math.min(3, from.armies - 1);
   const r = resolveAttack(state, fromId, toId, state.rng);
 
   if (r.conquered) {
@@ -341,8 +381,8 @@ function checkWin(state) {
     log(state, `${playerVerb(alive[0].name, 'voitti', 'pelin!')}`, 'win');
     return;
   }
-  // Maailmanherruus: yksi pelaaja omistaa kaikki alueet.
-  const owners = new Set(TERRITORY_IDS.map((id) => state.territories[id].owner));
+  // Maailmanherruus: yksi pelaaja omistaa kaikki avoimet (ei-suljetut) alueet.
+  const owners = new Set(playableIds(state).map((id) => state.territories[id].owner));
   if (owners.size === 1) {
     const w = [...owners][0];
     state.winner = w;
@@ -422,7 +462,6 @@ export function endTurn(state) {
   }
   if (next <= state.current) state.turnCount++;
   state.current = next;
-  applyBlizzard(state); // lumimyrsky siirtyy joka vuoro
   startReinforcement(state);
   if (state.phase !== PHASES.GAMEOVER) {
     log(state, `${playerVerb(state.players[state.current].name, 'aloittaa', 'vuoron')} (+${state.reinforcements} armeijaa).`, 'turn');
@@ -440,7 +479,7 @@ export function applyBlitzResult(state, fromId, toId, finalAttacker, finalDefend
   from.armies = finalAttacker;
   to.armies = finalDefender;
   if (finalDefender <= 0) {
-    const minMove = Math.max(1, Math.min(isBlizzard(state, toId) ? 2 : 3, finalAttacker - 1));
+    const minMove = Math.max(1, Math.min(3, finalAttacker - 1));
     const maxMove = finalAttacker - 1;
     state.pendingConquest = { fromId, toId, minMove, maxMove };
     const playerName = state.players[state.current].name;
