@@ -231,7 +231,8 @@ body {
   animation: conquer-ring 0.6s ease-out;
 }
 
-/* Lumimyrsky: jäätynyt rantaviiva + hohtava ❄-merkki. */
+/* Lumimyrsky: jäätynyt rantaviiva + hohtava ❄-merkki.
+   ❄ näkyy VAIN suljetuilla (.frozen) alueilla – muualla piilossa. */
 .territory.frozen .node { stroke: #d6f0ff !important; }
 .territory .frost {
   fill: #eaf7ff;
@@ -239,6 +240,10 @@ body {
   stroke: #2b6c9e;
   stroke-width: 2.5px;
   pointer-events: none;
+  opacity: 0;
+}
+.territory.frozen .frost {
+  opacity: 1;
   animation: frost-pulse 2.2s ease-in-out infinite;
 }
 @keyframes frost-pulse {
