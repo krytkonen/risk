@@ -13,6 +13,8 @@ export const PLAYER_COLORS_DARK = ['#1d4f8a', '#8e2424', '#246b2f', '#946a12', '
 const PLAYER_COLORS_LIGHT = ['#7db4f0', '#f08585', '#7ed98e', '#f5cf6a', '#c79be0', '#5fd6c8'];
 const NEUTRAL_LIGHT = '#8a8a8a', NEUTRAL_MID = '#555', NEUTRAL_DARK = '#333';
 
+const FOG_HOLE_R = 70; // sumun läpi paljastuvan "portin" säde
+
 function el(name, attrs = {}) {
   const e = document.createElementNS(SVGNS, name);
   for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
@@ -31,16 +33,65 @@ function continentBounds(contId) {
   };
 }
 
+// --- Värityökalut per-map sävytystä varten -------------------------------
+
+/** #rrggbb -> {r,g,b}. */
+function hexToRgb(hex) {
+  const h = hex.replace('#', '');
+  return {
+    r: parseInt(h.slice(0, 2), 16),
+    g: parseInt(h.slice(2, 4), 16),
+    b: parseInt(h.slice(4, 6), 16),
+  };
+}
+function rgbToHex({ r, g, b }) {
+  const c = (v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0');
+  return `#${c(r)}${c(g)}${c(b)}`;
+}
+/** Sekoita kaksi väriä suhteessa t (0 = a, 1 = b). */
+function mix(a, b, t) {
+  const A = hexToRgb(a), B = hexToRgb(b);
+  return rgbToHex({ r: A.r + (B.r - A.r) * t, g: A.g + (B.g - A.g) * t, b: A.b + (B.b - A.b) * t });
+}
+
+/**
+ * Laske kartan "mieliala" mantereiden keskivärin lämpötilana (-1 viileä .. +1 lämmin).
+ * Lämmin = punaista enemmän kuin sinistä (esim. antiikin okra), viileä = päinvastoin.
+ */
+function mapWarmth() {
+  const cols = Object.values(CONTINENTS).map((c) => c.color);
+  if (!cols.length) return 0;
+  let r = 0, g = 0, b = 0;
+  for (const c of cols) { const v = hexToRgb(c); r += v.r; g += v.g; b += v.b; }
+  const n = cols.length;
+  r /= n; g /= n; b /= n;
+  // Normalisoi -1..1 punaisuus vs. sinisyys.
+  return Math.max(-1, Math.min(1, (r - b) / 160));
+}
+
 /** Lisää kaikki gradientit ja filtterit <defs>-elementtiin. */
-function buildDefs() {
+function buildDefs(warmth = 0) {
   const defs = el('defs');
+
+  // Sävytä meri & vinjetti kartan mielialan mukaan (hienovaraisesti).
+  // Lämpimämmissä kartoissa hieman ruskeahko/teal-sävyinen syvyys, viileissä sininen.
+  const seaTop = mix('#1b3e5e', warmth > 0 ? '#244e56' : '#163a60', Math.abs(warmth) * 0.5);
+  const seaMid = mix('#12304c', warmth > 0 ? '#173a3e' : '#0f2c4e', Math.abs(warmth) * 0.5);
+  const seaBot = mix('#081523', warmth > 0 ? '#0a1816' : '#06121f', Math.abs(warmth) * 0.5);
+  const glowCol = warmth > 0 ? '#2a6a6e' : '#1e5a78';
 
   // --- Meri: syvä radiaaligradientti + päälle laskeva lineaarinen sävytys. ---
   const sea = el('radialGradient', { id: 'sea', cx: '50%', cy: '38%', r: '80%' });
-  sea.appendChild(el('stop', { offset: '0%', 'stop-color': '#1b3e5e' }));
-  sea.appendChild(el('stop', { offset: '55%', 'stop-color': '#12304c' }));
-  sea.appendChild(el('stop', { offset: '100%', 'stop-color': '#081523' }));
+  sea.appendChild(el('stop', { offset: '0%', 'stop-color': seaTop }));
+  sea.appendChild(el('stop', { offset: '55%', 'stop-color': seaMid }));
+  sea.appendChild(el('stop', { offset: '100%', 'stop-color': seaBot }));
   defs.appendChild(sea);
+
+  // --- Meren syvyyshehku: nostaa laudan mustasta taustasta. ---
+  const seaGlow = el('radialGradient', { id: 'sea-glow', cx: '50%', cy: '40%', r: '65%' });
+  seaGlow.appendChild(el('stop', { offset: '0%', 'stop-color': glowCol, 'stop-opacity': 1 }));
+  seaGlow.appendChild(el('stop', { offset: '60%', 'stop-color': glowCol, 'stop-opacity': 0 }));
+  defs.appendChild(seaGlow);
 
   const seaSheen = el('linearGradient', { id: 'sea-sheen', x1: '0%', y1: '0%', x2: '0%', y2: '100%' });
   seaSheen.appendChild(el('stop', { offset: '0%', 'stop-color': '#2a5680', 'stop-opacity': 0.35 }));
@@ -48,18 +99,54 @@ function buildDefs() {
   seaSheen.appendChild(el('stop', { offset: '100%', 'stop-color': '#040d16', 'stop-opacity': 0.45 }));
   defs.appendChild(seaSheen);
 
-  // --- Vinjetti reunoille (tummennus). ---
+  // --- Vinjetti reunoille (tummennus); sävy lämpötilan mukaan. ---
+  const vigCol = warmth > 0 ? mix('#000000', '#1a0c00', Math.abs(warmth) * 0.6) : '#000000';
   const vignette = el('radialGradient', { id: 'vignette', cx: '50%', cy: '50%', r: '72%' });
-  vignette.appendChild(el('stop', { offset: '60%', 'stop-color': '#000', 'stop-opacity': 0 }));
-  vignette.appendChild(el('stop', { offset: '100%', 'stop-color': '#000', 'stop-opacity': 0.42 }));
+  vignette.appendChild(el('stop', { offset: '60%', 'stop-color': vigCol, 'stop-opacity': 0 }));
+  vignette.appendChild(el('stop', { offset: '100%', 'stop-color': vigCol, 'stop-opacity': 0.42 }));
   defs.appendChild(vignette);
 
-  // --- Hienovarainen kohina meren päälle (syvyys/tekstuuri). ---
+  // --- Hienovarainen kohina meren päälle (syvyys/tekstuuri) + elävä aallokko. ---
+  // STAATTINEN filtteri (rakennetaan kerran). Hidas <animate> baseFrequencyyn
+  // antaa meren huokua; ei lisätä filttereitä per-frame updateMapissa.
   const noise = el('filter', { id: 'sea-noise', x: '0%', y: '0%', width: '100%', height: '100%' });
-  noise.appendChild(el('feTurbulence', { type: 'fractalNoise', baseFrequency: '0.012 0.018', numOctaves: 2, seed: 7, result: 'n' }));
+  const seaTurb = el('feTurbulence', { type: 'fractalNoise', baseFrequency: '0.012 0.018', numOctaves: 2, seed: 7, result: 'n' });
+  // Hidas aallokko: baseFrequency huojuu hieman. Dur pitkä (36s) -> kevyt.
+  seaTurb.appendChild(el('animate', {
+    attributeName: 'baseFrequency', dur: '36s', repeatCount: 'indefinite',
+    values: '0.012 0.018; 0.014 0.020; 0.011 0.017; 0.012 0.018',
+    calcMode: 'spline', keyTimes: '0;0.34;0.67;1',
+    keySplines: '0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1',
+  }));
+  noise.appendChild(seaTurb);
   const noiseCm = el('feColorMatrix', { in: 'n', type: 'matrix', values: '0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.5 0' });
   noise.appendChild(noiseCm);
   defs.appendChild(noise);
+
+  // --- Rosoinen rantaviiva: turbulenssi + siirtymäkartta mannerryhmälle. ---
+  // STAATTINEN; sovelletaan kerran maamassan ryhmään.
+  const coast = el('filter', { id: 'coast', x: '-15%', y: '-15%', width: '130%', height: '130%' });
+  coast.appendChild(el('feTurbulence', { type: 'fractalNoise', baseFrequency: '0.022 0.03', numOctaves: 3, seed: 11, result: 'cturb' }));
+  coast.appendChild(el('feDisplacementMap', {
+    in: 'SourceGraphic', in2: 'cturb', scale: 20,
+    xChannelSelector: 'R', yChannelSelector: 'G',
+  }));
+  defs.appendChild(coast);
+
+  // --- Maan reliefivalaistus (kohovaikutelma). STAATTINEN. ---
+  const relief = el('filter', { id: 'land-relief', x: '-15%', y: '-15%', width: '130%', height: '130%' });
+  const spec = el('feSpecularLighting', {
+    in: 'SourceAlpha', surfaceScale: 3, specularConstant: 0.7,
+    specularExponent: 14, 'lighting-color': '#fff8e6', result: 'spec',
+  });
+  spec.appendChild(el('feDistantLight', { azimuth: 305, elevation: 50 }));
+  relief.appendChild(spec);
+  relief.appendChild(el('feComposite', { in: 'spec', in2: 'SourceAlpha', operator: 'in', result: 'specClip' }));
+  const reliefMerge = el('feMerge');
+  reliefMerge.appendChild(el('feMergeNode', { in: 'SourceGraphic' }));
+  reliefMerge.appendChild(el('feMergeNode', { in: 'specClip' }));
+  relief.appendChild(reliefMerge);
+  defs.appendChild(relief);
 
   // --- Pehmeä varjo napeille. ---
   const nodeShadow = el('filter', { id: 'node-shadow', x: '-60%', y: '-60%', width: '220%', height: '220%' });
@@ -81,29 +168,71 @@ function buildDefs() {
   contShadow.appendChild(el('feDropShadow', { dx: 0, dy: 3, stdDeviation: 5, 'flood-color': '#000', 'flood-opacity': 0.3 }));
   defs.appendChild(contShadow);
 
+  // --- Sumu (fog of war): liikkuva sumeneva murk-tekstuuri. STAATTINEN. ---
+  const fogTex = el('filter', { id: 'fog-tex', x: '-10%', y: '-10%', width: '120%', height: '120%' });
+  const fogTurb = el('feTurbulence', { type: 'fractalNoise', baseFrequency: '0.018 0.012', numOctaves: 3, seed: 3, result: 'ft' });
+  // Hidas drift sumulle.
+  fogTurb.appendChild(el('animate', {
+    attributeName: 'seed', dur: '20s', repeatCount: 'indefinite',
+    values: '3; 7; 3', calcMode: 'linear',
+  }));
+  fogTex.appendChild(fogTurb);
+  // Värimatriisi: harmaansininen murk (~#212a36), alfa noin 0.6.
+  fogTex.appendChild(el('feColorMatrix', {
+    in: 'ft', type: 'matrix',
+    values: '0 0 0 0 0.129  0 0 0 0 0.165  0 0 0 0 0.212  0 0 0 0.6 0.18',
+    result: 'fc',
+  }));
+  fogTex.appendChild(el('feGaussianBlur', { in: 'fc', stdDeviation: 6 }));
+  defs.appendChild(fogTex);
+
+  // --- Pehmeä reunainen maski-radial (valkoinen keskus -> musta reuna). ---
+  const maskSoft = el('radialGradient', { id: 'mask-soft', cx: '50%', cy: '50%', r: '50%' });
+  maskSoft.appendChild(el('stop', { offset: '0%', 'stop-color': '#fff' }));
+  maskSoft.appendChild(el('stop', { offset: '55%', 'stop-color': '#fff' }));
+  maskSoft.appendChild(el('stop', { offset: '100%', 'stop-color': '#000' }));
+  defs.appendChild(maskSoft);
+
+  // --- Jäisen kehän rosotus (vain .frozen napeille, CSS:n kautta). STAATTINEN. ---
+  const frost = el('filter', { id: 'frost-fringe', x: '-30%', y: '-30%', width: '160%', height: '160%' });
+  frost.appendChild(el('feTurbulence', { type: 'fractalNoise', baseFrequency: 0.2, numOctaves: 2, seed: 5, result: 'fr' }));
+  frost.appendChild(el('feDisplacementMap', {
+    in: 'SourceGraphic', in2: 'fr', scale: 3,
+    xChannelSelector: 'R', yChannelSelector: 'G',
+  }));
+  defs.appendChild(frost);
+
+  // --- Pakkashehku jäätyneen napin taakse (valkoinen -> läpinäkyvä). ---
+  const chill = el('radialGradient', { id: 'chill-glow', cx: '50%', cy: '50%', r: '50%' });
+  chill.appendChild(el('stop', { offset: '0%', 'stop-color': '#dff4ff', 'stop-opacity': 0.85 }));
+  chill.appendChild(el('stop', { offset: '60%', 'stop-color': '#bfe6ef', 'stop-opacity': 0.25 }));
+  chill.appendChild(el('stop', { offset: '100%', 'stop-color': '#bfe6ef', 'stop-opacity': 0 }));
+  defs.appendChild(chill);
+
   // --- Per-pelaaja radiaaligradientit napin täytölle (vaalea keskus → tumma reuna). ---
+  // Tiukennettu highlight (cx36% cy30% r66%) -> emaloitu, terävä markkeri.
   for (let i = 0; i < PLAYER_COLORS.length; i++) {
-    const g = el('radialGradient', { id: `node-grad-${i}`, cx: '38%', cy: '32%', r: '72%' });
+    const g = el('radialGradient', { id: `node-grad-${i}`, cx: '36%', cy: '30%', r: '66%' });
     g.appendChild(el('stop', { offset: '0%', 'stop-color': PLAYER_COLORS_LIGHT[i] }));
     g.appendChild(el('stop', { offset: '55%', 'stop-color': PLAYER_COLORS[i] }));
     g.appendChild(el('stop', { offset: '100%', 'stop-color': PLAYER_COLORS_DARK[i] }));
     defs.appendChild(g);
   }
   // Neutraali (omistamaton) alue.
-  const ng = el('radialGradient', { id: 'node-grad-neutral', cx: '38%', cy: '32%', r: '72%' });
+  const ng = el('radialGradient', { id: 'node-grad-neutral', cx: '36%', cy: '30%', r: '66%' });
   ng.appendChild(el('stop', { offset: '0%', 'stop-color': NEUTRAL_LIGHT }));
   ng.appendChild(el('stop', { offset: '60%', 'stop-color': NEUTRAL_MID }));
   ng.appendChild(el('stop', { offset: '100%', 'stop-color': NEUTRAL_DARK }));
   defs.appendChild(ng);
 
   // Sumun peittämä (fog of war) alue: tumma, ei paljasta omistajaa.
-  const fg = el('radialGradient', { id: 'node-grad-fog', cx: '38%', cy: '32%', r: '72%' });
+  const fg = el('radialGradient', { id: 'node-grad-fog', cx: '36%', cy: '30%', r: '66%' });
   fg.appendChild(el('stop', { offset: '0%', 'stop-color': '#2b3a49' }));
   fg.appendChild(el('stop', { offset: '100%', 'stop-color': '#161f29' }));
   defs.appendChild(fg);
 
   // Lumimyrskyn sulkema alue: jäinen vaalea sini-valkoinen.
-  const bz = el('radialGradient', { id: 'node-grad-blizzard', cx: '38%', cy: '30%', r: '74%' });
+  const bz = el('radialGradient', { id: 'node-grad-blizzard', cx: '36%', cy: '28%', r: '68%' });
   bz.appendChild(el('stop', { offset: '0%', 'stop-color': '#f2fbff' }));
   bz.appendChild(el('stop', { offset: '55%', 'stop-color': '#cfe9f7' }));
   bz.appendChild(el('stop', { offset: '100%', 'stop-color': '#8fb6cc' }));
@@ -186,39 +315,77 @@ export function buildMap(svg, onTap) {
   while (svg.firstChild) svg.removeChild(svg.firstChild);
   svg.setAttribute('viewBox', '0 0 1000 700');
 
-  svg.appendChild(buildDefs());
+  const warmth = mapWarmth();
+  svg.appendChild(buildDefs(warmth));
 
-  // Meri – kerroksittain: pohjagradientti, kohina, sävy, leveys/pituuspiirit, vinjetti.
+  // Meri – kerroksittain: pohjagradientti, syvyyshehku, kohina, sävy, ruudukko, vinjetti.
   svg.appendChild(el('rect', { x: 0, y: 0, width: 1000, height: 700, fill: 'url(#sea)' }));
+  // Syvyyshehku nostaa laudan tummasta taustasta.
+  svg.appendChild(el('rect', { x: 0, y: 0, width: 1000, height: 700, fill: 'url(#sea-glow)', opacity: 0.4, 'pointer-events': 'none' }));
   svg.appendChild(el('rect', { x: 0, y: 0, width: 1000, height: 700, filter: 'url(#sea-noise)', opacity: 0.5, 'pointer-events': 'none' }));
   svg.appendChild(el('rect', { x: 0, y: 0, width: 1000, height: 700, fill: 'url(#sea-sheen)', 'pointer-events': 'none' }));
 
-  // Hienot leveys-/pituuspiiriviivat.
+  // Hienot leveys-/pituuspiiriviivat (hillitty mustetta).
+  const gridCol = '#7fa6c8';
   const gGrid = el('g', { id: 'g-grid', 'pointer-events': 'none' });
   for (let x = 100; x < 1000; x += 100) {
-    gGrid.appendChild(el('line', { x1: x, y1: 0, x2: x, y2: 700, stroke: '#9fc4e8', 'stroke-opacity': 0.05, 'stroke-width': 1 }));
+    gGrid.appendChild(el('line', { x1: x, y1: 0, x2: x, y2: 700, stroke: gridCol, 'stroke-opacity': 0.045, 'stroke-width': 1 }));
   }
   for (let y = 100; y < 700; y += 100) {
-    gGrid.appendChild(el('line', { x1: 0, y1: y, x2: 1000, y2: y, stroke: '#9fc4e8', 'stroke-opacity': 0.05, 'stroke-width': 1 }));
+    gGrid.appendChild(el('line', { x1: 0, y1: y, x2: 1000, y2: y, stroke: gridCol, 'stroke-opacity': 0.045, 'stroke-width': 1 }));
   }
   svg.appendChild(gGrid);
   svg.appendChild(el('rect', { x: 0, y: 0, width: 1000, height: 700, fill: 'url(#vignette)', 'pointer-events': 'none' }));
+
+  // Neatline: kaksoiskehys atlaksen tapaan, hillitty muste.
+  const frameCol = '#9fc4e8';
+  svg.appendChild(el('rect', { x: 10, y: 10, width: 980, height: 680, fill: 'none', stroke: frameCol, 'stroke-opacity': 0.18, 'stroke-width': 2, 'pointer-events': 'none' }));
+  svg.appendChild(el('rect', { x: 16, y: 16, width: 968, height: 668, fill: 'none', stroke: frameCol, 'stroke-opacity': 0.1, 'stroke-width': 1, 'pointer-events': 'none' }));
 
   const gMap = el('g', { id: 'g-map' });
   svg.appendChild(gMap);
 
   // Mantereet maamassan muotoisina: alueiden konveksista peitteestä
-  // pehmennetty "rantaviiva", täyttö mantereen värillä + varjo.
+  // pehmennetty "rantaviiva", rosoutettu rantasuodattimella, matalan veden
+  // vaahto rannan ympärillä, reliefivalaistus kohovaikutelmaksi.
   const gCont = el('g', { id: 'g-continents' });
-  for (const contId of Object.keys(CONTINENTS)) {
+  const contIds = Object.keys(CONTINENTS);
+  contIds.forEach((contId, ci) => {
     const b = continentBounds(contId);
     const color = CONTINENTS[contId].color;
     const path = continentShape(contId);
-    const land = el('g', { 'class': 'cont-panel', filter: 'url(#cont-shadow)' });
-    // Maamassa: pehmeä täyttö + tummempi rantaviiva.
-    land.appendChild(el('path', { d: path, fill: color, 'fill-opacity': 0.18 }));
-    land.appendChild(el('path', { d: path, fill: 'none', stroke: color, 'stroke-opacity': 0.55, 'stroke-width': 2, 'stroke-linejoin': 'round' }));
-    gCont.appendChild(land);
+    // Eri turbulenssin siemen per manner -> coast ei toistu identtisesti.
+    const seed = 3 + ci * 7;
+
+    // Manneraneeli oma rosotettu coast-filtterinsä (siemen vaihtelee).
+    const coastId = `coast-${ci}`;
+    // Luo per-manner coast-filtteri defsin sijaan ryhmän paikallisena (staattinen).
+    const localDefs = el('defs');
+    const coast = el('filter', { id: coastId, x: '-15%', y: '-15%', width: '130%', height: '130%' });
+    coast.appendChild(el('feTurbulence', { type: 'fractalNoise', baseFrequency: '0.022 0.03', numOctaves: 3, seed, result: 'cturb' }));
+    coast.appendChild(el('feDisplacementMap', { in: 'SourceGraphic', in2: 'cturb', scale: 20, xChannelSelector: 'R', yChannelSelector: 'G' }));
+    localDefs.appendChild(coast);
+    gCont.appendChild(localDefs);
+
+    // Matalan veden vaahto: sama polku useana levenevänä vetona rannan alle.
+    const foam = el('g', { 'class': 'cont-foam', filter: `url(#${coastId})`, 'pointer-events': 'none' });
+    foam.appendChild(el('path', { d: path, fill: 'none', stroke: '#bfe6ef', 'stroke-opacity': 0.10, 'stroke-width': 14, 'stroke-linejoin': 'round' }));
+    foam.appendChild(el('path', { d: path, fill: 'none', stroke: '#bfe6ef', 'stroke-opacity': 0.16, 'stroke-width': 9, 'stroke-linejoin': 'round' }));
+    foam.appendChild(el('path', { d: path, fill: 'none', stroke: '#bfe6ef', 'stroke-opacity': 0.28, 'stroke-width': 5, 'stroke-linejoin': 'round' }));
+    // Pehmeä ulompi tyrsky (kevyt sumennus).
+    foam.appendChild(el('path', { d: path, fill: 'none', stroke: '#dff4fb', 'stroke-opacity': 0.18, 'stroke-width': 3, 'stroke-linejoin': 'round', filter: 'url(#surf-blur)' }));
+    gCont.appendChild(foam);
+
+    // Maamassa: rosotettu rantaviiva, reliefivalaistus, varjo.
+    const land = el('g', { 'class': 'cont-panel', filter: `url(#${coastId})` });
+    const landFill = el('g', { filter: 'url(#land-relief)' });
+    landFill.appendChild(el('path', { d: path, fill: color, 'fill-opacity': 0.2 }));
+    land.appendChild(landFill);
+    land.appendChild(el('path', { d: path, fill: 'none', stroke: color, 'stroke-opacity': 0.6, 'stroke-width': 2, 'stroke-linejoin': 'round' }));
+    // Varjo erilliseen ryhmään, jottei coast-displacement leikkaa sitä rumasti.
+    const landWrap = el('g', { 'class': 'cont-shadow-wrap', filter: 'url(#cont-shadow)' });
+    landWrap.appendChild(land);
+    gCont.appendChild(landWrap);
 
     // Otsikkomerkki (nimi + bonus) mantereen yläreunaan.
     const labelG = el('g', { 'class': 'cont-label' });
@@ -238,7 +405,13 @@ export function buildMap(svg, onTap) {
     label.textContent = txt;
     labelG.appendChild(label);
     gCont.appendChild(labelG);
-  }
+  });
+  // Surf-blur filtteri (staattinen, kevyt) lisätään kerran gMapin defsiin.
+  const surfDefs = el('defs');
+  const surf = el('filter', { id: 'surf-blur', x: '-20%', y: '-20%', width: '140%', height: '140%' });
+  surf.appendChild(el('feGaussianBlur', { in: 'SourceGraphic', stdDeviation: 3 }));
+  surfDefs.appendChild(surf);
+  gMap.appendChild(surfDefs);
   gMap.appendChild(gCont);
 
   // Naapuruusviivat (jokainen särmä kerran).
@@ -274,6 +447,29 @@ export function buildMap(svg, onTap) {
   }
   gMap.appendChild(gEdges);
 
+  // --- Sumukerros: ajautuva murk joka peittää piilotetut alueet. -----------
+  // Sijaitsee mantereiden/viivojen YLÄPUOLELLA mutta nappien ALAPUOLELLA, jotta
+  // piilotettu maa katoaa sumuun mutta armeijaluvut pysyvät luettavina.
+  // Maski (userSpaceOnUse) = valkoinen koko lauta + musta sulava ympyrä per alue.
+  const fogMask = el('mask', { id: 'fog-mask', maskUnits: 'userSpaceOnUse', x: 0, y: 0, width: 1000, height: 700 });
+  fogMask.appendChild(el('rect', { x: 0, y: 0, width: 1000, height: 700, fill: '#fff' }));
+  const fogHoles = {};
+  for (const id of TERRITORY_IDS) {
+    const t = TERRITORIES[id];
+    // Aloitusarvo r=0: sumu peittää kaiken, kunnes updateMap avaa portit.
+    const hole = el('circle', { cx: t.x, cy: t.y, r: 0, fill: 'url(#mask-soft)' });
+    fogMask.appendChild(hole);
+    fogHoles[id] = hole;
+  }
+  const fogDefs = el('defs');
+  fogDefs.appendChild(fogMask);
+  gMap.appendChild(fogDefs);
+
+  const gFog = el('g', { id: 'g-fog', 'pointer-events': 'none' });
+  gFog.style.display = 'none'; // piilossa kunnes sumu päällä
+  gFog.appendChild(el('rect', { x: 0, y: 0, width: 1000, height: 700, filter: 'url(#fog-tex)', mask: 'url(#fog-mask)' }));
+  gMap.appendChild(gFog);
+
   // Aluenapit.
   const gNodes = el('g', { id: 'g-nodes' });
   const nodeRefs = {};
@@ -281,29 +477,49 @@ export function buildMap(svg, onTap) {
     const t = TERRITORIES[id];
     const g = el('g', { 'class': 'territory', 'data-id': id, tabindex: 0, role: 'button' });
     g.setAttribute('aria-label', t.name);
+    // Pakkashehku jäätyneen napin taakse (näkyy vain .frozen-tilassa CSS:llä).
+    const chill = el('circle', { cx: t.x, cy: t.y, r: 38, fill: 'url(#chill-glow)', 'class': 'chill', 'pointer-events': 'none', opacity: 0 });
     const halo = el('circle', { cx: t.x, cy: t.y, r: NODE_R + 5, fill: 'none', 'stroke-width': 4, 'class': 'halo', 'stroke-opacity': 0, filter: 'url(#halo-glow)' });
     const circle = el('circle', { cx: t.x, cy: t.y, r: NODE_R, 'stroke-width': 2.5, 'class': 'node', filter: 'url(#node-shadow)' });
     const count = el('text', { x: t.x, y: t.y, 'class': 'army-count', 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 18, 'font-weight': 800 });
     const name = el('text', { x: t.x, y: t.y + NODE_R + 12, 'class': 'terr-name', 'text-anchor': 'middle', 'font-size': 10.5 });
     name.textContent = t.name;
+    // Lumi-hiukkaset (näkyvät vain .frozen-tilassa CSS:llä). 4 kpl, porrastettu.
+    const snow = el('g', { 'class': 'snow', 'pointer-events': 'none' });
+    const flakes = [];
+    for (let s = 0; s < 4; s++) {
+      const fx = t.x + (s - 1.5) * 7;
+      const fl = el('circle', { cx: fx, cy: t.y - NODE_R + 4, r: 1.5, fill: '#fff', opacity: 0, 'class': `flake flake-${s}` });
+      snow.appendChild(fl);
+      flakes.push(fl);
+    }
     // Lumimyrskymerkki (❄) keskellä – näkyy kun alue on suljettu.
     const frost = el('text', { x: t.x, y: t.y, 'class': 'frost', 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 22, opacity: 0 });
     frost.textContent = '❄';
-    g.appendChild(halo); g.appendChild(circle); g.appendChild(count); g.appendChild(name); g.appendChild(frost);
+    g.appendChild(chill); g.appendChild(halo); g.appendChild(circle);
+    g.appendChild(count); g.appendChild(name); g.appendChild(snow); g.appendChild(frost);
     const handler = (ev) => { ev.preventDefault(); ev.stopPropagation(); onTap(id); };
     g.addEventListener('click', handler);
     g.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') handler(ev); });
     gNodes.appendChild(g);
-    nodeRefs[id] = { g, halo, circle, count, name, frost };
+    nodeRefs[id] = { g, halo, circle, count, name, frost, chill, snow, flakes };
   }
   gMap.appendChild(gNodes);
 
-  return { gMap, nodeRefs };
+  // Liitä sumun apurakenteet myös nodeRefs-objektiin, koska main.js välittää
+  // updateMapille pelkän nodeRefsin (buildMap(...).nodeRefs). Nämä eivät ole
+  // alue-id:itä, joten ne eivät häiritse nodeRefs[id]-iterointia (TERRITORY_IDS).
+  nodeRefs.fogHoles = fogHoles;
+  nodeRefs.gFog = gFog;
+
+  return { gMap, nodeRefs, fogHoles, gFog };
 }
 
 /**
  * Päivittää napit pelitilan mukaan.
- * @param {object} refs buildMapin palauttama nodeRefs
+ * HUOM: ei lisää/poista filttereitä eikä rakenna defs-elementtejä uudelleen –
+ * vain attribuutteja ja luokkia (mobiilisuorituskyky).
+ * @param {object} refs buildMapin palauttama paluuarvo (nodeRefs + fogHoles + gFog)
  * @param {object} state pelitila
  * @param {{selected?:string, attackTarget?:string, validTargets?:Set<string>,
  *          visible?:Set<string>, blizzards?:Set<string>}} ui
@@ -314,9 +530,32 @@ export function updateMap(refs, state, ui = {}) {
   const targets = ui.validTargets || new Set();
   const fog = ui.visible || null; // jos annettu, sumu päällä: vain nämä näkyvät
   const blizzards = ui.blizzards || new Set();
+
+  // nodeRefs voi olla suoraan refs (vanha kutsumalli) tai refs.nodeRefs.
+  // main.js käyttää buildMap(...).nodeRefs joten refs[id] on suoraan node.
+  const nodes = refs;
+  const fogHoles = refs.fogHoles || null;
+  const gFog = refs.gFog || null;
+
+  // Sumukerroksen näkyvyys + porttien koko.
+  if (gFog && fogHoles) {
+    if (fog) {
+      gFog.style.display = '';
+      gFog.style.opacity = '1';
+      for (const id of TERRITORY_IDS) {
+        const hole = fogHoles[id];
+        if (hole) hole.setAttribute('r', fog.has(id) ? FOG_HOLE_R : 0);
+      }
+    } else {
+      // Sumu pois: piilota koko kerros, älä tee muuta.
+      gFog.style.opacity = '0';
+      gFog.style.display = 'none';
+    }
+  }
+
   for (const id of TERRITORY_IDS) {
     const t = state.territories[id];
-    const r = refs[id];
+    const r = nodes[id];
     const owner = t.owner;
     const blocked = blizzards.has(id);          // lumimyrskyn sulkema (pysyvä)
     const hidden = !blocked && fog && !fog.has(id); // sumun peittämä vihollisalue
@@ -354,6 +593,7 @@ export function updateMap(refs, state, ui = {}) {
       r.frost.setAttribute('opacity', blocked ? 1 : 0);
       r.g.classList.toggle('frozen', blocked);
     }
+    if (r.chill) r.chill.setAttribute('opacity', blocked ? 1 : 0);
     // Suljettua aluetta ei voi valita.
     if (blocked) {
       r.halo.setAttribute('stroke-opacity', 0);

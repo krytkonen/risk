@@ -111,7 +111,8 @@ body {
   stroke: rgba(0,0,0,0.7);
   stroke-width: 3.5px;
   fill: #fff;
-  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
+  font-variant-numeric: tabular-nums;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.85));
   pointer-events: none;
 }
 .terr-name {
@@ -244,12 +245,41 @@ body {
 }
 .territory.frozen .frost {
   opacity: 1;
-  animation: frost-pulse 2.2s ease-in-out infinite;
 }
 @keyframes frost-pulse {
   0%, 100% { opacity: 0.85; }
   50% { opacity: 1; }
 }
+
+/* Jäinen rosokehä jäätyneille napeille (korvaa node-shadown, se on ok). */
+.territory.frozen .node { filter: url(#frost-fringe); }
+/* Pakkashehku näkyy jäätyneenä; siirtymä pehmentää ilmestymisen. */
+.territory .chill { transition: opacity 0.4s; }
+
+/* Lumi-hiukkaset: piilossa, näkyvät vain jäätyneillä alueilla. */
+.territory .flake { transform-box: fill-box; transform-origin: center; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .territory.frozen .frost { animation: frost-pulse 2.2s ease-in-out infinite; }
+  .territory.frozen .flake { animation: snow-drift 2.6s linear infinite; }
+  .territory.frozen .flake-1 { animation-delay: 0.65s; }
+  .territory.frozen .flake-2 { animation-delay: 1.3s; }
+  .territory.frozen .flake-3 { animation-delay: 1.95s; }
+  @keyframes snow-drift {
+    0%   { transform: translate(0, 0); opacity: 0; }
+    15%  { opacity: 0.7; }
+    50%  { transform: translate(2px, 9px); opacity: 0.7; }
+    85%  { opacity: 0.5; }
+    100% { transform: translate(-1px, 18px); opacity: 0; }
+  }
+}
+
+/* Sumukerros: pehmeä häivähdys kun sumu nousee/laskee. */
+#g-fog { transition: opacity 0.4s; }
+
+/* Living sea swell + fog drift (ambient) toteutetaan SVG <animate>-elementeillä.
+   SMIL-animaatioita ei voi luotettavasti gatata CSS:llä, joten ne pidetään
+   tarkoituksella hyvin hitaina (sea 36s, fog 20s) ja kevyinä. */
 
 /* Improved dice display – jokainen noppa pomppaa esiin uudelleenrenderöinnissä */
 .dice { font-size: 26px; letter-spacing: 3px; margin: 4px 0; }
