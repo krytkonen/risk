@@ -516,6 +516,30 @@ export function buildMap(svg, onTap) {
 }
 
 /**
+ * Lyhytaikainen hohtava "tracer" hyökkääjältä puolustajalle.
+ * Lisää <circle>:n gMappiin ja animoi sen cx/cy:n SVG <animate>:lla (ei JS-loopia).
+ * Poistetaan automaattisesti ~300ms kuluttua.
+ * @param {SVGGElement} gMap buildMapin palauttama kartan ryhmä
+ * @param {{x:number,y:number}} from lähtöalue (TERRITORIES[id])
+ * @param {{x:number,y:number}} to kohdealue (TERRITORIES[id])
+ * @param {{dur?:number, r?:number}} [opts] kesto sekunteina / säde (blitzissä kevyempi)
+ */
+export function fireTracer(gMap, from, to, opts = {}) {
+  if (!gMap || !from || !to) return;
+  const dur = opts.dur ?? 0.26;
+  const r = opts.r ?? 4;
+  const c = el('circle', {
+    cx: from.x, cy: from.y, r, fill: '#ffd34d',
+    filter: 'url(#halo-glow)', 'pointer-events': 'none',
+  });
+  const aX = el('animate', { attributeName: 'cx', from: from.x, to: to.x, dur: `${dur}s`, fill: 'freeze' });
+  const aY = el('animate', { attributeName: 'cy', from: from.y, to: to.y, dur: `${dur}s`, fill: 'freeze' });
+  c.appendChild(aX); c.appendChild(aY);
+  gMap.appendChild(c);
+  setTimeout(() => { if (c.parentNode) c.parentNode.removeChild(c); }, dur * 1000 + 60);
+}
+
+/**
  * Päivittää napit pelitilan mukaan.
  * HUOM: ei lisää/poista filttereitä eikä rakenna defs-elementtejä uudelleen –
  * vain attribuutteja ja luokkia (mobiilisuorituskyky).

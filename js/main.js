@@ -12,7 +12,7 @@ import { isValidSet } from './engine/cards.js';
 import { runAITurn } from './engine/ai.js';
 import { resolveBalancedBlitz } from './engine/combat.js';
 import { TERRITORIES, MAP_LIST, DEFAULT_MAP } from './data/territories.js';
-import { buildMap, updateMap, PLAYER_COLORS } from './ui/render.js';
+import { buildMap, updateMap, fireTracer, PLAYER_COLORS } from './ui/render.js';
 
 const $ = (id) => document.getElementById(id);
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -22,51 +22,109 @@ const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 // ---------------------------------------------------------------------------
 
 let _audioCtx = null;
+let _master = null;
 function getAudioCtx() {
-  if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (!_audioCtx) {
+    _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    // Yksi master-gain kaikelle: estää kerrostuvan äänen klippaamisen.
+    _master = _audioCtx.createGain();
+    _master.gain.value = 0.45;
+    _master.connect(_audioCtx.destination);
+  }
   return _audioCtx;
+}
+
+/** Herättää AudioContextin ensimmäisellä käyttäjäeleellä (mobiilin autoplay-esto). */
+function resumeAudio() {
+  try {
+    const ctx = getAudioCtx();
+    if (ctx.state === 'suspended') ctx.resume();
+  } catch (_) {}
+}
+
+/** Lyhyt suodatettu kohinapurske ("clash"). */
+function noiseBurst(ctx, t, dur, freq, peak) {
+  const n = Math.max(1, Math.floor(ctx.sampleRate * dur));
+  const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / n);
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  const bp = ctx.createBiquadFilter();
+  bp.type = 'bandpass'; bp.frequency.value = freq; bp.Q.value = 0.8;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(peak, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  src.connect(bp); bp.connect(g); g.connect(_master);
+  src.start(t); src.stop(t + dur);
 }
 
 function sfx(type) {
   try {
     const ctx = getAudioCtx();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain); gain.connect(ctx.destination);
     const t = ctx.currentTime;
+    const tone = (osc) => { osc.connect(osc._g); osc._g.connect(_master); };
+    const mk = (wave) => {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = wave; osc._g = g; tone(osc);
+      return { osc, g };
+    };
     if (type === 'attack') {
-      osc.type = 'square';
+      // Neliöaaltoglissando + lyhyt kohinapurske = metallinen "clash".
+      const { osc, g } = mk('square');
       osc.frequency.setValueAtTime(180, t);
       osc.frequency.exponentialRampToValueAtTime(90, t + 0.18);
-      gain.gain.setValueAtTime(0.12, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+      g.gain.setValueAtTime(0.12, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
       osc.start(t); osc.stop(t + 0.18);
+      noiseBurst(ctx, t, 0.09, 1200, 0.10);
     } else if (type === 'conquer') {
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(330, t);
-      osc.frequency.setValueAtTime(440, t + 0.1);
-      osc.frequency.setValueAtTime(550, t + 0.2);
-      gain.gain.setValueAtTime(0.15, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
-      osc.start(t); osc.stop(t + 0.35);
+      // Kolmioarpeggio + detune-osc (+7 senttiä) + avautuva lowpass 800→4000.
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.setValueAtTime(800, t);
+      lp.frequency.exponentialRampToValueAtTime(4000, t + 0.35);
+      lp.connect(_master);
+      const ag = ctx.createGain();
+      ag.gain.setValueAtTime(0.15, t);
+      ag.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+      ag.connect(lp);
+      const o1 = ctx.createOscillator(); o1.type = 'triangle';
+      const o2 = ctx.createOscillator(); o2.type = 'triangle'; o2.detune.value = 7;
+      o1.frequency.setValueAtTime(330, t);
+      o1.frequency.setValueAtTime(440, t + 0.1);
+      o1.frequency.setValueAtTime(550, t + 0.2);
+      o2.frequency.setValueAtTime(330, t);
+      o2.frequency.setValueAtTime(440, t + 0.1);
+      o2.frequency.setValueAtTime(550, t + 0.2);
+      o1.connect(ag); o2.connect(ag);
+      o1.start(t); o1.stop(t + 0.35);
+      o2.start(t); o2.stop(t + 0.35);
     } else if (type === 'place') {
-      osc.type = 'sine';
+      // Perussävel + oktaavin ylempi naksahdus.
+      const { osc, g } = mk('sine');
       osc.frequency.setValueAtTime(440, t);
-      gain.gain.setValueAtTime(0.08, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+      g.gain.setValueAtTime(0.08, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
       osc.start(t); osc.stop(t + 0.08);
+      const { osc: o2, g: g2 } = mk('square');
+      o2.frequency.setValueAtTime(880, t);
+      g2.gain.setValueAtTime(0.04, t);
+      g2.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
+      o2.start(t); o2.stop(t + 0.04);
     } else if (type === 'select') {
-      osc.type = 'sine';
+      const { osc, g } = mk('sine');
       osc.frequency.setValueAtTime(660, t);
-      gain.gain.setValueAtTime(0.06, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+      g.gain.setValueAtTime(0.06, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
       osc.start(t); osc.stop(t + 0.06);
     } else if (type === 'turn') {
-      osc.type = 'triangle';
+      const { osc, g } = mk('triangle');
       osc.frequency.setValueAtTime(220, t);
       osc.frequency.setValueAtTime(330, t + 0.12);
-      gain.gain.setValueAtTime(0.1, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+      g.gain.setValueAtTime(0.1, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
       osc.start(t); osc.stop(t + 0.28);
     }
   } catch (_) {}
@@ -77,6 +135,7 @@ const AI_DELAY = 600;
 
 let state = null;
 let mapRefs = null;
+let mapG = null;
 const ui = { selected: null, attackTarget: null, validTargets: new Set(), busy: false };
 
 // ---------------------------------------------------------------------------
@@ -165,7 +224,10 @@ function startGame() {
     options: { fogOfWar: cfg.fogOfWar, blizzard: cfg.blizzard },
   });
   ui.selected = null; ui.validTargets = new Set(); ui.busy = false;
-  mapRefs = buildMap($('map'), onTerritoryTap).nodeRefs;
+  const m = buildMap($('map'), onTerritoryTap);
+  mapRefs = m.nodeRefs;
+  mapG = m.gMap;
+  resumeAudio();
   show('modal-setup', false);
   resetView();
   render();
@@ -269,10 +331,16 @@ function tapAttack(id) {
 // Animaatiot
 // ---------------------------------------------------------------------------
 
-function animateAttack(fromId, toId) {
+function animateAttack(fromId, toId, blitz = false) {
   const fr = mapRefs[fromId], tr = mapRefs[toId];
   if (fr) { fr.g.classList.add('attacking'); setTimeout(() => fr.g.classList.remove('attacking'), 350); }
   if (tr) { tr.g.classList.add('defending'); setTimeout(() => tr.g.classList.remove('defending'), 350); }
+  // Hohtava tracer hyökkääjältä kohteelle. Blitzissä lyhyempi/pienempi ettei se
+  // jää roikkumaan 180ms kierrosvälin yli.
+  if (mapG) {
+    if (blitz) fireTracer(mapG, TERRITORIES[fromId], TERRITORIES[toId], { dur: 0.14, r: 3 });
+    else fireTracer(mapG, TERRITORIES[fromId], TERRITORIES[toId]);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -300,9 +368,11 @@ async function doBalancedBlitz() {
   const fromA = state.territories[fromId].armies;
   const toA = state.territories[toId].armies;
   const result = resolveBalancedBlitz(fromA, toA, state.rng);
-  // Näytä jokainen kierros animoituna
+  // Näytä jokainen kierros animoituna. Tracer kevyenä (blitz) ettei kasaudu.
+  let first = true;
   for (const round of result.rounds) {
-    animateAttack(fromId, toId);
+    animateAttack(fromId, toId, !first);
+    first = false;
     showBattle(fromId, toId, round);
     render();
     await delay(180);
@@ -487,23 +557,36 @@ function renderHUD() {
   $('phase-badge').textContent = PHASE_NAMES[state.phase];
   $('cp-name').textContent = p.name;
   $('cp-dot').style.background = p.color;
+  // Vuorossa olevan pelaajan väri teemavärinä: HUD-reuna + dot-hehku.
+  $('hud').style.setProperty('--cp-glow', p.color);
   const rb = $('reinforce-badge');
-  if (state.phase === PHASES.REINFORCE) { rb.hidden = false; rb.textContent = `+${state.reinforcements}`; }
-  else rb.hidden = true;
+  if (state.phase === PHASES.REINFORCE) {
+    rb.hidden = false; rb.textContent = `+${state.reinforcements}`;
+    rb.classList.add('hl');
+  } else { rb.hidden = true; rb.classList.remove('hl'); }
 }
 
 function renderPlayers() {
   const panel = $('players-panel');
   panel.innerHTML = '';
   const snap = snapshot(state);
+  let activeChip = null;
   state.players.forEach((p, i) => {
     const chip = document.createElement('div');
-    chip.className = 'player-chip' + (i === state.current ? ' active' : '') + (p.alive ? '' : ' dead');
+    const isActive = i === state.current;
+    chip.className = 'player-chip' + (isActive ? ' active' : '') + (p.alive ? '' : ' dead');
+    // Vasen väripalkki + aktiivisen hehku pelaajan väristä.
+    chip.style.borderLeft = `3px solid ${p.color}`;
+    chip.style.setProperty('--chip-glow', p.color);
     chip.innerHTML = `<span class="dot" style="background:${p.color}"></span>` +
       `<span>${p.name}</span>` +
       `<span class="pc-stats">${snap[i].territories}⬢ ${snap[i].armies}⚔ ${snap[i].cards}🂠</span>`;
     panel.appendChild(chip);
+    if (isActive) activeChip = chip;
   });
+  if (activeChip && activeChip.scrollIntoView) {
+    try { activeChip.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' }); } catch (_) {}
+  }
 }
 
 function renderLog() {
@@ -621,15 +704,21 @@ function showBattle(fromId, toId, res) {
   const def = res.defenderDice.map((d) => `<span class="def">${'⚀⚁⚂⚃⚄⚅'[d - 1]}</span>`).join(' ');
   const fromA = state.territories[fromId]?.armies ?? '?';
   const toA = state.territories[toId]?.armies ?? '?';
+  const attLost = res.attackerLosses > 0 ? ' lost' : '';
+  const defLost = res.defenderLosses > 0 ? ' lost' : '';
   b.innerHTML =
     `<div><span class="att">${TERRITORIES[fromId].name}</span> → <span class="def">${TERRITORIES[toId].name}</span></div>` +
-    `<div class="dice">${att} &nbsp;vs&nbsp; ${def}</div>` +
+    `<div class="dice">${att} <span class="vs">vs</span> ${def}</div>` +
     `<div class="battle-losses">` +
-    `<span class="att">−${res.attackerLosses} (jäljellä ${fromA})</span>` +
+    `<span class="att num${attLost}">−${res.attackerLosses} (jäljellä ${fromA})</span>` +
     ` &nbsp;·&nbsp; ` +
-    `<span class="def">−${res.defenderLosses} (jäljellä ${toA})</span>` +
+    `<span class="def num${defLost}">−${res.defenderLosses} (jäljellä ${toA})</span>` +
     `</div>`;
+  // Spring-sisääntulo: nollaa luokka ja lisää uudelleen jotta animaatio toistuu.
   b.hidden = false;
+  b.classList.remove('pop-in');
+  void b.offsetWidth;
+  b.classList.add('pop-in');
 }
 function hideBattle() { $('battle-banner').hidden = true; }
 
@@ -637,6 +726,9 @@ let toastTimer = null;
 function toast(msg) {
   const t = $('toast');
   t.textContent = msg; t.hidden = false;
+  t.classList.remove('pop-in');
+  void t.offsetWidth;
+  t.classList.add('pop-in');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { t.hidden = true; }, 2200);
 }
@@ -644,15 +736,36 @@ function toast(msg) {
 function flashNode(id) {
   const r = mapRefs[id];
   if (!r) return;
-  r.circle.setAttribute('r', 24);
-  setTimeout(() => r.circle.setAttribute('r', 21), 120);
+  // "Leimasin": luku iskeytyy isona ja asettuu paikoilleen; nappi painuu hetkeksi.
+  // Käynnistetään uudelleen reflow-pakotuksella (sama kuvio kuin count-pop).
+  const restart = (node, cls) => {
+    node.classList.remove(cls);
+    try { void node.getBBox(); } catch (_) { /* getBBox voi heittää jos ei näkyvissä */ }
+    node.classList.add(cls);
+    setTimeout(() => node.classList.remove(cls), 360);
+  };
+  restart(r.count, 'stamp');
+  restart(r.circle, 'press');
 }
 
 function flashConquest(id) {
   const r = id && mapRefs[id];
   if (!r) return;
   r.g.classList.add('just-conquered');
-  setTimeout(() => r.g.classList.remove('just-conquered'), 600);
+  // Toinen viivästetty rengas: kloonataan halo, animoidaan ja poistetaan ajastimella.
+  let ring2 = null;
+  try {
+    ring2 = r.halo.cloneNode(false);
+    ring2.classList.remove('halo-selected', 'halo-target', 'halo-valid');
+    ring2.classList.add('conquer-ring2');
+    ring2.setAttribute('stroke', '#ffe27a');
+    ring2.setAttribute('stroke-opacity', 0.95);
+    r.g.appendChild(ring2);
+  } catch (_) {}
+  setTimeout(() => {
+    r.g.classList.remove('just-conquered');
+    if (ring2 && ring2.parentNode) ring2.parentNode.removeChild(ring2);
+  }, 600);
 }
 
 function gameOver() {
@@ -773,6 +886,10 @@ function setupZoom() {
 function boot() {
   refreshSetup();
   setupHandlers();
+  // Herätä audio ensimmäisellä käyttäjäeleellä (mobiilin autoplay-esto).
+  const wake = () => { resumeAudio(); window.removeEventListener('pointerdown', wake); window.removeEventListener('keydown', wake); };
+  window.addEventListener('pointerdown', wake);
+  window.addEventListener('keydown', wake);
   // Kevyt debug-/testikoukku (e2e-testit lukevat tilan tästä).
   window.__risk = { getState: () => state, getUi: () => ui, adj: (id) => TERRITORIES[id].adj };
   if ('serviceWorker' in navigator) {

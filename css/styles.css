@@ -54,8 +54,27 @@ body {
 }
 .badge.phase { background: var(--panel2); color: var(--text); }
 .badge.hl { background: var(--accent); color: #2a2200; }
+/* Vahvistus-badge "nag": pulssaava rengas reinforce-vaiheessa. */
+@media (prefers-reduced-motion: no-preference) {
+  #reinforce-badge.badge.hl { animation: badge-nag 1.4s ease-in-out infinite; }
+  @keyframes badge-nag {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255,211,77,0.55); }
+    50%      { box-shadow: 0 0 0 5px rgba(255,211,77,0); }
+  }
+}
+/* Aktiivisen pelaajan teemaväri värittää HUD:n alareunan. */
+#hud { border-bottom: 2px solid var(--cp-glow, rgba(255,255,255,0.07)); }
 #current-player { display: flex; align-items: center; gap: 8px; font-weight: 800; }
 .dot { width: 14px; height: 14px; border-radius: 50%; background: #888; box-shadow: 0 0 0 2px rgba(0,0,0,0.3); }
+/* Vuorossa olevan pelaajan dot saa väritetyn hehkun + hidas "syke". */
+#cp-dot { box-shadow: 0 0 0 2px rgba(0,0,0,0.3), 0 0 8px var(--cp-glow, transparent); }
+@media (prefers-reduced-motion: no-preference) {
+  #cp-dot { animation: dot-beat 2s ease-in-out infinite; }
+  @keyframes dot-beat {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.18); }
+  }
+}
 .icon-btn {
   background: var(--panel);
   color: var(--text);
@@ -83,15 +102,21 @@ body {
   align-items: center;
   gap: 6px;
   padding: 5px 9px;
-  border-radius: 999px;
+  border-radius: 8px;
   background: var(--panel);
   font-size: 12px;
   white-space: nowrap;
   border: 2px solid transparent;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
 }
-.player-chip.active { border-color: var(--accent); }
+.player-chip.active {
+  border-color: var(--accent);
+  background: var(--panel2);
+  transform: scale(1.06);
+  box-shadow: 0 0 0 1px var(--chip-glow, var(--accent)), 0 0 10px -2px var(--chip-glow, var(--accent));
+}
 .player-chip.dead { opacity: 0.4; text-decoration: line-through; }
-.player-chip .pc-stats { color: var(--muted); }
+.player-chip .pc-stats { color: var(--muted); letter-spacing: 1px; }
 
 /* ---- Map ---- */
 #map-wrap {
@@ -162,6 +187,30 @@ body {
   100% { transform: scale(1); }
 }
 
+/* Vahvistuksen "leimasin": luku iskeytyy isona ja asettuu paikoilleen. */
+.army-count.stamp { animation: count-stamp 0.36s cubic-bezier(0.34,1.56,0.64,1); transform-box: fill-box; transform-origin: center; }
+@keyframes count-stamp {
+  0%   { transform: scale(1.9); opacity: 0.4; }
+  55%  { transform: scale(0.85); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+/* Hienovarainen napin painallus leiman yhteydessä (transform, ei r). */
+.node.press { animation: node-press 0.3s ease-out; }
+@keyframes node-press {
+  0%   { transform: scale(0.9); }
+  60%  { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+/* Idle-vihje: kelvolliset hyökkäys-/linnoituskohteet pomppivat kevyesti. */
+@media (prefers-reduced-motion: no-preference) {
+  .territory.selectable .node { animation: target-bob 1.9s ease-in-out infinite; }
+  @keyframes target-bob {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-2px); }
+  }
+}
+
 #zoom-controls {
   position: absolute;
   right: 10px;
@@ -213,23 +262,37 @@ body {
   0%, 100% { filter: url(#node-shadow); }
   30% { filter: url(#node-shadow) drop-shadow(0 0 8px rgba(255,60,60,1)) brightness(1.5); }
 }
-@keyframes pulse-win {
-  0% { r: 21; }
-  40% { r: 28; }
-  100% { r: 21; }
+/* Valloituksen "overshoot pop": skaalataan transformilla (ei r:llä, joka
+   tappelisi .node:n transition: r:n kanssa). transform-box: fill-box on jo
+   asetettu .node:lle ylempänä. */
+@keyframes conquer-pop {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.4); }
+  70%  { transform: scale(0.94); }
+  100% { transform: scale(1); }
 }
+/* Laajeneva rengaspurske: animoidaan transformilla + opacityllä (ei r:llä). */
 @keyframes conquer-ring {
-  0% { r: 21; stroke-opacity: 0.95; stroke-width: 5; }
-  100% { r: 42; stroke-opacity: 0; stroke-width: 1; }
+  0%   { transform: scale(1);   stroke-opacity: 0.95; stroke-width: 5; }
+  100% { transform: scale(2.6); stroke-opacity: 0;    stroke-width: 1; }
 }
 
 .territory.attacking .node { animation: attack-recoil 0.35s ease-in-out, attack-glow 0.35s ease-in-out; }
 .territory.defending .node { animation: defend-impact 0.35s ease-in-out, defend-flash 0.35s ease-in-out; }
-.territory.just-conquered .node { animation: pulse-win 0.5s ease-out; }
+.territory.just-conquered .node {
+  animation: conquer-pop 0.6s cubic-bezier(0.34,1.56,0.64,1);
+}
 /* Voiton rengaspurske: animoidaan halo-ympyrä kun alue vallataan. */
 .territory.just-conquered .halo {
   stroke: #ffe27a;
+  transform-box: fill-box; transform-origin: center;
   animation: conquer-ring 0.6s ease-out;
+}
+/* Toinen, hieman viivästetty rengas (kloonattu halo flashConquestissa). */
+.conquer-ring2 {
+  fill: none;
+  transform-box: fill-box; transform-origin: center;
+  animation: conquer-ring 0.6s ease-out 0.12s;
 }
 
 /* Lumimyrsky: jäätynyt rantaviiva + hohtava ❄-merkki.
@@ -303,6 +366,19 @@ body {
   font-size: 15px;
   padding: 10px 18px;
 }
+/* "vs"-erotin nopparivien välissä. */
+.dice .vs {
+  font-size: 13px; color: var(--muted); font-weight: 700;
+  margin: 0 6px; opacity: 0.8; vertical-align: middle;
+  animation: none;
+}
+/* Spring-sisääntulo bannerille ja toastille (toggle hidden -> pop-in). */
+.pop-in { animation: banner-pop 0.34s cubic-bezier(0.34,1.56,0.64,1); }
+@keyframes banner-pop {
+  0%   { transform: translateX(-50%) scale(0.7); opacity: 0; }
+  60%  { transform: translateX(-50%) scale(1.06); opacity: 1; }
+  100% { transform: translateX(-50%) scale(1); opacity: 1; }
+}
 
 /* Notify button */
 button.notify { border: 2px solid var(--accent); }
@@ -318,6 +394,14 @@ button.ghost.notify { border-color: var(--accent); color: var(--accent); }
 .battle-losses { font-size: 12px; margin-top: 2px; }
 .battle-losses .att { color: #ffd34d; }
 .battle-losses .def { color: #8fd0ff; }
+/* Numerot eivät tärise: tabular-nums tappio-/jäljellä-luvuille. */
+.battle-losses .num { font-variant-numeric: tabular-nums; }
+/* Punainen välähdys häviävälle puolelle (joka menetti joukkoja). */
+.battle-losses .num.lost { animation: loss-flash 0.5s ease-out; }
+@keyframes loss-flash {
+  0%   { color: #ff5757; text-shadow: 0 0 8px rgba(255,87,87,0.9); }
+  100% { /* palautuu .att/.def perusväriin */ }
+}
 
 #toast {
   position: absolute;
@@ -378,11 +462,26 @@ button {
   flex: 1;
   min-height: 48px;
 }
-button:active { transform: translateY(1px); }
+button { transition: transform 0.08s ease, filter 0.08s ease, box-shadow 0.08s ease; }
+button:active { transform: translateY(2px); filter: brightness(0.92); }
 button:disabled { opacity: 0.4; cursor: not-allowed; }
-button.primary { background: var(--accent); color: #2a2200; }
-button.ghost { background: transparent; border: 1px solid rgba(255,255,255,0.18); }
-button.danger { background: var(--danger); color: #fff; }
+/* Ensisijainen/turvallinen CTA: kohotettu kultainen liukuväri, hieman enemmän
+   painoa kuin vaaravärisillä hyökkäysnapeilla. */
+button.primary {
+  background: linear-gradient(180deg, #ffe07a, var(--accent));
+  color: #2a2200;
+  box-shadow: 0 3px 0 #b8860b, 0 4px 10px -2px rgba(0,0,0,0.5);
+  font-weight: 800;
+}
+button.primary:active { transform: translateY(2px); box-shadow: 0 1px 0 #b8860b; }
+button.ghost { background: transparent; border: 1px solid rgba(255,255,255,0.18); box-shadow: none; }
+/* Vaarallinen hyökkäys: hieman matalampi profiili kuin primaryllä. */
+button.danger {
+  background: linear-gradient(180deg, #ff6b6b, var(--danger));
+  color: #fff;
+  box-shadow: 0 2px 6px -2px rgba(0,0,0,0.5);
+}
+button.danger:active { transform: translateY(2px); }
 button.notify { border-color: var(--accent); color: var(--accent); }
 button.big { padding: 16px; font-size: 17px; }
 .hint-text { color: var(--muted); font-size: 13px; align-self: center; flex: 2; }
