@@ -1,6 +1,6 @@
 // Service Worker: offline-tuki (sovelluskuori välimuistissa). Mahdollistaa
 // pelin asentamisen Android-puhelimeen ja pelaamisen ilman verkkoa.
-const CACHE = 'risk-v1';
+const CACHE = 'risk-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -11,6 +11,10 @@ const ASSETS = [
   './icons/icon-512.png',
   './js/main.js',
   './js/data/territories.js',
+  './js/data/maps/_util.js',
+  './js/data/maps/classic.js',
+  './js/data/maps/europe.js',
+  './js/data/maps/antiquity.js',
   './js/engine/rng.js',
   './js/engine/combat.js',
   './js/engine/cards.js',
