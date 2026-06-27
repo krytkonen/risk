@@ -127,6 +127,14 @@ body {
   background: radial-gradient(circle at 50% 35%, #11283f, #081523);
 }
 #map { width: 100%; height: 100%; display: block; touch-action: none; }
+/* Suorituskyky: karttaa raahatessa/zoomatessa poistetaan raskaat SVG-
+   suodattimet (varjot/hehkut) ja sumukerros, jotta veto on täysin sulava.
+   Suodattimet palaavat ~180 ms kuluttua kun kartta on paikallaan. */
+#map.interacting .node,
+#map.interacting .halo,
+#map.interacting .cont-panel,
+#map.interacting .army-count { filter: none !important; }
+#map.interacting #g-fog { visibility: hidden; }
 .territory { cursor: pointer; }
 .territory .node { transition: r 0.1s, fill 0.2s; }
 .territory.selectable .node { cursor: pointer; }
@@ -314,8 +322,6 @@ body {
   50% { opacity: 1; }
 }
 
-/* Jäinen rosokehä jäätyneille napeille (korvaa node-shadown, se on ok). */
-.territory.frozen .node { filter: url(#frost-fringe); }
 /* Pakkashehku näkyy jäätyneenä; siirtymä pehmentää ilmestymisen. */
 .territory .chill { transition: opacity 0.4s; }
 

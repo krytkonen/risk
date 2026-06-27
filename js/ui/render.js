@@ -106,47 +106,14 @@ function buildDefs(warmth = 0) {
   vignette.appendChild(el('stop', { offset: '100%', 'stop-color': vigCol, 'stop-opacity': 0.42 }));
   defs.appendChild(vignette);
 
-  // --- Hienovarainen kohina meren päälle (syvyys/tekstuuri) + elävä aallokko. ---
-  // STAATTINEN filtteri (rakennetaan kerran). Hidas <animate> baseFrequencyyn
-  // antaa meren huokua; ei lisätä filttereitä per-frame updateMapissa.
+  // --- Hienovarainen kohina meren päälle (syvyys/tekstuuri). ---
+  // STAATTINEN, rasteroidaan kerran. EI <animate>-elementtiä: jatkuva
+  // turbulenssin animointi rasteroisi koko kerroksen joka framella = lagi.
   const noise = el('filter', { id: 'sea-noise', x: '0%', y: '0%', width: '100%', height: '100%' });
-  const seaTurb = el('feTurbulence', { type: 'fractalNoise', baseFrequency: '0.012 0.018', numOctaves: 2, seed: 7, result: 'n' });
-  // Hidas aallokko: baseFrequency huojuu hieman. Dur pitkä (36s) -> kevyt.
-  seaTurb.appendChild(el('animate', {
-    attributeName: 'baseFrequency', dur: '36s', repeatCount: 'indefinite',
-    values: '0.012 0.018; 0.014 0.020; 0.011 0.017; 0.012 0.018',
-    calcMode: 'spline', keyTimes: '0;0.34;0.67;1',
-    keySplines: '0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1',
-  }));
-  noise.appendChild(seaTurb);
+  noise.appendChild(el('feTurbulence', { type: 'fractalNoise', baseFrequency: '0.012 0.018', numOctaves: 2, seed: 7, result: 'n' }));
   const noiseCm = el('feColorMatrix', { in: 'n', type: 'matrix', values: '0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.5 0' });
   noise.appendChild(noiseCm);
   defs.appendChild(noise);
-
-  // --- Rosoinen rantaviiva: turbulenssi + siirtymäkartta mannerryhmälle. ---
-  // STAATTINEN; sovelletaan kerran maamassan ryhmään.
-  const coast = el('filter', { id: 'coast', x: '-15%', y: '-15%', width: '130%', height: '130%' });
-  coast.appendChild(el('feTurbulence', { type: 'fractalNoise', baseFrequency: '0.022 0.03', numOctaves: 3, seed: 11, result: 'cturb' }));
-  coast.appendChild(el('feDisplacementMap', {
-    in: 'SourceGraphic', in2: 'cturb', scale: 20,
-    xChannelSelector: 'R', yChannelSelector: 'G',
-  }));
-  defs.appendChild(coast);
-
-  // --- Maan reliefivalaistus (kohovaikutelma). STAATTINEN. ---
-  const relief = el('filter', { id: 'land-relief', x: '-15%', y: '-15%', width: '130%', height: '130%' });
-  const spec = el('feSpecularLighting', {
-    in: 'SourceAlpha', surfaceScale: 3, specularConstant: 0.7,
-    specularExponent: 14, 'lighting-color': '#fff8e6', result: 'spec',
-  });
-  spec.appendChild(el('feDistantLight', { azimuth: 305, elevation: 50 }));
-  relief.appendChild(spec);
-  relief.appendChild(el('feComposite', { in: 'spec', in2: 'SourceAlpha', operator: 'in', result: 'specClip' }));
-  const reliefMerge = el('feMerge');
-  reliefMerge.appendChild(el('feMergeNode', { in: 'SourceGraphic' }));
-  reliefMerge.appendChild(el('feMergeNode', { in: 'specClip' }));
-  relief.appendChild(reliefMerge);
-  defs.appendChild(relief);
 
   // --- Pehmeä varjo napeille. ---
   const nodeShadow = el('filter', { id: 'node-shadow', x: '-60%', y: '-60%', width: '220%', height: '220%' });
@@ -168,39 +135,14 @@ function buildDefs(warmth = 0) {
   contShadow.appendChild(el('feDropShadow', { dx: 0, dy: 3, stdDeviation: 5, 'flood-color': '#000', 'flood-opacity': 0.3 }));
   defs.appendChild(contShadow);
 
-  // --- Sumu (fog of war): liikkuva sumeneva murk-tekstuuri. STAATTINEN. ---
-  const fogTex = el('filter', { id: 'fog-tex', x: '-10%', y: '-10%', width: '120%', height: '120%' });
-  const fogTurb = el('feTurbulence', { type: 'fractalNoise', baseFrequency: '0.018 0.012', numOctaves: 3, seed: 3, result: 'ft' });
-  // Hidas drift sumulle.
-  fogTurb.appendChild(el('animate', {
-    attributeName: 'seed', dur: '20s', repeatCount: 'indefinite',
-    values: '3; 7; 3', calcMode: 'linear',
-  }));
-  fogTex.appendChild(fogTurb);
-  // Värimatriisi: harmaansininen murk (~#212a36), alfa noin 0.6.
-  fogTex.appendChild(el('feColorMatrix', {
-    in: 'ft', type: 'matrix',
-    values: '0 0 0 0 0.129  0 0 0 0 0.165  0 0 0 0 0.212  0 0 0 0.6 0.18',
-    result: 'fc',
-  }));
-  fogTex.appendChild(el('feGaussianBlur', { in: 'fc', stdDeviation: 6 }));
-  defs.appendChild(fogTex);
-
   // --- Pehmeä reunainen maski-radial (valkoinen keskus -> musta reuna). ---
+  // Sumukerros on litteä väri + tämä maski (ei turbulenssia/blurria) =
+  // halpa komposointi myös karttaa raahatessa.
   const maskSoft = el('radialGradient', { id: 'mask-soft', cx: '50%', cy: '50%', r: '50%' });
   maskSoft.appendChild(el('stop', { offset: '0%', 'stop-color': '#fff' }));
   maskSoft.appendChild(el('stop', { offset: '55%', 'stop-color': '#fff' }));
   maskSoft.appendChild(el('stop', { offset: '100%', 'stop-color': '#000' }));
   defs.appendChild(maskSoft);
-
-  // --- Jäisen kehän rosotus (vain .frozen napeille, CSS:n kautta). STAATTINEN. ---
-  const frost = el('filter', { id: 'frost-fringe', x: '-30%', y: '-30%', width: '160%', height: '160%' });
-  frost.appendChild(el('feTurbulence', { type: 'fractalNoise', baseFrequency: 0.2, numOctaves: 2, seed: 5, result: 'fr' }));
-  frost.appendChild(el('feDisplacementMap', {
-    in: 'SourceGraphic', in2: 'fr', scale: 3,
-    xChannelSelector: 'R', yChannelSelector: 'G',
-  }));
-  defs.appendChild(frost);
 
   // --- Pakkashehku jäätyneen napin taakse (valkoinen -> läpinäkyvä). ---
   const chill = el('radialGradient', { id: 'chill-glow', cx: '50%', cy: '50%', r: '50%' });
@@ -354,38 +296,20 @@ export function buildMap(svg, onTap) {
     const b = continentBounds(contId);
     const color = CONTINENTS[contId].color;
     const path = continentShape(contId);
-    // Eri turbulenssin siemen per manner -> coast ei toistu identtisesti.
-    const seed = 3 + ci * 7;
-
-    // Manneraneeli oma rosotettu coast-filtterinsä (siemen vaihtelee).
-    const coastId = `coast-${ci}`;
-    // Luo per-manner coast-filtteri defsin sijaan ryhmän paikallisena (staattinen).
-    const localDefs = el('defs');
-    const coast = el('filter', { id: coastId, x: '-15%', y: '-15%', width: '130%', height: '130%' });
-    coast.appendChild(el('feTurbulence', { type: 'fractalNoise', baseFrequency: '0.022 0.03', numOctaves: 3, seed, result: 'cturb' }));
-    coast.appendChild(el('feDisplacementMap', { in: 'SourceGraphic', in2: 'cturb', scale: 20, xChannelSelector: 'R', yChannelSelector: 'G' }));
-    localDefs.appendChild(coast);
-    gCont.appendChild(localDefs);
 
     // Matalan veden vaahto: sama polku useana levenevänä vetona rannan alle.
-    const foam = el('g', { 'class': 'cont-foam', filter: `url(#${coastId})`, 'pointer-events': 'none' });
-    foam.appendChild(el('path', { d: path, fill: 'none', stroke: '#bfe6ef', 'stroke-opacity': 0.10, 'stroke-width': 14, 'stroke-linejoin': 'round' }));
-    foam.appendChild(el('path', { d: path, fill: 'none', stroke: '#bfe6ef', 'stroke-opacity': 0.16, 'stroke-width': 9, 'stroke-linejoin': 'round' }));
-    foam.appendChild(el('path', { d: path, fill: 'none', stroke: '#bfe6ef', 'stroke-opacity': 0.28, 'stroke-width': 5, 'stroke-linejoin': 'round' }));
-    // Pehmeä ulompi tyrsky (kevyt sumennus).
-    foam.appendChild(el('path', { d: path, fill: 'none', stroke: '#dff4fb', 'stroke-opacity': 0.18, 'stroke-width': 3, 'stroke-linejoin': 'round', filter: 'url(#surf-blur)' }));
+    // EI suodattimia (suorituskyky) – pelkät vedot riittävät rantavyöhykkeeksi.
+    const foam = el('g', { 'class': 'cont-foam', 'pointer-events': 'none' });
+    foam.appendChild(el('path', { d: path, fill: 'none', stroke: '#bfe6ef', 'stroke-opacity': 0.09, 'stroke-width': 13, 'stroke-linejoin': 'round' }));
+    foam.appendChild(el('path', { d: path, fill: 'none', stroke: '#bfe6ef', 'stroke-opacity': 0.15, 'stroke-width': 8, 'stroke-linejoin': 'round' }));
+    foam.appendChild(el('path', { d: path, fill: 'none', stroke: '#cfeaf3', 'stroke-opacity': 0.26, 'stroke-width': 4, 'stroke-linejoin': 'round' }));
     gCont.appendChild(foam);
 
-    // Maamassa: rosotettu rantaviiva, reliefivalaistus, varjo.
-    const land = el('g', { 'class': 'cont-panel', filter: `url(#${coastId})` });
-    const landFill = el('g', { filter: 'url(#land-relief)' });
-    landFill.appendChild(el('path', { d: path, fill: color, 'fill-opacity': 0.2 }));
-    land.appendChild(landFill);
+    // Maamassa: pehmeä rantaviiva + rantaviivan veto. Yksi kevyt varjo.
+    const land = el('g', { 'class': 'cont-panel', filter: 'url(#cont-shadow)' });
+    land.appendChild(el('path', { d: path, fill: color, 'fill-opacity': 0.22 }));
     land.appendChild(el('path', { d: path, fill: 'none', stroke: color, 'stroke-opacity': 0.6, 'stroke-width': 2, 'stroke-linejoin': 'round' }));
-    // Varjo erilliseen ryhmään, jottei coast-displacement leikkaa sitä rumasti.
-    const landWrap = el('g', { 'class': 'cont-shadow-wrap', filter: 'url(#cont-shadow)' });
-    landWrap.appendChild(land);
-    gCont.appendChild(landWrap);
+    gCont.appendChild(land);
 
     // Otsikkomerkki (nimi + bonus) mantereen yläreunaan.
     const labelG = el('g', { 'class': 'cont-label' });
@@ -406,12 +330,6 @@ export function buildMap(svg, onTap) {
     labelG.appendChild(label);
     gCont.appendChild(labelG);
   });
-  // Surf-blur filtteri (staattinen, kevyt) lisätään kerran gMapin defsiin.
-  const surfDefs = el('defs');
-  const surf = el('filter', { id: 'surf-blur', x: '-20%', y: '-20%', width: '140%', height: '140%' });
-  surf.appendChild(el('feGaussianBlur', { in: 'SourceGraphic', stdDeviation: 3 }));
-  surfDefs.appendChild(surf);
-  gMap.appendChild(surfDefs);
   gMap.appendChild(gCont);
 
   // Naapuruusviivat (jokainen särmä kerran).
@@ -467,7 +385,8 @@ export function buildMap(svg, onTap) {
 
   const gFog = el('g', { id: 'g-fog', 'pointer-events': 'none' });
   gFog.style.display = 'none'; // piilossa kunnes sumu päällä
-  gFog.appendChild(el('rect', { x: 0, y: 0, width: 1000, height: 700, filter: 'url(#fog-tex)', mask: 'url(#fog-mask)' }));
+  // Litteä murk-väri + maski (ei suodatinta) – kevyt raahatessakin.
+  gFog.appendChild(el('rect', { x: 0, y: 0, width: 1000, height: 700, fill: '#0e1822', 'fill-opacity': 0.82, mask: 'url(#fog-mask)' }));
   gMap.appendChild(gFog);
 
   // Aluenapit.

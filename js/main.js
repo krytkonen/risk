@@ -792,9 +792,24 @@ function anyModalOpen() {
 // ---------------------------------------------------------------------------
 
 const view = { scale: 1, tx: 0, ty: 0 };
+let _interactTimer = null;
+/**
+ * Merkitsee kartan "interacting"-tilaan raahauksen/zoomauksen ajaksi ja
+ * poistaa merkinnän ~180 ms viimeisen liikkeen jälkeen. CSS poistaa raskaat
+ * SVG-suodattimet tämän tilan ajaksi → täysin sulava veto, suodattimet
+ * palaavat kun kartta on paikallaan.
+ */
+function markInteracting() {
+  const svg = $('map');
+  if (!svg) return;
+  svg.classList.add('interacting');
+  clearTimeout(_interactTimer);
+  _interactTimer = setTimeout(() => svg.classList.remove('interacting'), 180);
+}
 function applyView() {
   const g = $('map').querySelector('#g-map');
   if (g) g.setAttribute('transform', `translate(${view.tx} ${view.ty}) scale(${view.scale})`);
+  markInteracting();
 }
 function resetView() { view.scale = 1; view.tx = 0; view.ty = 0; applyView(); }
 function zoomBy(factor, cx = 500, cy = 350) {
