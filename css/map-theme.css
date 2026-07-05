@@ -1,0 +1,49 @@
+/* Kartan visuaalinen teema. Tämä tiedosto ladataan styles.css:n JÄLKEEN,
+   joten se saa yliajaa karttaan liittyvät tyylit. Vain kartta/SVG-tyylejä –
+   HUD/dialogit/napit pysyvät styles.css:ssä.
+
+   Suorituskyky: tässä EI lisätä SVG-suodattimia millekään uudelle elementille
+   eikä uusia loputtomia animaatioita ilman prefers-reduced-motion-gatea.
+   Uudet koriste-elementit (.cont-shelf, .sea-deco, .node-rim, .node-ring-dark,
+   .node-gloss) ovat suodattimettomia, joten #map.interacting-eskaappiruleja
+   ei tarvita niille. */
+
+/* ---- Typografia: aluenimet ---------------------------------------------- */
+/* Hieman isompi, vahvempi paint-order-ääriviiva ja kevyt letter-spacing. */
+.terr-name {
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  stroke: rgba(0, 8, 16, 0.75);
+  stroke-width: 3px;
+  opacity: 0.95;
+}
+@media (min-width: 720px) {
+  /* Kunnioitetaan styles.css:n aietta pitää nimet sirompina isolla ruudulla. */
+  .terr-name { font-size: 9.5px; }
+}
+
+/* ---- Mannerkartussit ----------------------------------------------------- */
+.cont-label text {
+  font-variant: small-caps;
+  letter-spacing: 1.1px;
+}
+
+/* ---- Koristeet: staattisia, eivät nappaa osoitintapahtumia --------------- */
+.sea-deco, .cont-shelf, .node-rim, .node-ring-dark, .node-gloss {
+  pointer-events: none;
+}
+
+/* ---- Valintatilat: kevyt token-skaalaus hoverissa/painalluksessa ---------- */
+/* transform + transition ovat halpoja (composited); animation: none kytkee
+   target-bob-idlen pois hoverin ajaksi, jottei transform ylikirjoitu. */
+.territory .node { transition: r 0.1s, fill 0.2s, transform 0.12s ease; }
+@media (hover: hover) {
+  .territory.selectable:hover .node {
+    animation: none;
+    transform: scale(1.1);
+  }
+}
+.territory.selectable:active .node {
+  animation: none;
+  transform: scale(0.94);
+}

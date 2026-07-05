@@ -3,15 +3,15 @@
 // animoinnin sekä kartan zoomauksen/raahaamisen.
 
 import {
-  createGame, PHASES, ownedBy, placeArmies, endReinforcement, tradeCards,
+  createGame, PHASES, ownedBy, placeArmies, unplaceArmies, endReinforcement, tradeCards,
   mustTradeCards, canAttack, attack, resolveConquest, endAttack, fortify,
   areConnected, endTurn, calcReinforcements, snapshot, applyBlitzResult,
-  isBlizzard, visibleTerritories,
+  isBlizzard, visibleTerritories, serializeGame, restoreGame, emptyStats,
 } from './engine/game.js';
-import { isValidSet } from './engine/cards.js';
+import { isValidSet, setValue } from './engine/cards.js';
 import { runAITurn } from './engine/ai.js';
 import { resolveBalancedBlitz } from './engine/combat.js';
-import { TERRITORIES, MAP_LIST, DEFAULT_MAP } from './data/territories.js';
+import { TERRITORIES, CONTINENTS, MAP_LIST, DEFAULT_MAP } from './data/territories.js';
 import { buildMap, updateMap, fireTracer, PLAYER_COLORS } from './ui/render.js';
 
 const $ = (id) => document.getElementById(id);
@@ -23,6 +23,18 @@ const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let _audioCtx = null;
 let _master = null;
+
+// Pysyvät asetukset (mykistys, tekoälyn nopeus) localStoragessa.
+const settings = {
+  muted: readSetting('risk-muted') === '1',
+  fastAI: readSetting('risk-fast-ai') === '1',
+};
+function readSetting(key) {
+  try { return localStorage.getItem(key); } catch (_) { return null; }
+}
+function writeSetting(key, val) {
+  try { localStorage.setItem(key, val); } catch (_) {}
+}
 function getAudioCtx() {
   if (!_audioCtx) {
     _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -60,6 +72,7 @@ function noiseBurst(ctx, t, dur, freq, peak) {
 }
 
 function sfx(type) {
+  if (settings.muted) return;
   try {
     const ctx = getAudioCtx();
     const t = ctx.currentTime;
@@ -131,12 +144,42 @@ function sfx(type) {
 }
 const PHASE_NAMES = { reinforce: 'Vahvistus', attack: 'Hyökkäys', fortify: 'Linnoitus', gameover: 'Loppu' };
 const CARD_ICONS = { infantry: '🪖', cavalry: '🐎', artillery: '🎯', wild: '⭐' };
-const AI_DELAY = 600;
+/** Tekoälyn animaatioviive: normaali tai pikakelaus. */
+const aiDelay = () => (settings.fastAI ? 90 : 600);
+
+const SAVE_KEY = 'risk-save-v1';
 
 let state = null;
 let mapRefs = null;
 let mapG = null;
-const ui = { selected: null, attackTarget: null, validTargets: new Set(), busy: false };
+const ui = { selected: null, attackTarget: null, validTargets: new Set(), busy: false, curtain: false };
+/** Vahvistusvaiheen sijoitukset kumoamista varten: [{id, n}]. */
+let placeStack = [];
+
+// ---------------------------------------------------------------------------
+// Automaattitallennus
+// ---------------------------------------------------------------------------
+
+function saveGame() {
+  if (!state || state.phase === PHASES.GAMEOVER) return;
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(serializeGame(state)));
+  } catch (_) {}
+}
+function clearSave() {
+  try { localStorage.removeItem(SAVE_KEY); } catch (_) {}
+  refreshContinueButton();
+}
+function loadSavedGame() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (_) { return null; }
+}
+function refreshContinueButton() {
+  const b = $('btn-continue');
+  if (b) b.hidden = !loadSavedGame();
+}
 
 // ---------------------------------------------------------------------------
 // Pelin aloitus
@@ -166,8 +209,35 @@ function setupHandlers() {
     });
   });
   $('btn-start').addEventListener('click', startGame);
-  $('gameover-new').addEventListener('click', () => { show('modal-gameover', false); show('modal-setup', true); });
-  $('btn-menu').addEventListener('click', () => { if (confirm('Aloita uusi peli?')) show('modal-setup', true); });
+  $('btn-continue').addEventListener('click', continueGame);
+  $('gameover-new').addEventListener('click', () => { show('modal-gameover', false); show('modal-setup', true); refreshContinueButton(); });
+
+  // Valikko
+  $('btn-menu').addEventListener('click', () => { if (!$('modal-setup').hidden || !$('modal-curtain').hidden) return; refreshMenu(); show('modal-menu', true); });
+  $('menu-resume').addEventListener('click', () => show('modal-menu', false));
+  $('menu-new').addEventListener('click', () => { show('modal-menu', false); refreshContinueButton(); show('modal-setup', true); });
+  $('menu-sound').addEventListener('click', () => {
+    settings.muted = !settings.muted;
+    writeSetting('risk-muted', settings.muted ? '1' : '0');
+    refreshMenu();
+    if (!settings.muted) sfx('select');
+  });
+  $('menu-speed').addEventListener('click', () => { toggleAISpeed(); refreshMenu(); });
+  $('menu-rules').addEventListener('click', () => { show('modal-menu', false); show('modal-rules', true); });
+  $('rules-close').addEventListener('click', () => show('modal-rules', false));
+
+  // Kuumatuoliverho (sumu): paljasta kartta vasta kun pelaaja on valmis.
+  $('curtain-ready').addEventListener('click', () => {
+    ui.curtain = false;
+    show('modal-curtain', false);
+    humanTurnStart();
+  });
+
+  // Laajennettava loki
+  $('log').addEventListener('click', () => {
+    $('log').classList.toggle('expanded');
+    if (state) renderLog();
+  });
 
   // Korttidialogi
   $('trade-auto').addEventListener('click', autoTrade);
@@ -175,7 +245,9 @@ function setupHandlers() {
   $('trade-close').addEventListener('click', () => { if (!mustTradeCards(state)) show('modal-trade', false); else toast('Sinun on vaihdettava (5+ korttia).'); });
 
   // Valloitusdialogi
-  $('conquest-range').addEventListener('input', (e) => { $('conquest-val').textContent = e.target.value; });
+  $('conquest-range').addEventListener('input', updateConquestInfo);
+  $('conquest-min').addEventListener('click', () => { const r = $('conquest-range'); r.value = r.min; updateConquestInfo(); });
+  $('conquest-max').addEventListener('click', () => { const r = $('conquest-range'); r.value = r.max; updateConquestInfo(); });
   $('conquest-confirm').addEventListener('click', confirmConquest);
 
   // Linnoitusdialogi
@@ -184,6 +256,92 @@ function setupHandlers() {
   $('fortify-cancel').addEventListener('click', () => { show('modal-fortify', false); fortifyCtx = null; });
 
   setupZoom();
+  setupLongPress();
+}
+
+// ---------------------------------------------------------------------------
+// Pitkä painallus: aluetiedot-popover
+// ---------------------------------------------------------------------------
+
+/** HTML-erikoismerkkien escapointi (popoverin sisältö innerHTML:llä). */
+function escHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function setupLongPress() {
+  const svg = $('map');
+  let timer = null, startX = 0, startY = 0, fired = false;
+  const cancel = () => { clearTimeout(timer); timer = null; };
+
+  svg.addEventListener('pointerdown', (e) => {
+    hideTerrPop();
+    fired = false;
+    if (!state || anyModalOpen()) return;
+    const g = e.target.closest ? e.target.closest('.territory') : null;
+    const id = g?.dataset?.id;
+    if (!id || !TERRITORIES[id]) return;
+    startX = e.clientX; startY = e.clientY;
+    cancel();
+    timer = setTimeout(() => { fired = true; showTerrPop(id, startX, startY); }, 450);
+  });
+  // Raahaus peruu pitkän painalluksen (sama kynnys kuin napautuksen estossa).
+  svg.addEventListener('pointermove', (e) => {
+    if (timer && Math.hypot(e.clientX - startX, e.clientY - startY) > 10) cancel();
+  });
+  svg.addEventListener('pointerup', cancel);
+  svg.addEventListener('pointercancel', cancel);
+  svg.addEventListener('pointerleave', cancel);
+  // Pitkän painalluksen jälkeinen click ei saa laueta normaalina napautuksena.
+  svg.addEventListener('click', (e) => {
+    if (fired) { e.stopPropagation(); e.preventDefault(); fired = false; }
+  }, true);
+}
+
+function showTerrPop(id, clientX, clientY) {
+  const t = TERRITORIES[id];
+  const pop = $('terr-pop');
+  const wrap = $('map-wrap');
+  if (!pop || !wrap) return;
+  const cont = CONTINENTS[t.continent];
+  const terr = state.territories[id];
+  const fogged = !!state.options?.fogOfWar && !visibleTerritories(state, fogViewer()).has(id);
+
+  let body;
+  if (fogged) {
+    body = `<div class="tp-row">🌫 Sumun peitossa</div>`;
+  } else if (isBlizzard(state, id)) {
+    body = `<div class="tp-row">❄ Lumimyrskyn sulkema – ei pelattavissa</div>`;
+  } else {
+    const owner = terr.owner !== null ? state.players[terr.owner] : null;
+    body =
+      `<div class="tp-row">Omistaja: ${owner
+        ? `<span class="tp-dot" style="background:${owner.color}"></span><strong>${escHtml(owner.name)}</strong>`
+        : '—'}</div>` +
+      `<div class="tp-row">Armeijat: <strong>${terr.armies}</strong></div>`;
+  }
+  const neighbors = t.adj.map((n) => TERRITORIES[n]?.name || n).join(', ');
+  pop.innerHTML =
+    `<div class="tp-title">${escHtml(t.name)}</div>` +
+    `<div class="tp-row">${escHtml(cont?.name || t.continent)} (bonus +${cont?.bonus ?? 0})</div>` +
+    body +
+    `<div class="tp-row">Naapurit: ${escHtml(neighbors)}</div>`;
+  pop.hidden = false;
+  // Sijoita napautuksen viereen, mutta pysy karttalaatikon sisällä.
+  const rect = wrap.getBoundingClientRect();
+  let x = clientX - rect.left + 12;
+  let y = clientY - rect.top + 12;
+  pop.style.left = '0px';
+  pop.style.top = '0px';
+  const pw = pop.offsetWidth, ph = pop.offsetHeight;
+  x = Math.max(8, Math.min(x, rect.width - pw - 8));
+  y = Math.max(8, Math.min(y, rect.height - ph - 8));
+  pop.style.left = `${x}px`;
+  pop.style.top = `${y}px`;
+}
+
+function hideTerrPop() {
+  const p = $('terr-pop');
+  if (p) p.hidden = true;
 }
 
 function buildMapPicker() {
@@ -207,6 +365,19 @@ function buildMapPicker() {
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 function refreshSetup() { $('cfg-players').textContent = cfg.players; $('cfg-humans').textContent = cfg.humans; }
 
+/** Päivittää valikon painikkeiden tekstit asetusten mukaan. */
+function refreshMenu() {
+  $('menu-sound').textContent = settings.muted ? 'Äänet: Pois' : 'Äänet: Päällä';
+  $('menu-speed').textContent = settings.fastAI ? '🐢 Tekoäly: Nopea (palauta normaali)' : '⏩ Tekoäly: Normaali (nopeuta)';
+}
+
+function toggleAISpeed() {
+  settings.fastAI = !settings.fastAI;
+  writeSetting('risk-fast-ai', settings.fastAI ? '1' : '0');
+  // Päivitä nopeusnappi controls-rivillä jos tekoälyvuoro on käynnissä.
+  if (state && (state.players[state.current].isAI || ui.busy)) renderControls();
+}
+
 function startGame() {
   const palette = ['Sininen', 'Punainen', 'Vihreä', 'Keltainen', 'Violetti', 'Turkoosi'];
   const players = [];
@@ -218,12 +389,34 @@ function startGame() {
       isAI: !isHuman,
     });
   }
+  clearSave();
   state = createGame({
     players,
     mapId: cfg.mapId,
     options: { fogOfWar: cfg.fogOfWar, blizzard: cfg.blizzard },
   });
-  ui.selected = null; ui.validTargets = new Set(); ui.busy = false;
+  enterGame();
+}
+
+/** Palauttaa tallennetun pelin ja jatkaa siitä mihin jäätiin. */
+function continueGame() {
+  const saved = loadSavedGame();
+  if (!saved) { refreshContinueButton(); return; }
+  try {
+    state = restoreGame(saved);
+  } catch (_) {
+    clearSave();
+    toast('Tallennus ei kelvannut – aloita uusi peli.');
+    return;
+  }
+  enterGame();
+}
+
+/** Yhteinen aloitus uudelle ja palautetulle pelille: kartta, näkymä, vuoro. */
+function enterGame() {
+  ui.selected = null; ui.attackTarget = null; ui.validTargets = new Set(); ui.busy = false; ui.curtain = false;
+  placeStack = [];
+  hideTerrPop();
   const m = buildMap($('map'), onTerritoryTap);
   mapRefs = m.nodeRefs;
   mapG = m.gMap;
@@ -244,21 +437,43 @@ async function beginTurn() {
   if (p.isAI) {
     await runAI();
   } else {
-    sfx('turn');
-    if (mustTradeCards(state)) openTrade();
-    render();
+    placeStack = [];
+    saveGame();
+    refreshContinueButton();
+    if (needsCurtain()) {
+      // Kuumatuolisumu: piilota kartta kunnes uusi pelaaja on valmis.
+      ui.curtain = true;
+      render();
+      $('curtain-text').textContent = `Anna laite pelaajalle ${p.name}`;
+      show('modal-curtain', true);
+      return;
+    }
+    humanTurnStart();
   }
+}
+
+/** Kuumatuoliverho tarvitaan kun sumu on päällä ja ihmispelaajia on useita. */
+function needsCurtain() {
+  return !!state.options?.fogOfWar && state.players.filter((p) => !p.isAI && p.alive).length >= 2;
+}
+
+/** Ihmispelaajan vuoron varsinainen aloitus (verhon jälkeen tai suoraan). */
+function humanTurnStart() {
+  sfx('turn');
+  if (state.phase === PHASES.REINFORCE && mustTradeCards(state)) openTrade();
+  if (state.pendingConquest) openConquest();
+  render();
 }
 
 async function runAI() {
   ui.busy = true; ui.selected = null; ui.validTargets = new Set();
   render();
-  await delay(AI_DELAY);
+  await delay(aiDelay());
   await runAITurn(state, {
-    afterReinforce: async () => { render(); await delay(AI_DELAY); },
-    afterAttack: async (a, res) => { showBattle(a.fromId, a.toId, res); render(); await delay(AI_DELAY); },
-    afterConquest: async () => { hideBattle(); render(); await delay(AI_DELAY / 2); },
-    afterFortify: async () => { render(); await delay(AI_DELAY / 2); },
+    afterReinforce: async () => { render(); await delay(aiDelay()); },
+    afterAttack: async (a, res) => { showBattle(a.fromId, a.toId, res); render(); await delay(aiDelay()); },
+    afterConquest: async () => { hideBattle(); render(); await delay(aiDelay() / 2); },
+    afterFortify: async () => { render(); await delay(aiDelay() / 2); },
   });
   ui.busy = false;
   hideBattle();
@@ -300,10 +515,27 @@ function addReinforcement(n) {
   if (!ui.selected) return toast('Valitse ensin alue.');
   const amount = Math.min(n, state.reinforcements);
   if (amount <= 0) return toast('Ei vahvistuksia jäljellä.');
-  placeArmies(state, ui.selected, amount);
+  const id = ui.selected;
+  const r = placeArmies(state, id, amount);
+  if (!r.ok) return toast(r.reason || 'Sijoitus ei onnistunut.');
+  placeStack.push({ id, n: amount });
   sfx('place');
-  flashNode(ui.selected);
+  flashNode(id);
   if (state.reinforcements === 0) ui.selected = null;
+  saveGame();
+  render();
+}
+
+/** Kumoaa viimeisimmän vahvistussijoituksen. */
+function undoReinforcement() {
+  const last = placeStack[placeStack.length - 1];
+  if (!last) return;
+  const r = unplaceArmies(state, last.id, last.n);
+  if (!r.ok) { placeStack.pop(); return toast(r.reason || 'Kumoaminen ei onnistunut.'); }
+  placeStack.pop();
+  sfx('select');
+  flashNode(last.id);
+  saveGame();
   render();
 }
 
@@ -355,6 +587,7 @@ function doSingleAttack() {
   if (!res.ok) { toast(res.reason || 'Hyökkäys ei onnistunut.'); return; }
   sfx('attack');
   showBattle(fromId, toId, res);
+  saveGame();
   if (state.pendingConquest) { openConquest(); return; }
   if (state.territories[fromId].armies < 2) clearSelection();
   else if (!canAttack(state, fromId, toId)) { ui.attackTarget = null; recomputeAttackTargets(); }
@@ -379,6 +612,7 @@ async function doBalancedBlitz() {
   }
   applyBlitzResult(state, fromId, toId, result.finalAttacker, result.finalDefender);
   ui.busy = false;
+  saveGame();
   if (state.pendingConquest) { render(); openConquest(); return; }
   hideBattle();
   if ((state.territories[fromId]?.armies ?? 0) < 2) clearSelection();
@@ -427,13 +661,24 @@ function clearSelection() { ui.selected = null; ui.attackTarget = null; ui.valid
 
 function openConquest() {
   const pc = state.pendingConquest;
+  if (!pc) return;
   $('conquest-text').textContent =
     `Valtasit ${TERRITORIES[pc.toId].gen}! Siirrä ${pc.minMove}–${pc.maxMove} armeijaa alueelle.`;
   const r = $('conquest-range');
-  r.min = pc.minMove; r.max = pc.maxMove; r.value = pc.minMove;
-  $('conquest-val').textContent = pc.minMove;
+  r.min = pc.minMove; r.max = pc.maxMove; r.value = pc.maxMove;
+  updateConquestInfo();
   show('modal-conquest', true);
   render();
+}
+/** Päivittää valloitusdialogin lukeman ja "jää → siirtyy" -jaon. */
+function updateConquestInfo() {
+  const pc = state?.pendingConquest;
+  if (!pc) return;
+  const v = Number($('conquest-range').value);
+  $('conquest-val').textContent = v;
+  const stay = state.territories[pc.fromId].armies - v;
+  $('conquest-split').textContent =
+    `${TERRITORIES[pc.fromId].name} jää: ${stay} → ${TERRITORIES[pc.toId].name} siirtyy: ${v}`;
 }
 function confirmConquest() {
   const v = Number($('conquest-range').value);
@@ -443,6 +688,7 @@ function confirmConquest() {
   hideBattle();
   sfx('conquer');
   flashConquest(conqueredId);
+  saveGame();
   if (state.phase === PHASES.GAMEOVER) { render(); return gameOver(); }
   ui.attackTarget = null;
   if (state.territories[ui.selected]?.armies < 2) clearSelection();
@@ -468,6 +714,7 @@ function confirmFortify() {
   show('modal-fortify', false);
   fortifyCtx = null;
   if (!res.ok) { toast(res.reason); return; }
+  saveGame();
   afterHumanTurnEnd();
 }
 
@@ -494,9 +741,10 @@ function renderTrade() {
     });
     wrap.appendChild(d);
   });
-  $('trade-hint').textContent = mustTradeCards(state)
-    ? 'Sinulla on 5+ korttia – vaihto on pakollinen ennen hyökkäystä.'
-    : 'Valitse 3 korttia: kolme samaa tyyppiä, yksi kutakin tai jokeri sarjassa.';
+  const nextBonus = `Seuraava sarja: +${setValue(state.setsTraded)} armeijaa.`;
+  $('trade-hint').textContent = (mustTradeCards(state)
+    ? 'Sinulla on 5+ korttia – vaihto on pakollinen ennen hyökkäystä. '
+    : 'Valitse 3 korttia: kolme samaa tyyppiä, yksi kutakin tai jokeri sarjassa. ') + nextBonus;
   const sel = [...tradeSel].map((i) => player.cards[i]);
   $('trade-do').disabled = !(sel.length === 3 && isValidSet(sel));
 }
@@ -506,20 +754,33 @@ function doTradeSelected() {
   if (!res.ok) { toast(res.reason); return; }
   tradeSel.clear();
   toast(`+${res.bonus} armeijaa vaihdosta!`);
+  saveGame();
   if (state.players[state.current].cards.length >= 3 && mustTradeCards(state)) renderTrade();
   else { show('modal-trade', false); }
   render();
 }
 function autoTrade() {
   const player = state.players[state.current];
-  // valitse ensimmäinen kelvollinen sarja
-  const n = player.cards.length;
+  // Suosi sarjaa, jonka jokin kortti on omalta alueelta (+2 aluebonus);
+  // muuten ensimmäinen kelvollinen.
+  const cards = player.cards;
+  const n = cards.length;
+  const ownsCardTerritory = (c) => c.territoryId && state.territories[c.territoryId]?.owner === state.current;
+  let first = null;
   for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) for (let k = j + 1; k < n; k++) {
-    if (isValidSet([player.cards[i], player.cards[j], player.cards[k]])) {
+    const set = [cards[i], cards[j], cards[k]];
+    if (!isValidSet(set)) continue;
+    if (!first) first = [i, j, k];
+    if (set.some(ownsCardTerritory)) {
       tradeSel.clear(); tradeSel.add(i); tradeSel.add(j); tradeSel.add(k);
       doTradeSelected();
       return;
     }
+  }
+  if (first) {
+    tradeSel.clear(); first.forEach((i) => tradeSel.add(i));
+    doTradeSelected();
+    return;
   }
   toast('Ei sopivaa korttisarjaa.');
 }
@@ -542,7 +803,9 @@ function render() {
     attackTarget: ui.attackTarget,
     validTargets: ui.validTargets,
     blizzards: state.options?.blizzard ? new Set(state.blizzards) : new Set(),
-    visible: state.options?.fogOfWar ? visibleTerritories(state, fogViewer()) : null,
+    // Verhon aikana ei paljasteta uuden pelaajan näkyvyyttä: tyhjä joukko
+    // pitää koko kartan sumun peitossa kunnes pelaaja on valmis.
+    visible: state.options?.fogOfWar ? (ui.curtain ? new Set() : visibleTerritories(state, fogViewer())) : null,
   };
   updateMap(mapRefs, state, view);
   renderHUD();
@@ -591,7 +854,8 @@ function renderPlayers() {
 
 function renderLog() {
   const log = $('log');
-  log.innerHTML = state.log.slice(-12).map((l) => `<div class="l-${l.type}">${l.msg}</div>`).join('');
+  const count = log.classList.contains('expanded') ? 60 : 12;
+  log.innerHTML = state.log.slice(-count).map((l) => `<div class="l-${l.type}">${l.msg}</div>`).join('');
   log.scrollTop = log.scrollHeight;
 }
 
@@ -612,8 +876,11 @@ function renderControls() {
   c.innerHTML = '';
   const me = state.players[state.current];
   if (me.isAI || ui.busy) {
-    const msg = me.isAI ? `Tekoäly (${me.name}) pelaa…` : 'Taistelu käynnissä…';
-    c.innerHTML = `<span class="hint-text">${msg}</span>`;
+    const row = addRow(c);
+    addHint(row, me.isAI ? `Tekoäly (${me.name}) pelaa…` : 'Taistelu käynnissä…');
+    if (me.isAI) {
+      addBtn(row, settings.fastAI ? '🐢 Normaali' : '⏩ Nopeuta', 'ghost', toggleAISpeed);
+    }
     return;
   }
   const tradeable = canTradeNow();
@@ -630,8 +897,11 @@ function renderControls() {
     addHint(row1, hintText);
 
     const row2 = addRow(c);
-    addBtn(row2, tradeable ? `Kortit ★ (${me.cards.length})` : `Kortit (${me.cards.length})`,
-      tradeable ? 'ghost notify' : 'ghost', openTrade, me.cards.length < 3);
+    const cardLabel = tradeable
+      ? `Kortit ★ (${me.cards.length}) · +${setValue(state.setsTraded)}`
+      : `Kortit (${me.cards.length})`;
+    addBtn(row2, cardLabel, tradeable ? 'ghost notify' : 'ghost', openTrade, me.cards.length < 3);
+    if (placeStack.length > 0) addBtn(row2, 'Kumoa', 'ghost', undoReinforcement);
     if (sel && rem > 0) {
       addBtn(row2, '+1', '', () => addReinforcement(1));
       addBtn(row2, '+5', '', () => addReinforcement(5), rem < 5);
@@ -640,7 +910,8 @@ function renderControls() {
       addBtn(row2, 'Hyökkäykseen →', 'primary', () => {
         const r = endReinforcement(state);
         if (!r.ok) { toast(r.reason); if (mustTradeCards(state)) openTrade(); return; }
-        clearSelection(); render();
+        placeStack = []; // kumoaminen ei ole enää mahdollista
+        clearSelection(); saveGame(); render();
       });
     }
   } else if (state.phase === PHASES.ATTACK) {
@@ -656,18 +927,18 @@ function renderControls() {
       const ta = state.territories[ui.attackTarget].armies;
       addHint(row, `${TERRITORIES[ui.selected].name}(${fa}) → ${TERRITORIES[ui.attackTarget].name}(${ta})`);
       addBtn(row, 'Peru', 'ghost', () => { clearSelection(); render(); });
-      addBtn(row, 'Hyökkää', 'danger', doSingleAttack);
-      addBtn(row, 'Tasapainotettu Blitz', 'danger', doBalancedBlitz);
+      addBtn(row, 'Nopat', 'danger', doSingleAttack);
+      addBtn(row, 'Blitz ⚡', 'danger', doBalancedBlitz);
     }
     addBtn(row, 'Lopeta →', 'primary', () => {
       const r = endAttack(state); if (!r.ok) { toast(r.reason); return; }
-      clearSelection(); render();
+      clearSelection(); saveGame(); render();
     });
   } else if (state.phase === PHASES.FORTIFY) {
     const row = addRow(c);
     addHint(row, ui.selected ? 'Valitse kohdealue' : 'Valitse alue josta siirtää (tai ohita)');
     if (ui.selected) addBtn(row, 'Peru', 'ghost', () => { clearSelection(); render(); });
-    addBtn(row, 'Päätä vuoro', 'primary', () => { endTurn(state); afterHumanTurnEnd(); });
+    addBtn(row, 'Päätä vuoro', 'primary', () => { endTurn(state); saveGame(); afterHumanTurnEnd(); });
   }
 }
 
@@ -769,12 +1040,37 @@ function flashConquest(id) {
 }
 
 function gameOver() {
+  clearSave();
   const w = state.players[state.winner];
-  const text = (!w.isAI && cfg.humans === 1)
+  const humanCount = state.players.filter((p) => !p.isAI).length;
+  const text = (!w.isAI && humanCount === 1)
     ? 'Sinä valloitit maailman!'
     : `${w.name} valloitti maailman!`;
   $('gameover-text').textContent = text;
+  renderGameOverStats();
   show('modal-gameover', true);
+}
+
+/** Loppuruudun tilastotaulukko: rivit pelaajat, sarakkeet tilastot. */
+function renderGameOverStats() {
+  const wrap = $('gameover-stats');
+  const stats = state.stats || state.players.map(() => emptyStats());
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const rows = state.players.map((p, i) => {
+    const st = stats[i] || emptyStats();
+    return `<tr class="${i === state.winner ? 'winner' : ''}">` +
+      `<td><span class="st-dot" style="background:${p.color}"></span>${esc(p.name)}</td>` +
+      `<td>${st.conquests}</td>` +
+      `<td>${st.battlesWon}/${st.battlesLost}</td>` +
+      `<td>${st.setsTraded}</td>` +
+      `<td>${st.eliminations}</td>` +
+      `</tr>`;
+  }).join('');
+  wrap.innerHTML =
+    `<table class="stats-table">` +
+    `<thead><tr><th>Pelaaja</th><th>Valloitukset</th><th>Taistelut V/H</th><th>Sarjat</th><th>Pudotukset</th></tr></thead>` +
+    `<tbody>${rows}</tbody></table>` +
+    `<p class="stats-turns">Vuoroja pelattu: ${state.turnCount}</p>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -783,7 +1079,8 @@ function gameOver() {
 
 function show(id, on) { $(id).hidden = !on; }
 function anyModalOpen() {
-  return ['modal-trade', 'modal-conquest', 'modal-fortify', 'modal-gameover', 'modal-setup']
+  return ['modal-trade', 'modal-conquest', 'modal-fortify', 'modal-gameover', 'modal-setup',
+    'modal-menu', 'modal-rules', 'modal-curtain']
     .some((id) => !$(id).hidden);
 }
 
@@ -811,7 +1108,30 @@ function applyView() {
   if (g) g.setAttribute('transform', `translate(${view.tx} ${view.ty}) scale(${view.scale})`);
   markInteracting();
 }
-function resetView() { view.scale = 1; view.tx = 0; view.ty = 0; applyView(); }
+/** Sovittaa näkymän alueiden rajaamaan laatikkoon (padding ~40). */
+function resetView() {
+  const svg = $('map');
+  const vb = svg?.viewBox?.baseVal;
+  const ids = Object.keys(TERRITORIES);
+  if (!vb || !vb.width || !ids.length) { view.scale = 1; view.tx = 0; view.ty = 0; applyView(); return; }
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const id of ids) {
+    const t = TERRITORIES[id];
+    if (t.x < minX) minX = t.x;
+    if (t.x > maxX) maxX = t.x;
+    if (t.y < minY) minY = t.y;
+    if (t.y > maxY) maxY = t.y;
+  }
+  const pad = 40;
+  minX -= pad; maxX += pad; minY -= pad; maxY += pad;
+  const w = Math.max(1, maxX - minX);
+  const h = Math.max(1, maxY - minY);
+  const scale = clamp(Math.min(vb.width / w, vb.height / h), 0.6, 4);
+  view.scale = scale;
+  view.tx = (vb.width - w * scale) / 2 - minX * scale;
+  view.ty = (vb.height - h * scale) / 2 - minY * scale;
+  applyView();
+}
 function zoomBy(factor, cx = 500, cy = 350) {
   const ns = clamp(view.scale * factor, 0.6, 4);
   // zoomaa kohdistuspisteen ympäri
@@ -901,6 +1221,7 @@ function setupZoom() {
 function boot() {
   refreshSetup();
   setupHandlers();
+  refreshContinueButton(); // näytä "Jatka peliä" jos tallennus on olemassa
   // Herätä audio ensimmäisellä käyttäjäeleellä (mobiilin autoplay-esto).
   const wake = () => { resumeAudio(); window.removeEventListener('pointerdown', wake); window.removeEventListener('keydown', wake); };
   window.addEventListener('pointerdown', wake);

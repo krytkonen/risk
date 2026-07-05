@@ -15,6 +15,7 @@
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
   <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/map-theme.css" />
 </head>
 <body>
   <div id="app">
@@ -42,6 +43,7 @@
       </div>
       <div id="battle-banner" hidden></div>
       <div id="toast" hidden></div>
+      <div id="terr-pop" hidden></div>
     </main>
 
     <section id="log" aria-label="Tapahtumaloki"></section>
@@ -86,6 +88,7 @@
           </button>
         </div>
       </div>
+      <button id="btn-continue" class="primary big" hidden>Jatka peliä</button>
       <button id="btn-start" class="primary big">Aloita peli</button>
       <p class="version">Toimii selaimessa ja asennettavissa Android-puhelimeen (PWA).</p>
     </div>
@@ -110,8 +113,13 @@
     <div class="dialog">
       <h2>Valloitus!</h2>
       <p class="hint" id="conquest-text"></p>
-      <input type="range" id="conquest-range" />
+      <div class="range-row">
+        <button id="conquest-min" class="ghost mini" type="button">Min</button>
+        <input type="range" id="conquest-range" />
+        <button id="conquest-max" class="ghost mini" type="button">Max</button>
+      </div>
       <div class="range-val"><span id="conquest-val">1</span> siirtyvää armeijaa</div>
+      <p class="hint" id="conquest-split"></p>
       <button id="conquest-confirm" class="primary big">Siirrä joukot</button>
     </div>
   </div>
@@ -135,7 +143,57 @@
     <div class="dialog">
       <h1 class="logo">🏆</h1>
       <h2 id="gameover-text">—</h2>
+      <div id="gameover-stats"></div>
       <button id="gameover-new" class="primary big">Uusi peli</button>
+    </div>
+  </div>
+
+  <!-- Valikko -->
+  <div class="overlay" id="modal-menu" hidden>
+    <div class="dialog">
+      <h2>Valikko</h2>
+      <div class="menu-list">
+        <button id="menu-resume" class="primary big">Jatka</button>
+        <button id="menu-sound" class="ghost">Äänet: Päällä</button>
+        <button id="menu-speed" class="ghost">⏩ Nopeuta tekoälyä</button>
+        <button id="menu-rules" class="ghost">Säännöt</button>
+        <button id="menu-new" class="ghost">Uusi peli</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Säännöt -->
+  <div class="overlay" id="modal-rules" hidden>
+    <div class="dialog">
+      <h2>Säännöt</h2>
+      <div class="rules-body">
+        <h3>Vuoron vaiheet</h3>
+        <p><strong>1. Vahvistus:</strong> saat armeijoita: max(3, alueesi ÷ 3) + mannerbonukset. Sijoita kaikki ennen hyökkäystä.</p>
+        <p><strong>2. Hyökkäys:</strong> hyökkää omalta alueelta (vähintään 2 armeijaa) viereiselle vihollisalueelle niin monta kertaa kuin haluat.</p>
+        <p><strong>3. Linnoitus:</strong> siirrä lopuksi joukkoja kahden yhdistetyn oman alueen välillä (yksi siirto), tai ohita.</p>
+        <h3>Noppasäännöt</h3>
+        <p>Hyökkääjä heittää enintään 3 noppaa (armeijat − 1), puolustaja enintään 2. Suurimmat nopat verrataan pareittain – tasapelin voittaa puolustaja. Häviäjä menettää armeijan per vertailu.</p>
+        <h3>Nopat vs. Blitz ⚡</h3>
+        <p><strong>Nopat</strong> ratkaisee yhden hyökkäyserän kerrallaan. <strong>Blitz ⚡</strong> (tasapainotettu) ratkaisee koko taistelun kerralla: lopputulos arvotaan koko taistelun todennäköisyydestä, joten yksittäiset noppatuurit vaikuttavat vähemmän.</p>
+        <h3>Kortit</h3>
+        <p>Saat kortin vuoron lopussa, jos valtasit vähintään yhden alueen. Kolmen kortin sarja (3 samaa, 1 kutakin tai jokeri mukana) vaihdetaan armeijoiksi. Sarjojen arvo kasvaa: 4, 6, 8, 10, 12, 15, sitten +5 per sarja. Viidellä kortilla vaihto on pakollinen.</p>
+        <h3>Mannerbonukset</h3>
+        <p>Jos hallitset mantereen kaikkia alueita vuorosi alussa, saat mantereen bonusarmeijat.</p>
+        <h3>Pelimoodit</h3>
+        <p><strong>🌫 Sumu:</strong> näet vain omat alueesi ja niiden naapurit.</p>
+        <p><strong>❄ Lumimyrsky:</strong> osa alueista on koko pelin suljettuja – niitä ei voi vallata eikä niiden läpi pääse, eikä niitä lasketa mannerbonukseen.</p>
+      </div>
+      <button id="rules-close" class="primary big">Sulje</button>
+    </div>
+  </div>
+
+  <!-- Kuumatuoliverho (sumu: pelaajan vaihto) -->
+  <div class="overlay" id="modal-curtain" hidden>
+    <div class="dialog">
+      <h1 class="logo">🌫</h1>
+      <h2 id="curtain-text">Anna laite pelaajalle —</h2>
+      <p class="hint">Kartta paljastuu vasta kun olet valmis.</p>
+      <button id="curtain-ready" class="primary big">Olen valmis</button>
     </div>
   </div>
 

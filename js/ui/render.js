@@ -15,6 +15,11 @@ const NEUTRAL_LIGHT = '#8a8a8a', NEUTRAL_MID = '#555', NEUTRAL_DARK = '#333';
 
 const FOG_HOLE_R = 70; // sumun läpi paljastuvan "portin" säde
 
+// Omistajakohtaiset reunusrenkaan katkoviivakuviot (värisokeusystävällisyys:
+// omistaja erottuu kuviosta ilman väriäkin). Indeksi = pelaajaindeksi.
+const RIM_DASH = ['none', '6 3', '2 3', '8 2 2 2', '1 4', '10 4'];
+const RIM_DASH_NEUTRAL = '1.5 4.5';
+
 function el(name, attrs = {}) {
   const e = document.createElementNS(SVGNS, name);
   for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
@@ -80,10 +85,12 @@ function buildDefs(warmth = 0) {
   const seaBot = mix('#081523', warmth > 0 ? '#0a1816' : '#06121f', Math.abs(warmth) * 0.5);
   const glowCol = warmth > 0 ? '#2a6a6e' : '#1e5a78';
 
-  // --- Meri: syvä radiaaligradientti + päälle laskeva lineaarinen sävytys. ---
-  const sea = el('radialGradient', { id: 'sea', cx: '50%', cy: '38%', r: '80%' });
-  sea.appendChild(el('stop', { offset: '0%', 'stop-color': seaTop }));
-  sea.appendChild(el('stop', { offset: '55%', 'stop-color': seaMid }));
+  // --- Meri: syvä monipysäkkinen radiaaligradientti (rikkaampi syvyys). ---
+  const sea = el('radialGradient', { id: 'sea', cx: '50%', cy: '38%', r: '85%' });
+  sea.appendChild(el('stop', { offset: '0%', 'stop-color': mix(seaTop, '#ffffff', 0.06) }));
+  sea.appendChild(el('stop', { offset: '30%', 'stop-color': seaTop }));
+  sea.appendChild(el('stop', { offset: '55%', 'stop-color': mix(seaTop, seaMid, 0.65) }));
+  sea.appendChild(el('stop', { offset: '78%', 'stop-color': seaMid }));
   sea.appendChild(el('stop', { offset: '100%', 'stop-color': seaBot }));
   defs.appendChild(sea);
 
@@ -180,6 +187,17 @@ function buildDefs(warmth = 0) {
   bz.appendChild(el('stop', { offset: '100%', 'stop-color': '#8fb6cc' }));
   defs.appendChild(bz);
 
+  // --- Per-manner lineaarigradientit maamassan täytölle (ylhäältä vaaleampi,
+  // alhaalta tummempi) – korvaa litteän fill-opacityn ilman suodattimia. ---
+  Object.values(CONTINENTS).forEach((cont, ci) => {
+    const c = cont.color;
+    const lg = el('linearGradient', { id: `cont-grad-${ci}`, x1: '0%', y1: '0%', x2: '0%', y2: '100%' });
+    lg.appendChild(el('stop', { offset: '0%', 'stop-color': mix(c, '#ffffff', 0.22), 'stop-opacity': 0.34 }));
+    lg.appendChild(el('stop', { offset: '55%', 'stop-color': c, 'stop-opacity': 0.24 }));
+    lg.appendChild(el('stop', { offset: '100%', 'stop-color': mix(c, '#000000', 0.35), 'stop-opacity': 0.3 }));
+    defs.appendChild(lg);
+  });
+
   return defs;
 }
 
@@ -220,17 +238,70 @@ function smoothClosedPath(pts) {
 }
 
 /**
- * Mannermuodon polku: alueiden koordinaattien konveksi peite, laajennettu
- * ulospäin keskipisteestä ja pehmennetty. Pienille mantereille (1–2 aluetta)
- * muodostetaan kahdeksankulmainen "saari" bounding boxin ympärille.
+ * Deterministinen pseudokohina -1..1 (sin-hash). Sama (a,b) -> sama arvo,
+ * joten rantaviivat ovat pysyviä joka latauksella – ei satunnaisuutta.
  */
-function continentShape(contId, pad = 50) {
+function seededNoise(a, b) {
+  const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453;
+  return (s - Math.floor(s)) * 2 - 1;
+}
+
+/**
+ * Tihennä suljettu monikulmio (~step px välein lisäpisteitä) ja rosoita
+ * jokainen piste normaalin suuntaan seedatulla kohinalla. Tulos: uskottavan
+ * rikkonainen rantaviiva puhtaana polkudatana – nolla ajonaikaista kustannusta.
+ * Amplitudi on rajattu (amp << laajennuspad), joten muoto ei vuoda naapureihin.
+ */
+function densifyAndJitter(pts, seed, step = 40, amp = 8) {
+  const dense = [];
+  const n = pts.length;
+  for (let i = 0; i < n; i++) {
+    const a = pts[i], b = pts[(i + 1) % n];
+    dense.push({ x: a.x, y: a.y });
+    const d = Math.hypot(b.x - a.x, b.y - a.y);
+    const segs = Math.floor(d / step);
+    for (let k = 1; k <= segs; k++) {
+      const t = k / (segs + 1);
+      dense.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+    }
+  }
+  const m = dense.length;
+  return dense.map((p, i) => {
+    const prev = dense[(i - 1 + m) % m], next = dense[(i + 1) % m];
+    let nx = next.y - prev.y, ny = -(next.x - prev.x);
+    const len = Math.hypot(nx, ny) || 1;
+    nx /= len; ny /= len;
+    const tx = (next.x - prev.x) / len, ty = (next.y - prev.y) / len;
+    const j = seededNoise(seed, i) * amp;              // normaalin suuntaan
+    const j2 = seededNoise(seed + 57, i) * amp * 0.35; // kevyt tangentiaalinen huojunta
+    return { x: p.x + nx * j + tx * j2, y: p.y + ny * j + ty * j2 };
+  });
+}
+
+/** Siirrä pisteitä säteittäin keskipisteestä d verran (+ ulos, - sisään). */
+function offsetRadial(pts, cx, cy, d) {
+  return pts.map((p) => {
+    const dx = p.x - cx, dy = p.y - cy;
+    const len = Math.hypot(dx, dy) || 1;
+    return { x: p.x + (dx / len) * d, y: p.y + (dy / len) * d };
+  });
+}
+
+/**
+ * Mannermuodon ääriviivapisteet: alueiden koordinaattien konveksi peite,
+ * laajennettu ulospäin keskipisteestä, tihennetty ja rosoitettu orgaaniseksi
+ * rantaviivaksi. Pienille mantereille (1–2 aluetta) kahdeksankulmainen "saari".
+ * Palauttaa { pts, cx, cy } jotta samasta ääriviivasta voi johtaa shelf-/
+ * highlight-versiot säteittäisellä siirrolla.
+ */
+function continentOutline(contId, seed, pad = 50) {
   const ids = continentTerritories(contId);
   const points = ids.map((i) => ({ x: TERRITORIES[i].x, y: TERRITORIES[i].y }));
   const cx = points.reduce((s, p) => s + p.x, 0) / points.length;
   const cy = points.reduce((s, p) => s + p.y, 0) / points.length;
 
-  let hull = convexHull(points);
+  let base;
+  const hull = convexHull(points);
   if (hull.length < 3) {
     // Liian vähän pisteitä peitteeksi: tee kahdeksankulmio bbox-keskuksen ympäri.
     const xs = points.map((p) => p.x), ys = points.map((p) => p.y);
@@ -241,15 +312,101 @@ function continentShape(contId, pad = 50) {
       const ang = (Math.PI * 2 * k) / 8 - Math.PI / 2;
       oct.push({ x: cx + Math.cos(ang) * w, y: cy + Math.sin(ang) * h });
     }
-    return smoothClosedPath(oct);
+    base = oct;
+  } else {
+    // Laajenna jokainen peitteen kärki säteittäin ulospäin keskipisteestä.
+    base = hull.map((p) => {
+      const dx = p.x - cx, dy = p.y - cy;
+      const len = Math.hypot(dx, dy) || 1;
+      return { x: p.x + (dx / len) * pad, y: p.y + (dy / len) * pad };
+    });
   }
-  // Laajenna jokainen peitteen kärki säteittäin ulospäin keskipisteestä.
-  const expanded = hull.map((p) => {
-    const dx = p.x - cx, dy = p.y - cy;
-    const len = Math.hypot(dx, dy) || 1;
-    return { x: p.x + (dx / len) * pad, y: p.y + (dy / len) * pad };
+  return { pts: densifyAndJitter(base, seed * 13 + 3, 40, 8), cx, cy };
+}
+
+// --- Staattiset merikoristeet (aaltoglyyfit + kompassiruusu) ---------------
+
+/** Pienin etäisyys pisteestä mihinkään alueeseen. */
+function minDistToTerritories(x, y) {
+  let best = Infinity;
+  for (const id of TERRITORY_IDS) {
+    const t = TERRITORIES[id];
+    const d = Math.hypot(t.x - x, t.y - y);
+    if (d < best) best = d;
+  }
+  return best;
+}
+
+/** Sirottele muutama pieni aaltoglyyfi avomerelle (kauas alueista). */
+function buildWaveGlyphs() {
+  const g = el('g', { 'class': 'sea-deco', 'pointer-events': 'none' });
+  const spots = [];
+  for (let x = 90; x <= 910; x += 115) {
+    for (let y = 80; y <= 620; y += 105) {
+      const d = minDistToTerritories(x, y);
+      if (d > 100) spots.push({ x, y, d });
+    }
+  }
+  spots.sort((a, b) => b.d - a.d);
+  const chosen = [];
+  for (const s of spots) {
+    if (chosen.length >= 5) break;
+    if (chosen.every((c) => Math.hypot(c.x - s.x, c.y - s.y) > 140)) chosen.push(s);
+  }
+  chosen.forEach((s, i) => {
+    // Deterministinen pieni siirtymä, ettei ruudukko erotu.
+    const ox = seededNoise(11, i) * 18, oy = seededNoise(23, i) * 12;
+    const x = s.x + ox, y = s.y + oy;
+    const wave = (wx, wy, w) => el('path', {
+      d: `M ${(wx - w).toFixed(1)} ${wy.toFixed(1)} q ${(w / 2).toFixed(1)} -5 ${w.toFixed(1)} 0 q ${(w / 2).toFixed(1)} 5 ${w.toFixed(1)} 0`,
+      fill: 'none', stroke: '#a8d4f0', 'stroke-width': 1.3, 'stroke-linecap': 'round',
+      'stroke-opacity': 0.16,
+    });
+    g.appendChild(wave(x, y, 9));
+    const w2 = wave(x + 4, y + 7, 6);
+    w2.setAttribute('stroke-opacity', '0.11');
+    g.appendChild(w2);
   });
-  return smoothClosedPath(expanded);
+  return g;
+}
+
+/** 8-sakarainen tähtipolku (vuorotellen ulko-/sisäsäde). */
+function starPath(cx, cy, rOut, rIn, rot) {
+  let d = '';
+  for (let k = 0; k < 8; k++) {
+    const ang = (Math.PI / 4) * k + rot;
+    const r = k % 2 === 0 ? rOut : rIn;
+    d += `${k === 0 ? 'M' : 'L'} ${(cx + Math.cos(ang) * r).toFixed(1)} ${(cy + Math.sin(ang) * r).toFixed(1)} `;
+  }
+  return d + 'Z';
+}
+
+/** Proseduraalinen kompassiruusu tyhjimpään kulmaan (staattinen, himmeä). */
+function buildCompassRose() {
+  const corners = [
+    { x: 78, y: 92 }, { x: 922, y: 92 }, { x: 78, y: 608 }, { x: 922, y: 608 },
+  ];
+  let best = corners[0], bestD = -1;
+  for (const c of corners) {
+    const d = minDistToTerritories(c.x, c.y);
+    if (d > bestD) { bestD = d; best = c; }
+  }
+  const { x, y } = best;
+  const ink = '#9fc4e8';
+  const g = el('g', { 'class': 'sea-deco compass-rose', 'pointer-events': 'none' });
+  g.appendChild(el('circle', { cx: x, cy: y, r: 26, fill: 'none', stroke: ink, 'stroke-opacity': 0.22, 'stroke-width': 1 }));
+  g.appendChild(el('circle', { cx: x, cy: y, r: 21, fill: 'none', stroke: ink, 'stroke-opacity': 0.1, 'stroke-width': 0.75 }));
+  // Diagonaalitähti (lyhyet sakarat) alle, pääilmansuunnat (pitkät) päälle.
+  g.appendChild(el('path', { d: starPath(x, y, 12, 3.5, -Math.PI / 4), fill: ink, 'fill-opacity': 0.12, stroke: ink, 'stroke-opacity': 0.18, 'stroke-width': 0.75 }));
+  g.appendChild(el('path', { d: starPath(x, y, 22, 4.5, -Math.PI / 2), fill: ink, 'fill-opacity': 0.18, stroke: ink, 'stroke-opacity': 0.32, 'stroke-width': 1 }));
+  g.appendChild(el('circle', { cx: x, cy: y, r: 2, fill: ink, 'fill-opacity': 0.4 }));
+  const n = el('text', {
+    x, y: y - 30, 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 700,
+    fill: ink, 'fill-opacity': 0.45, 'letter-spacing': 1,
+  });
+  n.textContent = 'N';
+  g.appendChild(n);
+  return g;
 }
 
 /** Rakentaa staattisen kartan kerran (mantereet + viivat + napit). */
@@ -287,15 +444,33 @@ export function buildMap(svg, onTap) {
   const gMap = el('g', { id: 'g-map' });
   svg.appendChild(gMap);
 
-  // Mantereet maamassan muotoisina: alueiden konveksista peitteestä
-  // pehmennetty "rantaviiva", rosoutettu rantasuodattimella, matalan veden
-  // vaahto rannan ympärillä, reliefivalaistus kohovaikutelmaksi.
+  // Staattiset merikoristeet: aaltoglyyfit avomerellä + kompassiruusu
+  // tyhjimmässä kulmassa. Molemmat matalan opasiteetin viivapiirroksia,
+  // ei suodattimia, ei animaatioita.
+  gMap.appendChild(buildWaveGlyphs());
+  gMap.appendChild(buildCompassRose());
+
+  // Mantereet maamassan muotoisina: rosoitettu orgaaninen "rantaviiva"
+  // (tihennetty + seedattu jitter, pelkkää polkudataa), mannerjalusta
+  // matalana vetenä alla, gradienttitäyttö + rantaviivan veto + sisempi
+  // valokorostus. Ei uusia suodattimia.
   const gCont = el('g', { id: 'g-continents' });
   const contIds = Object.keys(CONTINENTS);
   contIds.forEach((contId, ci) => {
     const b = continentBounds(contId);
     const color = CONTINENTS[contId].color;
-    const path = continentShape(contId);
+    const { pts, cx, cy } = continentOutline(contId, ci);
+    const path = smoothClosedPath(pts);
+    const shelfPath = smoothClosedPath(offsetRadial(pts, cx, cy, 10));
+    const innerPath = smoothClosedPath(offsetRadial(pts, cx, cy, -5));
+
+    // Mannerjalusta: hieman isompi kopio polusta vaaleana merenvaahtosävynä
+    // – "matala vesi" rannikon ympärillä, ilman suodattimia.
+    gCont.appendChild(el('path', {
+      d: shelfPath, 'class': 'cont-shelf', 'pointer-events': 'none',
+      fill: '#bfe6ef', 'fill-opacity': 0.06,
+      stroke: '#bfe6ef', 'stroke-opacity': 0.08, 'stroke-width': 5, 'stroke-linejoin': 'round',
+    }));
 
     // Matalan veden vaahto: sama polku useana levenevänä vetona rannan alle.
     // EI suodattimia (suorituskyky) – pelkät vedot riittävät rantavyöhykkeeksi.
@@ -305,26 +480,66 @@ export function buildMap(svg, onTap) {
     foam.appendChild(el('path', { d: path, fill: 'none', stroke: '#cfeaf3', 'stroke-opacity': 0.26, 'stroke-width': 4, 'stroke-linejoin': 'round' }));
     gCont.appendChild(foam);
 
-    // Maamassa: pehmeä rantaviiva + rantaviivan veto. Yksi kevyt varjo.
+    // Maamassa: gradienttitäyttö (ylhäältä valoisampi) + tumma rantaviiva +
+    // sisempi vaalea korostusviiva kohovaikutelmaksi. Yksi kevyt varjo.
     const land = el('g', { 'class': 'cont-panel', filter: 'url(#cont-shadow)' });
-    land.appendChild(el('path', { d: path, fill: color, 'fill-opacity': 0.22 }));
-    land.appendChild(el('path', { d: path, fill: 'none', stroke: color, 'stroke-opacity': 0.6, 'stroke-width': 2, 'stroke-linejoin': 'round' }));
+    land.appendChild(el('path', { d: path, fill: `url(#cont-grad-${ci})` }));
+    land.appendChild(el('path', {
+      d: path, fill: 'none', stroke: mix(color, '#000000', 0.45),
+      'stroke-opacity': 0.85, 'stroke-width': 2, 'stroke-linejoin': 'round',
+    }));
+    land.appendChild(el('path', {
+      d: innerPath, fill: 'none', stroke: mix(color, '#ffffff', 0.55),
+      'stroke-opacity': 0.22, 'stroke-width': 1, 'stroke-linejoin': 'round',
+    }));
     gCont.appendChild(land);
 
-    // Otsikkomerkki (nimi + bonus) mantereen yläreunaan.
+    // Otsikkokartussi (nimi + bonus): pilleri mantereen värisellä reunuksella.
+    // Sijoitus: mieluiten ylimmän napin yläpuolelle; jos päällekkäin nappien
+    // kanssa, kokeillaan bounds-yläreunaa tai alimman napin alapuolta.
     const labelG = el('g', { 'class': 'cont-label' });
     const txt = `${CONTINENTS[contId].name}  +${CONTINENTS[contId].bonus}`;
-    const padX = 9, lblH = 20;
-    const lblW = txt.length * 7.6 + padX * 2;
-    const lx = Math.max(6, Math.min(b.x + b.w / 2 - lblW / 2, 1000 - lblW - 6));
-    const ly = Math.max(4, b.y + 4);
+    const padX = 10, lblH = 21;
+    const lblW = txt.length * 8.2 + padX * 2;
+    const ids = continentTerritories(contId);
+    let topT = TERRITORIES[ids[0]], botT = TERRITORIES[ids[0]];
+    for (const tid of ids) {
+      const t = TERRITORIES[tid];
+      if (t.y < topT.y) topT = t;
+      if (t.y > botT.y) botT = t;
+    }
+    const clampX = (v) => Math.max(6, Math.min(v, 1000 - lblW - 6));
+    const clampY = (v) => Math.max(4, Math.min(v, 700 - lblH - 4));
+    const candidates = [
+      { x: clampX(topT.x - lblW / 2), y: clampY(topT.y - NODE_R - 16 - lblH) },
+      { x: clampX(b.x + b.w / 2 - lblW / 2), y: clampY(b.y + 4) },
+      { x: clampX(botT.x - lblW / 2), y: clampY(botT.y + NODE_R + 18) },
+    ];
+    // Päällekkäisyydet minkä tahansa aluenapin kanssa (rect–circle-etäisyys).
+    const overlaps = (c) => {
+      let n = 0;
+      for (const tid of TERRITORY_IDS) {
+        const p = TERRITORIES[tid];
+        const qx = Math.max(c.x, Math.min(p.x, c.x + lblW));
+        const qy = Math.max(c.y, Math.min(p.y, c.y + lblH));
+        if (Math.hypot(p.x - qx, p.y - qy) < NODE_R + 12) n++;
+      }
+      return n;
+    };
+    let bestPos = candidates[0], bestN = overlaps(candidates[0]);
+    for (let k = 1; k < candidates.length && bestN > 0; k++) {
+      const n = overlaps(candidates[k]);
+      if (n < bestN) { bestN = n; bestPos = candidates[k]; }
+    }
+    const lx = bestPos.x, ly = bestPos.y;
     labelG.appendChild(el('rect', {
-      x: lx, y: ly, width: lblW, height: lblH, rx: 10, ry: 10,
-      fill: '#04101c', 'fill-opacity': 0.5, stroke: color, 'stroke-opacity': 0.5, 'stroke-width': 1,
+      x: lx, y: ly, width: lblW, height: lblH, rx: 10.5, ry: 10.5,
+      fill: '#04101c', 'fill-opacity': 0.55, stroke: color, 'stroke-opacity': 0.55, 'stroke-width': 1,
     }));
     const label = el('text', {
-      x: lx + padX, y: ly + lblH / 2, fill: color,
-      'font-size': 13, 'font-weight': 700, 'dominant-baseline': 'central',
+      x: lx + lblW / 2, y: ly + lblH / 2, fill: mix(color, '#ffffff', 0.25),
+      'text-anchor': 'middle',
+      'font-size': 12.5, 'font-weight': 700, 'dominant-baseline': 'central',
     });
     label.textContent = txt;
     labelG.appendChild(label);
@@ -334,6 +549,7 @@ export function buildMap(svg, onTap) {
 
   // Naapuruusviivat (jokainen särmä kerran).
   const gEdges = el('g', { id: 'g-edges' });
+  let seaEdgeIdx = 0;
   for (const id of TERRITORY_IDS) {
     for (const n of TERRITORIES[id].adj) {
       if (id < n) {
@@ -341,14 +557,21 @@ export function buildMap(svg, onTap) {
         const dist = Math.hypot(a.x - b.x, a.y - b.y);
         const sea = dist > 220; // pitkä merireitti -> hohtava katkoviiva
         if (sea) {
-          // Sea route: pehmeä hehkuva katkoviiva (taustaviiva + päällysviiva).
-          gEdges.appendChild(el('line', {
-            x1: a.x, y1: a.y, x2: b.x, y2: b.y,
+          // Sea route: loiva kvadraattinen kaari (purjehdusreitin tuntu).
+          // Kaaren suunta valitaan deterministisesti seedatulla kohinalla.
+          const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+          const px = -(b.y - a.y) / dist, py = (b.x - a.x) / dist;
+          const bow = Math.min(20, 12 + dist * 0.02);
+          const sign = seededNoise(7, seaEdgeIdx++) >= 0 ? 1 : -1;
+          const d = `M ${a.x} ${a.y} Q ${(mx + px * bow * sign).toFixed(1)} ${(my + py * bow * sign).toFixed(1)} ${b.x} ${b.y}`;
+          // Pehmeä hehkuva katkoviiva (taustaviiva + päällysviiva).
+          gEdges.appendChild(el('path', {
+            d, fill: 'none',
             'class': 'edge-sea-glow', stroke: '#6fb6e8', 'stroke-opacity': 0.12,
             'stroke-width': 4, 'stroke-linecap': 'round', 'stroke-dasharray': '2 11',
           }));
-          gEdges.appendChild(el('line', {
-            x1: a.x, y1: a.y, x2: b.x, y2: b.y,
+          gEdges.appendChild(el('path', {
+            d, fill: 'none',
             'class': 'edge-sea', stroke: '#9fd0f0', 'stroke-opacity': 0.4,
             'stroke-width': 1.4, 'stroke-linecap': 'round', 'stroke-dasharray': '2 11',
           }));
@@ -399,9 +622,20 @@ export function buildMap(svg, onTap) {
     // Pakkashehku jäätyneen napin taakse (näkyy vain .frozen-tilassa CSS:llä).
     const chill = el('circle', { cx: t.x, cy: t.y, r: 38, fill: 'url(#chill-glow)', 'class': 'chill', 'pointer-events': 'none', opacity: 0 });
     const halo = el('circle', { cx: t.x, cy: t.y, r: NODE_R + 5, fill: 'none', 'stroke-width': 4, 'class': 'halo', 'stroke-opacity': 0, filter: 'url(#halo-glow)' });
+    // Premium-token kerroksittain ILMAN uusia suodattimia: tumma pohjarengas
+    // (bezel), gradienttikiekko (filter vain tässä – katettu .interacting-
+    // eskaappirulella), omistajan katkoviivakuvioitu rengas, spekulaarikiilto.
+    const ringDark = el('circle', { cx: t.x, cy: t.y, r: NODE_R + 2.5, fill: 'none', stroke: '#081119', 'stroke-width': 3.5, 'stroke-opacity': 0.55, 'class': 'node-ring-dark', 'pointer-events': 'none' });
     const circle = el('circle', { cx: t.x, cy: t.y, r: NODE_R, 'stroke-width': 2.5, 'class': 'node', filter: 'url(#node-shadow)' });
+    const ring = el('circle', { cx: t.x, cy: t.y, r: NODE_R + 2.5, fill: 'none', 'stroke-width': 1.8, stroke: '#000', 'stroke-opacity': 0, 'class': 'node-rim', 'pointer-events': 'none' });
+    const glossCx = t.x - NODE_R * 0.3, glossCy = t.y - NODE_R * 0.4;
+    const gloss = el('ellipse', {
+      cx: glossCx, cy: glossCy, rx: NODE_R * 0.48, ry: NODE_R * 0.28,
+      fill: '#ffffff', opacity: 0.22, 'class': 'node-gloss', 'pointer-events': 'none',
+      transform: `rotate(-24 ${glossCx} ${glossCy})`,
+    });
     const count = el('text', { x: t.x, y: t.y, 'class': 'army-count', 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 18, 'font-weight': 800 });
-    const name = el('text', { x: t.x, y: t.y + NODE_R + 12, 'class': 'terr-name', 'text-anchor': 'middle', 'font-size': 10.5 });
+    const name = el('text', { x: t.x, y: t.y + NODE_R + 13, 'class': 'terr-name', 'text-anchor': 'middle', 'font-size': 11 });
     name.textContent = t.name;
     // Lumi-hiukkaset (näkyvät vain .frozen-tilassa CSS:llä). 4 kpl, porrastettu.
     const snow = el('g', { 'class': 'snow', 'pointer-events': 'none' });
@@ -415,13 +649,14 @@ export function buildMap(svg, onTap) {
     // Lumimyrskymerkki (❄) keskellä – näkyy kun alue on suljettu.
     const frost = el('text', { x: t.x, y: t.y, 'class': 'frost', 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 22, opacity: 0 });
     frost.textContent = '❄';
-    g.appendChild(chill); g.appendChild(halo); g.appendChild(circle);
+    g.appendChild(chill); g.appendChild(halo); g.appendChild(ringDark); g.appendChild(circle);
+    g.appendChild(ring); g.appendChild(gloss);
     g.appendChild(count); g.appendChild(name); g.appendChild(snow); g.appendChild(frost);
     const handler = (ev) => { ev.preventDefault(); ev.stopPropagation(); onTap(id); };
     g.addEventListener('click', handler);
     g.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') handler(ev); });
     gNodes.appendChild(g);
-    nodeRefs[id] = { g, halo, circle, count, name, frost, chill, snow, flakes };
+    nodeRefs[id] = { g, halo, circle, count, name, frost, chill, snow, flakes, ring, gloss };
   }
   gMap.appendChild(gNodes);
 
@@ -503,19 +738,42 @@ export function updateMap(refs, state, ui = {}) {
     const blocked = blizzards.has(id);          // lumimyrskyn sulkema (pysyvä)
     const hidden = !blocked && fog && !fog.has(id); // sumun peittämä vihollisalue
 
+    // Omistajan reunusrengas: väri + katkoviivakuvio per pelaajaindeksi, jotta
+    // omistus erottuu myös ilman värinäköä (RIM_DASH). Vain attribuutteja.
+    const rim = r.ring || null;
     if (blocked) {
       r.circle.setAttribute('fill', 'url(#node-grad-blizzard)');
       r.circle.setAttribute('stroke', '#6f9cb8');
+      if (rim) {
+        rim.setAttribute('stroke', '#d6f0ff');
+        rim.setAttribute('stroke-opacity', 0.6);
+        rim.setAttribute('stroke-dasharray', '2 3');
+      }
     } else if (hidden) {
       r.circle.setAttribute('fill', 'url(#node-grad-fog)');
       r.circle.setAttribute('stroke', '#0c141d');
+      if (rim) {
+        rim.setAttribute('stroke', '#31445a');
+        rim.setAttribute('stroke-opacity', 0.25);
+        rim.setAttribute('stroke-dasharray', 'none');
+      }
     } else if (owner == null) {
       r.circle.setAttribute('fill', 'url(#node-grad-neutral)');
       r.circle.setAttribute('stroke', NEUTRAL_DARK);
+      if (rim) {
+        rim.setAttribute('stroke', '#9aa6b0');
+        rim.setAttribute('stroke-opacity', 0.35);
+        rim.setAttribute('stroke-dasharray', RIM_DASH_NEUTRAL);
+      }
     } else {
       const idx = owner % PLAYER_COLORS.length;
       r.circle.setAttribute('fill', `url(#node-grad-${idx})`);
       r.circle.setAttribute('stroke', PLAYER_COLORS_DARK[idx]);
+      if (rim) {
+        rim.setAttribute('stroke', PLAYER_COLORS_LIGHT[idx]);
+        rim.setAttribute('stroke-opacity', 0.9);
+        rim.setAttribute('stroke-dasharray', RIM_DASH[idx % RIM_DASH.length]);
+      }
     }
 
     // Armeijamäärä – pop-animaatio kun luku muuttuu. Suljetussa ei lukua, sumussa '?'.
@@ -545,22 +803,23 @@ export function updateMap(refs, state, ui = {}) {
       continue;
     }
 
-    let haloOpacity = 0, haloColor = '#ffd34d', haloR = NODE_R + 5;
+    let haloOpacity = 0, haloColor = '#ffd34d', haloR = NODE_R + 5, haloW = 4;
     // Tilakohtaiset CSS-luokat halojen pulssausta varten.
     r.halo.classList.remove('halo-selected', 'halo-target', 'halo-valid');
     if (id === selected) {
-      haloOpacity = 1; haloColor = '#ffd34d'; haloR = NODE_R + 6;
+      haloOpacity = 1; haloColor = '#ffd34d'; haloR = NODE_R + 6; haloW = 4;
       r.halo.classList.add('halo-selected');
     } else if (id === attackTarget) {
-      haloOpacity = 1; haloColor = '#ff3b3b'; haloR = NODE_R + 7;
+      haloOpacity = 1; haloColor = '#ff2b2b'; haloR = NODE_R + 7.5; haloW = 5.5;
       r.halo.classList.add('halo-target');
     } else if (targets.has(id)) {
-      haloOpacity = 0.85; haloColor = '#ff7a7a';
+      haloOpacity = 0.8; haloColor = '#ff8585'; haloW = 3.5;
       r.halo.classList.add('halo-valid');
     }
     r.halo.setAttribute('stroke', haloColor);
     r.halo.setAttribute('stroke-opacity', haloOpacity);
     r.halo.setAttribute('r', haloR);
+    r.halo.setAttribute('stroke-width', haloW);
     r.g.classList.toggle('selectable', targets.has(id));
   }
 }

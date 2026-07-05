@@ -2,7 +2,7 @@
 // linnoitus), vahvistuslaskenta, valloitus, pelaajan putoaminen ja
 // voittoehto. Puhdas moduuli – ei DOM-riippuvuuksia, testattavissa Nodella.
 
-import { TERRITORIES, TERRITORY_IDS, CONTINENTS, continentTerritories, setActiveMap } from '../data/territories.js';
+import { TERRITORIES, TERRITORY_IDS, CONTINENTS, continentTerritories, setActiveMap, activeMapId } from '../data/territories.js';
 import { makeRng, randomSeed } from './rng.js';
 import { resolveAttack } from './combat.js';
 import { buildDeck, shuffle, setValue, isValidSet } from './cards.js';
@@ -84,6 +84,7 @@ export function createGame({ players, seed, mapId, options }) {
     winner: null,
     turnCount: 1,
     log: [],
+    stats: players.map(() => emptyStats()),
   };
 
   for (const id of TERRITORY_IDS) state.territories[id] = { owner: null, armies: 0 };
@@ -203,6 +204,21 @@ function deployStartingArmies(state) {
 
 // --- Apufunktiot ----------------------------------------------------------
 
+/** Tyhjä tilastorivi yhdelle pelaajalle. */
+export function emptyStats() {
+  return { conquests: 0, battlesWon: 0, battlesLost: 0, setsTraded: 0, eliminations: 0 };
+}
+
+/**
+ * Pelaajan tilastorivi. Luo puuttuvat rivit laiskasti (vanhat tallennukset
+ * eivät sisällä statseja – ne alkavat nollista).
+ */
+export function statsFor(state, playerIndex) {
+  if (!state.stats) state.stats = state.players.map(() => emptyStats());
+  if (!state.stats[playerIndex]) state.stats[playerIndex] = emptyStats();
+  return state.stats[playerIndex];
+}
+
 export function ownedBy(state, playerIndex) {
   return TERRITORY_IDS.filter((id) => state.territories[id].owner === playerIndex);
 }
@@ -266,6 +282,7 @@ export function tradeCards(state, indices) {
   const bonus = setValue(state.setsTraded);
   state.setsTraded++;
   state.reinforcements += bonus;
+  statsFor(state, state.current).setsTraded++;
 
   // +2 armeijaa jos omistaa sarjan kortin alueen (klassinen sääntö).
   let territoryBonus = 0;
@@ -293,6 +310,21 @@ export function placeArmies(state, territoryId, n = 1) {
   if (n <= 0 || n > state.reinforcements) return { ok: false, reason: 'Liikaa armeijoita' };
   t.armies += n;
   state.reinforcements -= n;
+  return { ok: true };
+}
+
+/**
+ * Kumoaa vahvistusten sijoituksen: palauttaa n armeijaa alueelta takaisin
+ * sijoituspooliin. Sallittu vain vahvistusvaiheessa omalle alueelle, ja
+ * alueelle on jäätävä vähintään 1 armeija.
+ */
+export function unplaceArmies(state, territoryId, n = 1) {
+  if (state.phase !== PHASES.REINFORCE) return { ok: false, reason: 'Väärä vaihe' };
+  const t = state.territories[territoryId];
+  if (!t || t.owner !== state.current) return { ok: false, reason: 'Ei oma alue' };
+  if (n <= 0 || t.armies - n < 1) return { ok: false, reason: 'Alueelle on jäätävä vähintään 1 armeija' };
+  t.armies -= n;
+  state.reinforcements += n;
   return { ok: true };
 }
 
@@ -326,8 +358,18 @@ export function attack(state, fromId, toId) {
   if (!canAttack(state, fromId, toId)) return { ok: false, reason: 'Hyökkäys ei sallittu' };
 
   const from = state.territories[fromId];
+  const defenderIndex = state.territories[toId].owner;
   const attackerDiceUsed = Math.min(3, from.armies - 1);
   const r = resolveAttack(state, fromId, toId, state.rng);
+
+  // Tilastot: erän voittaa se, joka tuhosi enemmän (tasaerä ei kummallekaan).
+  if (r.defenderLosses > r.attackerLosses) {
+    statsFor(state, state.current).battlesWon++;
+    if (defenderIndex !== null) statsFor(state, defenderIndex).battlesLost++;
+  } else if (r.attackerLosses > r.defenderLosses) {
+    statsFor(state, state.current).battlesLost++;
+    if (defenderIndex !== null) statsFor(state, defenderIndex).battlesWon++;
+  }
 
   if (r.conquered) {
     const minMove = Math.max(1, Math.min(attackerDiceUsed, from.armies - 1));
@@ -353,6 +395,7 @@ export function resolveConquest(state, moveCount) {
   to.armies = move;
   state.conqueredThisTurn = true;
   state.pendingConquest = null;
+  statsFor(state, state.current).conquests++;
 
   // Putosiko puolustaja pelistä?
   if (loserIndex !== null && ownedBy(state, loserIndex).length === 0) {
@@ -370,6 +413,7 @@ function eliminatePlayer(state, loserIndex, conquerorIndex) {
   const conqueror = state.players[conquerorIndex];
   conqueror.cards.push(...loser.cards);
   loser.cards = [];
+  statsFor(state, conquerorIndex).eliminations++;
   log(state, `${playerVerb(loser.name, 'putosi', 'pelistä!')} ${playerVerb(conqueror.name, 'sai', 'kortit.')}`, 'eliminate');
 }
 
@@ -476,8 +520,17 @@ export function endTurn(state) {
 export function applyBlitzResult(state, fromId, toId, finalAttacker, finalDefender) {
   const from = state.territories[fromId];
   const to = state.territories[toId];
+  const defenderIndex = to.owner;
   from.armies = finalAttacker;
   to.armies = finalDefender;
+  // Tilastot: koko blitz lasketaan yhdeksi taisteluksi.
+  if (finalDefender <= 0) {
+    statsFor(state, state.current).battlesWon++;
+    if (defenderIndex !== null) statsFor(state, defenderIndex).battlesLost++;
+  } else {
+    statsFor(state, state.current).battlesLost++;
+    if (defenderIndex !== null) statsFor(state, defenderIndex).battlesWon++;
+  }
   if (finalDefender <= 0) {
     const minMove = Math.max(1, Math.min(3, finalAttacker - 1));
     const maxMove = finalAttacker - 1;
@@ -486,6 +539,80 @@ export function applyBlitzResult(state, fromId, toId, finalAttacker, finalDefend
     log(state, playerVerb(playerName, 'valloitti', `${TERRITORIES[toId].gen}!`), 'attack');
     state.conqueredThisTurn = true;
   }
+}
+
+// --- Tallennus ja palautus --------------------------------------------------
+
+/**
+ * Muuntaa pelitilan puhtaaksi JSON-yhteensopivaksi objektiksi tallennusta
+ * varten. Satunnaislukugeneraattori tallennetaan siemenenä + kutsulaskurina,
+ * jotta palautettu peli jatkuu deterministisesti täsmälleen samasta kohdasta.
+ */
+export function serializeGame(state) {
+  return JSON.parse(JSON.stringify({
+    v: 1,
+    seed: state.seed,
+    rngCalls: state.rng?.calls ?? 0,
+    mapId: activeMapId,
+    options: state.options,
+    players: state.players,
+    territories: state.territories,
+    blizzards: state.blizzards,
+    current: state.current,
+    phase: state.phase,
+    reinforcements: state.reinforcements,
+    setsTraded: state.setsTraded,
+    conqueredThisTurn: state.conqueredThisTurn,
+    deck: state.deck,
+    discard: state.discard,
+    pendingConquest: state.pendingConquest,
+    winner: state.winner,
+    turnCount: state.turnCount,
+    log: state.log,
+    stats: state.stats ?? state.players.map(() => emptyStats()),
+  }));
+}
+
+/**
+ * Palauttaa pelitilan serializeGame-tallennuksesta. Aktivoi tallennetun
+ * kartan, luo rng:n samalla siemenellä ja "polttaa" tallennetun määrän
+ * arvontoja – peli jatkuu ilman uudelleenarvontaa.
+ */
+export function restoreGame(saved) {
+  if (!saved || typeof saved.seed !== 'number' || !saved.territories || !saved.players) {
+    throw new Error('Virheellinen tallennus');
+  }
+  setActiveMap(saved.mapId || 'classic');
+  const data = JSON.parse(JSON.stringify(saved)); // irrota tallennusobjektista
+  const rng = makeRng(data.seed);
+  const burn = Math.max(0, data.rngCalls | 0);
+  for (let i = 0; i < burn; i++) rng();
+
+  const state = {
+    seed: data.seed,
+    rng,
+    options: { fogOfWar: !!data.options?.fogOfWar, blizzard: !!data.options?.blizzard },
+    players: data.players,
+    territories: data.territories,
+    blizzards: data.blizzards || [],
+    current: data.current,
+    phase: data.phase,
+    reinforcements: data.reinforcements,
+    setsTraded: data.setsTraded,
+    conqueredThisTurn: !!data.conqueredThisTurn,
+    deck: data.deck || [],
+    discard: data.discard || [],
+    pendingConquest: data.pendingConquest ?? null,
+    winner: data.winner ?? null,
+    turnCount: data.turnCount ?? 1,
+    log: data.log || [],
+    stats: data.stats || data.players.map(() => emptyStats()),
+  };
+  // Varmista että kaikki alueet ovat olemassa (tallennus samalta kartalta).
+  for (const id of TERRITORY_IDS) {
+    if (!state.territories[id]) throw new Error('Tallennus ei vastaa karttaa');
+  }
+  return state;
 }
 
 /** Kevyt tilannekuva UI:lle / debuggaukseen. */
