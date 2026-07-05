@@ -29,7 +29,11 @@ jobs:
           node-version: 20
       # build:www on puhdas Node-skripti (ei riippuvuuksia) → kokoaa www/-kansion.
       - run: node tools/build-www.mjs
+      # enablement: yrittää kytkeä Pages-sivuston päälle automaattisesti,
+      # jos sitä ei ole vielä luotu repon asetuksista.
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: www
