@@ -12,6 +12,7 @@ import { isValidSet, setValue } from './engine/cards.js';
 import { runAITurn } from './engine/ai.js';
 import { resolveBalancedBlitz } from './engine/combat.js';
 import { TERRITORIES, CONTINENTS, MAP_LIST, DEFAULT_MAP } from './data/territories.js';
+import { SCENARIOS, SCENARIO_LIST } from './data/scenarios.js';
 import { buildMap, updateMap, fireTracer, PLAYER_COLORS } from './ui/render.js';
 
 const $ = (id) => document.getElementById(id);
@@ -185,7 +186,7 @@ function refreshContinueButton() {
 // Pelin aloitus
 // ---------------------------------------------------------------------------
 
-const cfg = { players: 3, humans: 1, mapId: DEFAULT_MAP, fogOfWar: false, blizzard: false };
+const cfg = { players: 3, humans: 1, mapId: DEFAULT_MAP, fogOfWar: false, blizzard: false, scenario: null };
 
 function setupHandlers() {
   document.querySelectorAll('[data-step]').forEach((btn) => {
@@ -199,6 +200,7 @@ function setupHandlers() {
     });
   });
   buildMapPicker();
+  buildScenarioPicker();
   // Pelimoodikytkimet (sumu, lumimyrsky).
   document.querySelectorAll('[data-toggle]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -362,6 +364,42 @@ function buildMapPicker() {
   });
 }
 
+/** Skenaariovalitsin: "Vapaa peli" + skenaariot. Skenaario lukitsee muut asetukset. */
+function buildScenarioPicker() {
+  const wrap = $('scenario-picker');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  const options = [{ id: null, name: 'Vapaa peli', description: '' }, ...SCENARIO_LIST];
+  options.forEach((s) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'map-opt' + ((s.id ?? null) === cfg.scenario ? ' sel' : '');
+    b.textContent = s.name;
+    b.addEventListener('click', () => {
+      cfg.scenario = s.id;
+      wrap.querySelectorAll('.map-opt').forEach((el, i) => el.classList.toggle('sel', options[i].id === s.id));
+      refreshScenarioLocks();
+    });
+    wrap.appendChild(b);
+  });
+  refreshScenarioLocks();
+}
+
+/** Skenaario määrää pelaajat, kartan ja estää lumimyrskyn → lukitse kentät. */
+function refreshScenarioLocks() {
+  const sc = cfg.scenario ? SCENARIOS[cfg.scenario] : null;
+  const desc = $('scenario-desc');
+  if (desc) {
+    desc.hidden = !sc;
+    if (sc) desc.textContent = sc.description;
+  }
+  const lock = (el, on) => { if (el) el.classList.toggle('locked', on); };
+  lock($('field-players'), !!sc);
+  lock($('field-humans'), !!sc);
+  lock($('field-map'), !!sc);
+  lock(document.querySelector('[data-toggle="blizzard"]'), !!sc);
+}
+
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 function refreshSetup() { $('cfg-players').textContent = cfg.players; $('cfg-humans').textContent = cfg.humans; }
 
@@ -379,6 +417,17 @@ function toggleAISpeed() {
 }
 
 function startGame() {
+  clearSave();
+  if (cfg.scenario && SCENARIOS[cfg.scenario]) {
+    const sc = SCENARIOS[cfg.scenario];
+    state = createGame({
+      scenario: sc,
+      options: { fogOfWar: cfg.fogOfWar, blizzard: false },
+    });
+    enterGame();
+    if (sc.intro) toast(sc.intro);
+    return;
+  }
   const palette = ['Sininen', 'Punainen', 'Vihreä', 'Keltainen', 'Violetti', 'Turkoosi'];
   const players = [];
   for (let i = 0; i < cfg.players; i++) {
@@ -389,7 +438,6 @@ function startGame() {
       isAI: !isHuman,
     });
   }
-  clearSave();
   state = createGame({
     players,
     mapId: cfg.mapId,
@@ -1043,9 +1091,23 @@ function gameOver() {
   clearSave();
   const w = state.players[state.winner];
   const humanCount = state.players.filter((p) => !p.isAI).length;
-  const text = (!w.isAI && humanCount === 1)
-    ? 'Sinä valloitit maailman!'
-    : `${w.name} valloitti maailman!`;
+  let text;
+  if (state.winnerTeam && state.teamNames) {
+    // Liittoumapeli (skenaario): kerro voitto pelaajan näkökulmasta.
+    const teamName = state.teamNames[state.winnerTeam] || state.winnerTeam;
+    const human = state.players.find((p) => !p.isAI);
+    if (human && human.team === state.winnerTeam) {
+      text = human.alive
+        ? `Voitto! ${teamName} torjui hyökkäyksen.`
+        : `${teamName} voitti sodan — mutta ${human.name} ehti kaatua.`;
+    } else {
+      text = `${teamName} voitti sodan. Hävisit.`;
+    }
+  } else {
+    text = (!w.isAI && humanCount === 1)
+      ? 'Sinä valloitit maailman!'
+      : `${w.name} valloitti maailman!`;
+  }
   $('gameover-text').textContent = text;
   renderGameOverStats();
   show('modal-gameover', true);

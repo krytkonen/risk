@@ -47,10 +47,20 @@ function playerVerb(playerName, verb, rest = '') {
 
 /**
  * Luo uuden pelin.
- * @param {{players: {name:string,color:string,isAI:boolean}[], seed?:number,
- *           mapId?:string, options?:{fogOfWar?:boolean, blizzard?:boolean}}} opts
+ * @param {{players?: {name:string,color:string,isAI:boolean,team?:string}[], seed?:number,
+ *           mapId?:string, options?:{fogOfWar?:boolean, blizzard?:boolean},
+ *           scenario?: import('../data/scenarios.js').Scenario}} opts
+ *
+ * Skenaariossa (scenario annettu): pelaajat, liittoumat, omistukset ja
+ * armeijat tulevat skenaariosta – mitään ei arvota, ja ensimmäisen vuoron
+ * saa scenario.firstPlayer. Lumimyrsky ei ole käytössä skenaarioissa
+ * (suljetut alueet rikkoisivat kiinteän asetelman).
  */
-export function createGame({ players, seed, mapId, options }) {
+export function createGame({ players, seed, mapId, options, scenario }) {
+  if (scenario) {
+    players = scenario.players;
+    mapId = scenario.mapId;
+  }
   if (!players || players.length < 2 || players.length > 6) {
     throw new Error('Pelaajia oltava 2–6');
   }
@@ -62,12 +72,16 @@ export function createGame({ players, seed, mapId, options }) {
   const state = {
     seed: usedSeed,
     rng,
-    options: { fogOfWar: !!options?.fogOfWar, blizzard: !!options?.blizzard },
+    options: { fogOfWar: !!options?.fogOfWar, blizzard: !!options?.blizzard && !scenario },
+    scenarioId: scenario?.id ?? null,
+    teamNames: scenario?.teamNames ?? null,
     players: players.map((p, i) => ({
       index: i,
       name: p.name,
       color: p.color,
       isAI: !!p.isAI,
+      team: p.team ?? null,
+      reinforcementBonus: p.reinforcementBonus || 0,
       cards: [],
       alive: true,
     })),
@@ -82,6 +96,7 @@ export function createGame({ players, seed, mapId, options }) {
     discard: [],
     pendingConquest: null,
     winner: null,
+    winnerTeam: null,
     turnCount: 1,
     log: [],
     stats: players.map(() => emptyStats()),
@@ -94,16 +109,48 @@ export function createGame({ players, seed, mapId, options }) {
   const playable = playableIds(state);
 
   state.deck = shuffle(buildDeck(playable), rng);
-  distributeTerritories(state);
-  deployStartingArmies(state);
+  if (scenario) {
+    applyScenarioSetup(state, scenario);
+  } else {
+    distributeTerritories(state);
+    deployStartingArmies(state);
+  }
 
-  state.current = 0;
+  state.current = scenario?.firstPlayer ?? 0;
   startReinforcement(state);
-  log(state, `Peli alkaa. ${playerVerb(state.players[state.current].name, 'aloittaa')}.`, 'info');
+  if (scenario) {
+    log(state, scenario.intro || `Skenaario: ${scenario.name}.`, 'attack');
+    log(state, `${playerVerb(state.players[state.current].name, 'aloittaa')}.`, 'turn');
+  } else {
+    log(state, `Peli alkaa. ${playerVerb(state.players[state.current].name, 'aloittaa')}.`, 'info');
+  }
   if (state.options.blizzard && state.blizzards.length) {
     log(state, `❄ Lumimyrsky sulkee: ${state.blizzards.map((id) => TERRITORIES[id].name).join(', ')}.`, 'info');
   }
   return state;
+}
+
+/** Asettaa skenaarion kiinteän aloitusasetelman (omistukset + armeijat). */
+function applyScenarioSetup(state, scenario) {
+  for (const id of TERRITORY_IDS) {
+    const owner = scenario.ownership[id];
+    if (owner === undefined || !state.players[owner]) {
+      throw new Error(`Skenaariosta puuttuu omistaja alueelle ${id}`);
+    }
+    state.territories[id].owner = owner;
+    state.territories[id].armies = Math.max(1, scenario.armies[id] ?? 1);
+  }
+}
+
+// --- Liittoumat -------------------------------------------------------------
+
+/** Ovatko kaksi pelaajaa samassa liittoumassa (tai sama pelaaja)? */
+export function sameTeam(state, a, b) {
+  if (a === null || b === null || a === undefined || b === undefined) return false;
+  if (a === b) return true;
+  const ta = state.players[a]?.team;
+  const tb = state.players[b]?.team;
+  return !!ta && ta === tb;
 }
 
 // --- Pelimoodit: lumimyrsky & sumu ---------------------------------------
@@ -237,13 +284,17 @@ function controlsContinent(state, contId, playerIndex) {
   return open.length > 0 && open.every((t) => state.territories[t].owner === playerIndex);
 }
 
-/** Vahvistusten määrä pelaajalle: max(3, alueet/3) + mannerbonukset. */
+/**
+ * Vahvistusten määrä pelaajalle: max(3, alueet/3) + mannerbonukset
+ * + pelaajan kiinteä lisä (skenaariot, esim. suurvallan sotatalous).
+ */
 export function calcReinforcements(state, playerIndex) {
   const owned = ownedBy(state, playerIndex);
   let n = Math.max(3, Math.floor(owned.length / 3));
   for (const contId of Object.keys(CONTINENTS)) {
     if (controlsContinent(state, contId, playerIndex)) n += CONTINENTS[contId].bonus;
   }
+  n += state.players[playerIndex].reinforcementBonus || 0;
   return n;
 }
 
@@ -344,6 +395,7 @@ export function canAttack(state, fromId, toId) {
   if (isBlizzard(state, fromId) || isBlizzard(state, toId)) return false; // suljettu maasto
   if (from.owner !== state.current) return false;
   if (to.owner === state.current) return false;
+  if (sameTeam(state, from.owner, to.owner)) return false; // liittolaista vastaan ei hyökätä
   if (from.armies < 2) return false;
   return TERRITORIES[fromId].adj.includes(toId);
 }
@@ -417,21 +469,44 @@ function eliminatePlayer(state, loserIndex, conquerorIndex) {
   log(state, `${playerVerb(loser.name, 'putosi', 'pelistä!')} ${playerVerb(conqueror.name, 'sai', 'kortit.')}`, 'eliminate');
 }
 
+/** Liittouma-avain voittotarkistukseen: team tai yksilöllinen soolotunniste. */
+function teamKey(state, playerIndex) {
+  return state.players[playerIndex].team || `solo-${playerIndex}`;
+}
+
+/** Julistaa liittouman (tai soolopelaajan) voittajaksi. */
+function declareWin(state, key, viaDomination) {
+  const members = state.players.filter((p, i) => p.alive && teamKey(state, i) === key);
+  if (!members.length) return;
+  // Voittajaksi merkitään liittouman ihmispelaaja jos elossa, muuten ensimmäinen.
+  const lead = members.find((p) => !p.isAI) || members[0];
+  state.winner = lead.index;
+  state.winnerTeam = state.players[lead.index].team || null;
+  state.phase = PHASES.GAMEOVER;
+  const teamName = state.teamNames?.[state.winnerTeam] || null;
+  if (teamName && members.length > 1) {
+    log(state, `${teamName} ${viaDomination ? 'hallitsee koko karttaa' : 'voitti sodan'}!`, 'win');
+  } else if (viaDomination) {
+    log(state, `${playerVerb(lead.name, 'hallitsee', 'maailmaa!')}`, 'win');
+  } else {
+    log(state, `${playerVerb(lead.name, 'voitti', 'pelin!')}`, 'win');
+  }
+}
+
 function checkWin(state) {
-  const alive = state.players.filter((p) => p.alive);
-  if (alive.length === 1) {
-    state.winner = alive[0].index;
-    state.phase = PHASES.GAMEOVER;
-    log(state, `${playerVerb(alive[0].name, 'voitti', 'pelin!')}`, 'win');
+  // Yksi liittouma (tai soolopelaaja) jäljellä → voitto.
+  const aliveKeys = new Set(state.players.filter((p) => p.alive).map((p) => teamKey(state, p.index)));
+  if (aliveKeys.size === 1) {
+    declareWin(state, [...aliveKeys][0], false);
     return;
   }
-  // Maailmanherruus: yksi pelaaja omistaa kaikki avoimet (ei-suljetut) alueet.
-  const owners = new Set(playableIds(state).map((id) => state.territories[id].owner));
-  if (owners.size === 1) {
-    const w = [...owners][0];
-    state.winner = w;
-    state.phase = PHASES.GAMEOVER;
-    log(state, `${playerVerb(state.players[w].name, 'hallitsee', 'maailmaa!')}`, 'win');
+  // Herruus: yksi liittouma omistaa kaikki avoimet (ei-suljetut) alueet.
+  const ownerKeys = new Set(playableIds(state).map((id) => {
+    const o = state.territories[id].owner;
+    return o === null ? 'nobody' : teamKey(state, o);
+  }));
+  if (ownerKeys.size === 1 && !ownerKeys.has('nobody')) {
+    declareWin(state, [...ownerKeys][0], true);
   }
 }
 
@@ -554,6 +629,9 @@ export function serializeGame(state) {
     seed: state.seed,
     rngCalls: state.rng?.calls ?? 0,
     mapId: activeMapId,
+    scenarioId: state.scenarioId ?? null,
+    teamNames: state.teamNames ?? null,
+    winnerTeam: state.winnerTeam ?? null,
     options: state.options,
     players: state.players,
     territories: state.territories,
@@ -592,6 +670,9 @@ export function restoreGame(saved) {
     seed: data.seed,
     rng,
     options: { fogOfWar: !!data.options?.fogOfWar, blizzard: !!data.options?.blizzard },
+    scenarioId: data.scenarioId ?? null,
+    teamNames: data.teamNames ?? null,
+    winnerTeam: data.winnerTeam ?? null,
     players: data.players,
     territories: data.territories,
     blizzards: data.blizzards || [],

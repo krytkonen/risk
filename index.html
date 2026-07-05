@@ -56,7 +56,7 @@
     <div class="dialog">
       <h1 class="logo">RISK</h1>
       <p class="subtitle">Valloita maailma</p>
-      <label class="field">
+      <label class="field" id="field-players">
         <span>Pelaajia yhteensä</span>
         <div class="stepper">
           <button data-step="players" data-dir="-1">−</button>
@@ -64,7 +64,7 @@
           <button data-step="players" data-dir="1">+</button>
         </div>
       </label>
-      <label class="field">
+      <label class="field" id="field-humans">
         <span>Ihmispelaajia</span>
         <div class="stepper">
           <button data-step="humans" data-dir="-1">−</button>
@@ -74,6 +74,11 @@
       </label>
       <p class="hint">Loput pelaajat ovat tekoälyä. Värit jaetaan automaattisesti.</p>
       <div class="field-col">
+        <span>Skenaario</span>
+        <div id="scenario-picker" class="map-picker"></div>
+        <p class="hint" id="scenario-desc" hidden></p>
+      </div>
+      <div class="field-col" id="field-map">
         <span>Kartta</span>
         <div id="map-picker" class="map-picker"></div>
       </div>

@@ -10,15 +10,18 @@ import { TERRITORIES } from '../data/territories.js';
 import {
   PHASES, ownedBy, placeArmies, endReinforcement, attack, resolveConquest,
   endAttack, fortify, endTurn, tradeCards, mustTradeCards, areConnected, controlledContinents,
-  isBlizzard,
+  isBlizzard, sameTeam,
 } from './game.js';
 import { findSet } from './cards.js';
 
 const noop = async () => {};
 
-// Lumimyrskyn sulkemat alueet eivät ole vihollisia eikä niihin voi hyökätä.
+// Vihollisnaapurit: ei lumimyrskyn sulkemia eikä omia/liittolaisten alueita.
 function enemyNeighbors(state, id, me) {
-  return TERRITORIES[id].adj.filter((n) => !isBlizzard(state, n) && state.territories[n].owner !== me);
+  return TERRITORIES[id].adj.filter((n) =>
+    !isBlizzard(state, n) &&
+    state.territories[n].owner !== me &&
+    !sameTeam(state, me, state.territories[n].owner));
 }
 function isBorder(state, id, me) {
   return enemyNeighbors(state, id, me).length > 0;
@@ -79,6 +82,7 @@ function bestAttack(state) {
       if (isBlizzard(state, toId)) continue; // suljettua maastoa ei voi vallata
       const to = state.territories[toId];
       if (to.owner === me) continue;
+      if (sameTeam(state, me, to.owner)) continue; // liittolaiseen ei kosketa
       const advantage = from.armies - to.armies;
       // Hyökkää aina kun on ylivoima (myös pieni): keskitetty kärki etenee.
       if (advantage >= 1) {

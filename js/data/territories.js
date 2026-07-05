@@ -10,12 +10,14 @@
 import classic from './maps/classic.js';
 import europe from './maps/europe.js';
 import antiquity from './maps/antiquity.js';
+import nato from './maps/nato.js';
 
 /** Kaikki saatavilla olevat kartat id:n mukaan. */
 export const MAPS = {
   [classic.id]: classic,
   [europe.id]: europe,
   [antiquity.id]: antiquity,
+  [nato.id]: nato,
 };
 
 /** Karttavalikko UI:lle: [{ id, name }]. */

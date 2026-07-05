@@ -675,3 +675,6 @@ input[type=range] { width: 100%; margin: 16px 0 6px; accent-color: var(--accent)
 /* ---- Kuumatuoliverho (sumu + useita ihmispelaajia) ---- */
 /* Täysin peittävä tausta: edellisen pelaajan näkymä ei saa vuotaa läpi. */
 #modal-curtain { background: var(--bg); backdrop-filter: none; }
+
+/* Skenaarion lukitsemat asetuskentät (pelaajat/kartta/lumimyrsky). */
+.locked { opacity: 0.4; pointer-events: none; }
