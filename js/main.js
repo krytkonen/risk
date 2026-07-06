@@ -315,7 +315,7 @@ function setupLongPress() {
     hideTerrPop();
     fired = false;
     if (!state || anyModalOpen()) return;
-    const g = e.target.closest ? e.target.closest('.territory') : null;
+    const g = e.target.closest ? e.target.closest('.territory, .region') : null;
     const id = g?.dataset?.id;
     if (!id || !TERRITORIES[id]) return;
     startX = e.clientX; startY = e.clientY;

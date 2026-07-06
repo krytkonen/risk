@@ -29,9 +29,21 @@
 }
 
 /* ---- Koristeet: staattisia, eivät nappaa osoitintapahtumia --------------- */
-.sea-deco, .cont-shelf, .node-rim, .node-ring-dark, .node-gloss {
+.sea-deco, .cont-shelf, .node-rim, .node-ring-dark, .node-gloss,
+.coastline, .ridge, .ridge-hi {
   pointer-events: none;
 }
+
+/* ---- Alue-regionit: pelilaudan täytetyt alueet ---------------------------- */
+/* fill-transition tekee valloituksesta väripyyhkäisyn ilman JS-animaatiota.
+   Ei suodattimia, ei loputtomia animaatioita – toimii myös lite-tilassa. */
+.region {
+  cursor: pointer;
+  transition: fill 0.6s ease;
+}
+.region-selected { stroke: #ffd34d; stroke-width: 2.5; }
+.region-target   { stroke: #ff3b3b; stroke-width: 2.5; }
+.region-valid    { stroke: #ff8585; stroke-width: 2; }
 
 /* ---- Valintatilat: kevyt token-skaalaus hoverissa/painalluksessa ---------- */
 /* transform + transition ovat halpoja (composited); animation: none kytkee

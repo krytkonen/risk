@@ -59,6 +59,14 @@ function mix(a, b, t) {
   return rgbToHex({ r: A.r + (B.r - A.r) * t, g: A.g + (B.g - A.g) * t, b: A.b + (B.b - A.b) * t });
 }
 
+// --- Alue-REGIONIEN täyttövärit (esilaskettu kerran moduulitasolla) --------
+// Pelaajan väri tummennettuna merensiniseen päin: lauta pysyy tyylikkäänä eikä
+// huuda, mutta omistaja erottuu yhdellä silmäyksellä kuten oikeassa laudassa.
+const REGION_FILL = PLAYER_COLORS.map((c) => mix(c, '#0a1c2e', 0.45));
+const REGION_FILL_NEUTRAL = mix('#7a8894', '#0a1c2e', 0.55);
+const REGION_FILL_FOG = '#131c26';
+const REGION_FILL_BLIZZARD = '#9fc2d6';
+
 /**
  * Laske kartan "mieliala" mantereiden keskivärin lämpötilana (-1 viileä .. +1 lämmin).
  * Lämmin = punaista enemmän kuin sinistä (esim. antiikin okra), viileä = päinvastoin.
@@ -223,18 +231,127 @@ function convexHull(points) {
   return lower.concat(upper);
 }
 
-/** Suljettu pehmeä polku (Catmull-Rom → bezier) pistejoukon läpi. */
-function smoothClosedPath(pts) {
-  const n = pts.length;
+/** Suljettu murtoviivapolku (ei pehmennystä) pistejoukon läpi.
+ * Koordinaatit pyöristetään 0.1 tarkkuuteen. Käytetään sekä rantaviivaan
+ * että Voronoi-soluihin, jotta solut ja rannikko osuvat täsmälleen yhteen. */
+function closedPolyPath(pts) {
   const f = (v) => v.toFixed(1);
-  let d = `M ${f(pts[0].x)} ${f(pts[0].y)} `;
-  for (let i = 0; i < n; i++) {
-    const p0 = pts[(i - 1 + n) % n], p1 = pts[i], p2 = pts[(i + 1) % n], p3 = pts[(i + 2) % n];
-    const c1x = p1.x + (p2.x - p0.x) / 6, c1y = p1.y + (p2.y - p0.y) / 6;
-    const c2x = p2.x - (p3.x - p1.x) / 6, c2y = p2.y - (p3.y - p1.y) / 6;
-    d += `C ${f(c1x)} ${f(c1y)}, ${f(c2x)} ${f(c2y)}, ${f(p2.x)} ${f(p2.y)} `;
+  let d = `M ${f(pts[0].x)} ${f(pts[0].y)}`;
+  for (let i = 1; i < pts.length; i++) d += ` L ${f(pts[i].x)} ${f(pts[i].y)}`;
+  return d + ' Z';
+}
+
+// --- Voronoi-solut puolitasoleikkauksella ----------------------------------
+
+/**
+ * Sutherland–Hodgman-leikkaus puolitasoa vasten: säilytä pisteet jotka ovat
+ * lähempänä sitea si kuin sj, ts. dot(p - m, sj - si) <= 0 missä m on
+ * keskipiste. Palauttaa { poly, cut }: cut kertoo leikkasiko puolittaja
+ * monikulmiota oikeasti (jokin kärki oli ulkopuolella) → sj on Voronoi-naapuri.
+ */
+function clipHalfPlane(poly, si, sj) {
+  const mx = (si.x + sj.x) / 2, my = (si.y + sj.y) / 2;
+  const dx = sj.x - si.x, dy = sj.y - si.y;
+  const side = (p) => (p.x - mx) * dx + (p.y - my) * dy;
+  const out = [];
+  let cut = false;
+  const n = poly.length;
+  for (let k = 0; k < n; k++) {
+    const a = poly[k], b = poly[(k + 1) % n];
+    const sa = side(a), sb = side(b);
+    if (sa <= 0) out.push(a);
+    else cut = true;
+    if ((sa < 0 && sb > 0) || (sa > 0 && sb < 0)) {
+      const t = sa / (sa - sb);
+      out.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+    }
   }
-  return d + 'Z';
+  return { poly: out, cut };
+}
+
+/** Varasolu degeneroituneelle tulokselle: pieni 10-kulmio siten sitensä ympärillä. */
+function fallbackCell(site, r = 34) {
+  const pts = [];
+  for (let k = 0; k < 10; k++) {
+    const ang = (Math.PI * 2 * k) / 10;
+    pts.push({ x: site.x + Math.cos(ang) * r, y: site.y + Math.sin(ang) * r });
+  }
+  return pts;
+}
+
+/**
+ * Mantereen Voronoi-solut: kullekin alueelle mantereen ääriviivamonikulmio
+ * leikattuna jokaisen saman mantereen sisaralueen puolittajaa vasten.
+ * Palauttaa { cells: {id: pts[]}, pairs: Set<'a|b'> } missä pairs sisältää
+ * Voronoi-naapuriparit (a < b). Lasketaan KERRAN buildMapissa.
+ */
+function continentCells(ids, outlinePts) {
+  const cells = {};
+  const pairs = new Set();
+  for (const i of ids) {
+    const si = TERRITORIES[i];
+    let poly = outlinePts;
+    for (const j of ids) {
+      if (j === i) continue;
+      const res = clipHalfPlane(poly, si, TERRITORIES[j]);
+      if (res.cut) pairs.add(i < j ? `${i}|${j}` : `${j}|${i}`);
+      poly = res.poly;
+      if (poly.length < 3) break;
+    }
+    cells[i] = poly.length >= 3 ? poly : fallbackCell(si);
+  }
+  return { cells, pairs };
+}
+
+/**
+ * Kahden solun jaettu rajajakso: solun i särmät joiden molemmat päätepisteet
+ * ovat yhtä kaukana siteistä i ja j (eps ~0.5). Palauttaa jakson kaksi
+ * ääripäätä {a,b} tai null jos jaettua rajaa ei (enää) ole.
+ */
+function sharedBorder(cell, si, sj, eps = 0.5) {
+  const eq = (p) => Math.abs(Math.hypot(p.x - si.x, p.y - si.y) - Math.hypot(p.x - sj.x, p.y - sj.y)) < eps;
+  const verts = [];
+  const n = cell.length;
+  for (let k = 0; k < n; k++) {
+    const a = cell[k], b = cell[(k + 1) % n];
+    if (eq(a) && eq(b)) { verts.push(a); verts.push(b); }
+  }
+  if (verts.length < 2) return null;
+  let best = null, bestD = -1;
+  for (let a = 0; a < verts.length; a++) {
+    for (let b = a + 1; b < verts.length; b++) {
+      const d = Math.hypot(verts[a].x - verts[b].x, verts[a].y - verts[b].y);
+      if (d > bestD) { bestD = d; best = { a: verts[a], b: verts[b] }; }
+    }
+  }
+  return bestD > 0 ? best : null;
+}
+
+/**
+ * Vuoristoharjanteen siksak-polut jaetun rajan keskimmäiselle ~70 %:lle:
+ * "raja jota ei voi ylittää" saman mantereen ei-naapurien välillä.
+ * Palauttaa { d, d2 } (tumma harjanne + vaalea korostus) tai null jos raja
+ * on liian lyhyt merkittäväksi.
+ */
+function ridgePaths(A, B) {
+  const dx = B.x - A.x, dy = B.y - A.y;
+  const L = Math.hypot(dx, dy);
+  if (L < 14) return null;
+  const ax = A.x + dx * 0.15, ay = A.y + dy * 0.15;
+  const bx = A.x + dx * 0.85, by = A.y + dy * 0.85;
+  const ux = dx / L, uy = dy / L, px = -uy, py = ux;
+  const segs = Math.max(2, Math.round((L * 0.7) / 9));
+  const f = (v) => v.toFixed(1);
+  const zig = (off) => {
+    let d = `M ${f(ax + px * off)} ${f(ay + py * off)}`;
+    for (let k = 1; k < segs; k++) {
+      const t = k / segs;
+      const amp = (k % 2 ? 3 : -3) + off;
+      d += ` L ${f(ax + (bx - ax) * t + px * amp)} ${f(ay + (by - ay) * t + py * amp)}`;
+    }
+    return d + ` L ${f(bx + px * off)} ${f(by + py * off)}`;
+  };
+  return { d: zig(0), d2: zig(1.2) };
 }
 
 /**
@@ -452,17 +569,22 @@ export function buildMap(svg, onTap) {
 
   // Mantereet maamassan muotoisina: rosoitettu orgaaninen "rantaviiva"
   // (tihennetty + seedattu jitter, pelkkää polkudataa), mannerjalusta
-  // matalana vetenä alla, gradienttitäyttö + rantaviivan veto + sisempi
-  // valokorostus. Ei uusia suodattimia.
-  const gCont = el('g', { id: 'g-continents' });
+  // matalana vetenä alla. Maamassa TÄYTETÄÄN alueittain Voronoi-soluilla
+  // (#g-regions) kuten oikeassa pelilaudassa: solut lasketaan KERRAN tässä
+  // puolitasoleikkauksella samasta rosoisesta ääriviivasta, joten solujen
+  // ulkoreuna ja rantaviiva osuvat täsmälleen yhteen. Ei uusia suodattimia.
+  const gCont = el('g', { id: 'g-continents' });          // jalusta + vaahto
+  const gRegions = el('g', { id: 'g-regions' });          // aluesolut (klikattavat)
+  const gCoast = el('g', { id: 'g-coasts', 'pointer-events': 'none' }); // rantaviiva + kartussit
+  const gRidges = el('g', { id: 'g-ridges', 'pointer-events': 'none' }); // vuoristoharjanteet
+  const regionEls = {};
   const contIds = Object.keys(CONTINENTS);
   contIds.forEach((contId, ci) => {
     const b = continentBounds(contId);
     const color = CONTINENTS[contId].color;
     const { pts, cx, cy } = continentOutline(contId, ci);
-    const path = smoothClosedPath(pts);
-    const shelfPath = smoothClosedPath(offsetRadial(pts, cx, cy, 10));
-    const innerPath = smoothClosedPath(offsetRadial(pts, cx, cy, -5));
+    const path = closedPolyPath(pts);
+    const shelfPath = closedPolyPath(offsetRadial(pts, cx, cy, 10));
 
     // Mannerjalusta: hieman isompi kopio polusta vaaleana merenvaahtosävynä
     // – "matala vesi" rannikon ympärillä, ilman suodattimia.
@@ -480,19 +602,49 @@ export function buildMap(svg, onTap) {
     foam.appendChild(el('path', { d: path, fill: 'none', stroke: '#cfeaf3', 'stroke-opacity': 0.26, 'stroke-width': 4, 'stroke-linejoin': 'round' }));
     gCont.appendChild(foam);
 
-    // Maamassa: gradienttitäyttö (ylhäältä valoisampi) + tumma rantaviiva +
-    // sisempi vaalea korostusviiva kohovaikutelmaksi. Yksi kevyt varjo.
-    const land = el('g', { 'class': 'cont-panel', filter: 'url(#cont-shadow)' });
-    land.appendChild(el('path', { d: path, fill: `url(#cont-grad-${ci})` }));
-    land.appendChild(el('path', {
-      d: path, fill: 'none', stroke: mix(color, '#000000', 0.45),
-      'stroke-opacity': 0.85, 'stroke-width': 2, 'stroke-linejoin': 'round',
+    // Aluesolut: Voronoi-jako mantereen ääriviivan sisällä. Vierekkäiset
+    // solut jakavat täsmälleen saman rajajanan; rannikkosärmät perivät
+    // rosoitetun ääriviivan. Täyttöväri asetetaan updateMapissa omistajan
+    // mukaan – tässä vain geometria + neutraali aloitusväri.
+    const ids = continentTerritories(contId);
+    const { cells, pairs } = continentCells(ids, pts);
+    for (const tid of ids) {
+      const region = el('path', {
+        d: closedPolyPath(cells[tid]), 'class': 'region', 'data-id': tid,
+        fill: REGION_FILL_NEUTRAL, 'fill-opacity': 0.85,
+        stroke: '#0c1826', 'stroke-width': 1.6, 'stroke-linejoin': 'round',
+      });
+      region.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); onTap(tid); });
+      gRegions.appendChild(region);
+      regionEls[tid] = region;
+    }
+
+    // Rantaviiva alueiden PÄÄLLE mantereen värillä: ulkoreuna pysyy terävänä.
+    gCoast.appendChild(el('path', {
+      d: path, 'class': 'coastline', fill: 'none', stroke: color,
+      'stroke-opacity': 0.85, 'stroke-width': 2.5, 'stroke-linejoin': 'round',
     }));
-    land.appendChild(el('path', {
-      d: innerPath, fill: 'none', stroke: mix(color, '#ffffff', 0.55),
-      'stroke-opacity': 0.22, 'stroke-width': 1, 'stroke-linejoin': 'round',
-    }));
-    gCont.appendChild(land);
+
+    // Vuoristoharjanteet: saman mantereen Voronoi-naapurit jotka EIVÄT ole
+    // pelinaapureita saavat jaetun rajan keskelle tumman siksak-harjanteen
+    // ("raja jota ei voi ylittää"). Jos jaettu raja leikkautui kokonaan pois,
+    // ohitetaan hiljaa.
+    for (const key of pairs) {
+      const [i, j] = key.split('|');
+      if (TERRITORIES[i].adj.includes(j)) continue;
+      const seg = sharedBorder(cells[i], TERRITORIES[i], TERRITORIES[j]);
+      if (!seg) continue;
+      const rp = ridgePaths(seg.a, seg.b);
+      if (!rp) continue;
+      gRidges.appendChild(el('path', {
+        d: rp.d, 'class': 'ridge', fill: 'none', stroke: '#1a2733',
+        'stroke-width': 3, 'stroke-linejoin': 'round', 'stroke-linecap': 'round',
+      }));
+      gRidges.appendChild(el('path', {
+        d: rp.d2, 'class': 'ridge-hi', fill: 'none', stroke: '#4a5a68',
+        'stroke-width': 1, 'stroke-linejoin': 'round', 'stroke-linecap': 'round',
+      }));
+    }
 
     // Otsikkokartussi (nimi + bonus): pilleri mantereen värisellä reunuksella.
     // Sijoitus: mieluiten ylimmän napin yläpuolelle; jos päällekkäin nappien
@@ -501,7 +653,6 @@ export function buildMap(svg, onTap) {
     const txt = `${CONTINENTS[contId].name}  +${CONTINENTS[contId].bonus}`;
     const padX = 10, lblH = 21;
     const lblW = txt.length * 8.2 + padX * 2;
-    const ids = continentTerritories(contId);
     let topT = TERRITORIES[ids[0]], botT = TERRITORIES[ids[0]];
     for (const tid of ids) {
       const t = TERRITORIES[tid];
@@ -543,16 +694,21 @@ export function buildMap(svg, onTap) {
     });
     label.textContent = txt;
     labelG.appendChild(label);
-    gCont.appendChild(labelG);
+    gCoast.appendChild(labelG);
   });
   gMap.appendChild(gCont);
+  gMap.appendChild(gRegions);
+  gMap.appendChild(gCoast);
+  gMap.appendChild(gRidges);
 
-  // Naapuruusviivat (jokainen särmä kerran).
+  // Naapuruusviivat: VAIN mannerten väliset yhteydet – saman mantereen
+  // naapuruus näkyy nyt suoraan toisiaan koskettavista alueista.
   const gEdges = el('g', { id: 'g-edges' });
   let seaEdgeIdx = 0;
   for (const id of TERRITORY_IDS) {
     for (const n of TERRITORIES[id].adj) {
       if (id < n) {
+        if (TERRITORIES[id].continent === TERRITORIES[n].continent) continue;
         const a = TERRITORIES[id], b = TERRITORIES[n];
         const dist = Math.hypot(a.x - b.x, a.y - b.y);
         const sea = dist > 220; // pitkä merireitti -> hohtava katkoviiva
@@ -576,11 +732,11 @@ export function buildMap(svg, onTap) {
             'stroke-width': 1.4, 'stroke-linecap': 'round', 'stroke-dasharray': '2 11',
           }));
         } else {
-          // Land border: hillitty yhtenäinen viiva.
+          // Lyhyt mannerten välinen yhteys: "salmi/silta" – lyhyt yhtenäinen viiva.
           gEdges.appendChild(el('line', {
             x1: a.x, y1: a.y, x2: b.x, y2: b.y,
-            'class': 'edge-land', stroke: '#cfe2f2', 'stroke-opacity': 0.32,
-            'stroke-width': 1.8, 'stroke-linecap': 'round',
+            'class': 'edge-land', stroke: '#cfe2f2', 'stroke-opacity': 0.5,
+            'stroke-width': 2, 'stroke-linecap': 'round',
           }));
         }
       }
@@ -656,7 +812,7 @@ export function buildMap(svg, onTap) {
     g.addEventListener('click', handler);
     g.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') handler(ev); });
     gNodes.appendChild(g);
-    nodeRefs[id] = { g, halo, circle, count, name, frost, chill, snow, flakes, ring, gloss };
+    nodeRefs[id] = { g, halo, circle, count, name, frost, chill, snow, flakes, ring, gloss, region: regionEls[id] };
   }
   gMap.appendChild(gNodes);
 
@@ -774,6 +930,22 @@ export function updateMap(refs, state, ui = {}) {
         rim.setAttribute('stroke-opacity', 0.9);
         rim.setAttribute('stroke-dasharray', RIM_DASH[idx % RIM_DASH.length]);
       }
+    }
+
+    // Alue-region: täyttö omistajan mukaan (sama blocked/hidden/omistaja-
+    // logiikka kuin tokenilla) + korostusluokat. Vain attribuutteja/luokkia;
+    // CSS:n fill-transition tekee valloituksesta väripyyhkäisyn.
+    if (r.region) {
+      let rf;
+      if (blocked) rf = REGION_FILL_BLIZZARD;
+      else if (hidden) rf = REGION_FILL_FOG;
+      else if (owner == null) rf = REGION_FILL_NEUTRAL;
+      else rf = REGION_FILL[owner % REGION_FILL.length];
+      r.region.setAttribute('fill', rf);
+      r.region.classList.toggle('region-selected', !blocked && id === selected);
+      r.region.classList.toggle('region-target', !blocked && id === attackTarget);
+      r.region.classList.toggle('region-valid',
+        !blocked && id !== selected && id !== attackTarget && targets.has(id));
     }
 
     // Armeijamäärä – pop-animaatio kun luku muuttuu. Suljetussa ei lukua, sumussa '?'.
