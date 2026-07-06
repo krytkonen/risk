@@ -25,7 +25,7 @@ test('skenaario käynnistyy: kiinteä asetelma, Venäjä aloittaa', () => {
   assert.equal(s.current, SC.firstPlayer, 'Venäjän pitäisi aloittaa');
   assert.equal(s.players[0].name, 'Suomi');
   assert.equal(s.players[0].isAI, false);
-  assert.equal(s.territories['pohjois-suomi'].owner, 0);
+  assert.equal(s.territories['lappi'].owner, 0);
   assert.equal(s.territories['moskova'].owner, 3);
   assert.equal(s.territories['moskova'].armies, SC.armies['moskova']);
   assert.equal(s.blizzards.length, 0, 'skenaariossa ei lumimyrskyä');
@@ -38,9 +38,22 @@ test('liittolaista vastaan ei voi hyökätä', () => {
   // Suomen vuorolla naapuri-Ruotsiin (Nato) ei saa hyökätä, Venäjän Kuolaan saa.
   s.current = 0;
   s.phase = PHASES.ATTACK;
-  s.territories['pohjois-suomi'].armies = 5;
-  assert.equal(canAttack(s, 'pohjois-suomi', 'ruotsi'), false, 'liittolaiseen ei saa hyökätä');
-  assert.equal(canAttack(s, 'pohjois-suomi', 'kuola'), true, 'viholliseen saa hyökätä');
+  s.territories['lappi'].armies = 5;
+  assert.equal(canAttack(s, 'lappi', 'pohjois-ruotsi'), false, 'liittolaiseen ei saa hyökätä');
+  assert.equal(canAttack(s, 'lappi', 'kuola'), true, 'viholliseen saa hyökätä');
+});
+
+test('Suomi selviää Venäjän avausvuorosta (elossa, vähintään 2 aluetta)', async () => {
+  // Yllätyshyökkäys ei saa kaataa pelaajaa ennen tämän ensimmäistä vuoroa.
+  // Ihminen korvataan tekoälyllä, jotta asetelma vastaa AI-simulaatiota.
+  const sim = { ...SC, players: SC.players.map((p) => ({ ...p, isAI: true })) };
+  for (let seed = 1; seed <= 10; seed++) {
+    const s = createGame({ scenario: sim, seed });
+    await runAITurn(s); // Venäjän (firstPlayer) ensimmäinen vuoro
+    const owned = Object.keys(s.territories).filter((id) => s.territories[id].owner === 0);
+    assert.ok(s.players[0].alive, `seed ${seed}: Suomi kukistui heti avausvuorolla`);
+    assert.ok(owned.length >= 2, `seed ${seed}: Suomella vain ${owned.length} aluetta avausvuoron jälkeen`);
+  }
 });
 
 test('skenaario pelautuu loppuun ja voittaja on liittouma', async () => {
