@@ -377,3 +377,22 @@ HUD, valikko, säännöt, loppuruutu. Löydöt kutistuivat isoista (paletti, rel
 letterbox, in-play-UX, luettavuus) marginaalisiin ja lopulta ei-bugeiksi.
 Seuraava arvo on KOHDENNETUSSA kehityksessä (uudet ominaisuudet / sisältö /
 tasapaino), ei avoimessa graafisessa silmukassa.
+
+## Kohdennettu kehitys (käyttäjän pyyntö: kaikki 1–4)
+
+### A) Pelidynamiikka — pehmeä vuororaja + pistevoitto (#2)
+- Ongelma (Iter 18 havainto): peli voi juuttua (turtle) → ei pääty. LÖYTÖ oli
+  aito ei-bugi mutta pelidynamiikan puute.
+- Ratkaisu: options.maxTurns (oletus 50). Kun raja ylittyy eikä kukaan ole
+  voittanut, voittaja ratkaistaan pisteillä (alueet ensin, armeijat tasapeliin).
+  Serialisointi + palautus päivitetty; game-over-teksti kertoo pistevoitosta.
+- Testit: 2 uutta (pistevoitto rajalla; maxTurns 0 = ei rajaa). 91/91 vihreä.
+
+### B) Tasapaino & tekoäly (#3)
+- Työkalu: tools/balance.mjs — N kaikki-TÄ-peliä/kartta, raportoi seat-voitto%,
+  herruus/pistevoitto, ka. vuorot. Moottori suoraan (ei selain) → nopea.
+- Tulos (40 peliä/kartta, 3 pelaajaa): KAIKKI kartat päättyvät herruuteen
+  (40/0), ka. 10–20 vuoroa → uusi vuororaja on turvaverkko joka EI häiritse
+  normaalia peliä. Seat-voitto% klusteroituu ~33% tuntumaan (klassisella lievä
+  ensipaikan etu 43%); ei vakavaa vinoumaa (±7% otantakohina 40 pelillä).
+  → Kartat tasapainossa, TÄ pelaa päättäväisesti. Ei kiireellistä säätötarvetta.
