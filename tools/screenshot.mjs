@@ -64,6 +64,8 @@ if (mapName) {
 await page.click('#btn-start');
 // Odota että kartta on rakentunut (aluepolkuja olemassa).
 await page.waitForFunction(() => document.querySelectorAll('#g-regions .region, .region').length > 5, { timeout: 8000 }).catch(() => {});
+// LITE=1 → pakota kevyt grafiikkatila (verifioi että uudet kerrokset gataantuvat).
+if (process.env.LITE) { await page.evaluate(() => document.body.classList.add('lite')); }
 await page.waitForTimeout(600);
 
 const map = await page.$('#map-wrap');

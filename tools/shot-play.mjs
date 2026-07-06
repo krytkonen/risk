@@ -180,6 +180,11 @@ if (atk && st.phase === 'attack') {
         await wait(200);
         await page.screenshot({ path: `${prefix}-fortify.png` });
         console.log('Kuva:', `${prefix}-fortify.png`, `(linnoitusdialogi ${mv.from}→${mv.to})`);
+        // Vahvista → kaappaa joukkojen virtaus (tracer) lennossa.
+        await page.click('#fortify-confirm');
+        await wait(180);
+        await (map || page).screenshot({ path: `${prefix}-fortmove.png` });
+        console.log('Kuva:', `${prefix}-fortmove.png`, '(linnoitussiirron tracer)');
       } else console.log('Ei linnoitussiirtoa saatavilla');
     }
   } catch (e) { console.log('Linnoitusdialogin kaappaus ei onnistunut:', e.message); }

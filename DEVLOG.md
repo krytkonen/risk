@@ -233,3 +233,22 @@ itsessään on kehityksen kohde — sen puutteet kirjataan ja korjataan.
 - LESSONS: (1) Sama bugikuvio toistui rinnakkaisessa dialogissa — kun korjaat
   yhden, ETSI sisarukset (grep `range` / `.min =`). (2) Työkalu kattaa nyt koko
   ihmisvuoron kaaren: vahvistus → hyökkäys (valinta/zoom) → valloitus → linnoitus.
+
+### Iter 12 — Lite-tilan varmistus + linnoitussiirron visualisointi
+- PLAN: (a) varmista että kevyt grafiikkatila (perf-fallback) näyttää eheältä
+  uusien kerrosten kanssa; (b) toteuta linnoitussiirron visualisointi.
+- EXECUTE (a): screenshot.mjs LITE=1-lippu (body.lite pakotettuna).
+  REVIEW (lite.png): eheä — relief katoaa oikein (gated), halvat kerrokset
+  (maavalaistus, rannikkovarjo, aluekorostus) jäävät → maltillinen mutta
+  siisti degradaatio. Ei rikki.
+- EXECUTE (b): LÖYTÖ — hyökkäyksillä on tracer/nuoli, linnoitussiirrolla ei
+  mitään. Nuoli dialogin aikana olisi hyödytön (dialogi himmentää+blurraa
+  kartan). Ratkaisu: kun linnoitus SUORITETAAN (dialogi kiinni), ammu
+  porrastettu sarja kultaisia tracereita lähteestä kohteeseen (sama mekanismi
+  kuin hyökkäys, fireTracer). "Joukot virtaavat" näkyy kartalla.
+- REVIEW (p12-fortmove.png): kultainen tracer näkyy saapumassa kohteeseen
+  (Alaska). Toimii. 89 testiä vihreää.
+- LESSONS: (1) Visualisoinnin AJOITUS ratkaisee: dialogin PÄÄLLE piirtäminen on
+  turhaa (blur peittää); tee se dialogin JÄLKEEN kartalla. (2) Työkalu kaappaa
+  nyt myös transientit animaatiot ajoitetulla wait+screenshotilla. (3) Lite-
+  tilan tarkistus kuuluu jokaiseen kerros-lisäykseen — nyt osa vakiota reviewiä.

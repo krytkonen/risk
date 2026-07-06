@@ -910,12 +910,27 @@ function openFortify(fromId, toId) {
 function confirmFortify() {
   if (!fortifyCtx) return;
   const v = Number($('fortify-range').value);
-  const res = fortify(state, fortifyCtx.fromId, fortifyCtx.toId, v);
+  const fromId = fortifyCtx.fromId, toId = fortifyCtx.toId;
+  const res = fortify(state, fromId, toId, v);
   show('modal-fortify', false);
   fortifyCtx = null;
   if (!res.ok) { toast(res.reason); return; }
+  animateFortifyMove(fromId, toId, v);
   saveGame();
   afterHumanTurnEnd();
+}
+
+/**
+ * Linnoitussiirron visualisointi: kultaiset "joukot" virtaavat lähteestä
+ * kohteeseen porrastettuna (dialogi on jo kiinni → näkyy kartalla). Käyttää
+ * samaa tracer-mekanismia kuin hyökkäys. Määrä katolla ettei kasaudu.
+ */
+function animateFortifyMove(fromId, toId, count) {
+  if (!mapG) return;
+  const n = Math.max(1, Math.min(count, 5));
+  for (let i = 0; i < n; i++) {
+    setTimeout(() => fireTracer(mapG, TERRITORIES[fromId], TERRITORIES[toId], { dur: 0.5, r: 5 }), i * 90);
+  }
 }
 
 // ---------------------------------------------------------------------------
