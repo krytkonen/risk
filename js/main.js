@@ -1050,7 +1050,11 @@ function render() {
 
 function renderHUD() {
   const p = state.players[state.current];
-  $('turn-badge').textContent = `Vuoro ${state.turnCount}`;
+  // Vuororaja käytössä → näytä eteneminen "Vuoro N/raja"; muuten pelkkä numero.
+  const cap = state.options?.maxTurns || 0;
+  $('turn-badge').textContent = cap > 0 ? `Vuoro ${state.turnCount}/${cap}` : `Vuoro ${state.turnCount}`;
+  // Viimeisillä vuoroilla korosta lähestyvä raja.
+  $('turn-badge').classList.toggle('hl', cap > 0 && state.turnCount > cap - 5);
   $('phase-badge').textContent = PHASE_NAMES[state.phase];
   $('cp-name').textContent = p.name;
   $('cp-dot').style.background = p.color;
