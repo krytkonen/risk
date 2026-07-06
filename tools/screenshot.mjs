@@ -61,6 +61,13 @@ if (mapName) {
   if (!ok) console.log('VAROITUS: karttaa ei löytynyt:', mapName);
 }
 
+// NOSTART=1 → kaappaa aloitusruutu (modal-setup) ilman pelin aloitusta.
+if (process.env.NOSTART) {
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: out });
+  console.log('Aloitusruutu tallennettu:', out);
+  await browser.close(); server.close(); process.exit(0);
+}
 await page.click('#btn-start');
 // Odota että kartta on rakentunut (aluepolkuja olemassa).
 await page.waitForFunction(() => document.querySelectorAll('#g-regions .region, .region').length > 5, { timeout: 8000 }).catch(() => {});

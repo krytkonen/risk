@@ -252,3 +252,19 @@ itsessään on kehityksen kohde — sen puutteet kirjataan ja korjataan.
   turhaa (blur peittää); tee se dialogin JÄLKEEN kartalla. (2) Työkalu kaappaa
   nyt myös transientit animaatiot ajoitetulla wait+screenshotilla. (3) Lite-
   tilan tarkistus kuuluu jokaiseen kerros-lisäykseen — nyt osa vakiota reviewiä.
+
+### Iter 13 — Aloitusruudun tunnelma (ensivaikutelma)
+- PLAN: kaappaa aloitusruutu (ensimmäinen mitä käyttäjä näkee) ja paranna.
+- EXECUTE (työkalu): screenshot.mjs NOSTART=1 → kaappaa modal-setup ilman
+  pelin aloitusta.
+- REVIEW-LÖYTÖ (setup.png): dialogi kellui TASAISEN MUSTAN päällä — laudalla on
+  rikas syvänmeren tunnelma, mutta ensinäkymä oli litteä. Myös HUD kuulsi läpi.
+- EXECUTE (korjaus): #modal-setup sai läpinäkymättömän syvänmeren gradienttipinon
+  (keskusglow + syvyys alhaalla + laudan paletti) + inset-vinjetti. Peittää
+  myös HUD-läpikuultavuuden.
+- REVIEW (setup2.png): selvä parannus — premium, yhtenäinen laudan kanssa,
+  HUD-haamu poissa. Ei suodatinta (pelkkä CSS-gradientti).
+- LESSONS: (1) Ensivaikutelma (setup) jäi katveeseen koko ajan koska review
+  alkoi aina pelin aloituksesta — NOSTART-lippu paljasti sen. **Katso myös
+  ne näkymät joita et normaalisti aja läpi.** (2) Tunnelma kannattaa viedä
+  KAIKKIIN ruutuihin, ei vain pelilautaan — johdonmukaisuus tekee premiumin.
