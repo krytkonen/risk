@@ -94,3 +94,17 @@ itsessään on kehityksen kohde — sen puutteet kirjataan ja korjataan.
   suodattimelle — lisää se AINA samalla kun suodatin luodaan, ei jälkikäteen.
   (4) Silmukka on kypsä: PLAN→EXECUTE→screenshot-REVIEW→LESSONS toimii
   luotettavasti. Graafinen taso on nyt "mahtava" — hyvä hetki koota APK.
+
+### Iter 4 — Rannikon syvän veden varjo (kohotettu manner)
+- PLAN: saa mantereet lukemaan kohotettuina laattoina veden päällä. Reunaehto:
+  ei suodatinta, ei animaatiota.
+- EXECUTE: 3 leveää tummaa vetoa mantereen polusta gContin ALIMMAISENA (leveä
+  30px/haalea → kapea 12px/tummin rannan lähellä). Aluetäyttö peittää
+  sisäpuoliskon → varjo näkyy vain ympäröivässä vedessä. Vaalea vaahto sen
+  päällä = rannikkovalo. Yhdessä: valo ranta → tummeneva syvä vesi.
+- REVIEW (iter4.png): selvä parannus — mantereet "kelluvat", 3D-tuntu paljon
+  vahvempi. Ei PAGE ERR, 89 testiä vihreää.
+- LESSONS: (1) "Piirrä alle, anna täytön leikata" on halpa tapa tehdä
+  suunnattua syvyyttä ilman suodatinta/maskia — sama tekniikka kuin vaahdolla,
+  vain käänteinen sävy ja leveämpi. (2) Kerrostettu leveä→kapea + haalea→tumma
+  antaa pehmeän gradientin ilman feGaussianBlurria.

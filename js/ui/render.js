@@ -864,6 +864,16 @@ export function buildMap(svg, onTap) {
       'class': 'cont-plinth', 'pointer-events': 'none', fill: mix(color, '#05101c', 0.5),
     }));
 
+    // Syvän veden varjo: maamassa heittää varjon ympäröivään mereen → manner
+    // lukee KOHOTETTUNA laattana. Leveät tummat vedot polusta, KAIKKEIN
+    // ALIMMAISENA (leveä+haalea pohjalla, kapea+tumma rannan lähellä päällä).
+    // Aluetäyttö peittää sisäpuoliskon → varjo näkyy vain vedessä. Ei suodatinta.
+    const shadow = el('g', { 'class': 'cont-depth', 'pointer-events': 'none' });
+    shadow.appendChild(el('path', { d: path, fill: 'none', stroke: '#020a13', 'stroke-opacity': 0.24, 'stroke-width': 30, 'stroke-linejoin': 'round' }));
+    shadow.appendChild(el('path', { d: path, fill: 'none', stroke: '#03101d', 'stroke-opacity': 0.32, 'stroke-width': 20, 'stroke-linejoin': 'round' }));
+    shadow.appendChild(el('path', { d: path, fill: 'none', stroke: '#04121f', 'stroke-opacity': 0.42, 'stroke-width': 12, 'stroke-linejoin': 'round' }));
+    gCont.appendChild(shadow);
+
     // Mannerjalusta: hieman isompi kopio polusta vaaleana merenvaahtosävynä
     // – "matala vesi" rannikon ympärillä, ilman suodattimia.
     gCont.appendChild(el('path', {
