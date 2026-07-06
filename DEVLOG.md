@@ -284,3 +284,21 @@ itsessään on kehityksen kohde — sen puutteet kirjataan ja korjataan.
   oletusreviewissä. Työkalulippu per moodi = halpa kattavuus. (2) "Neutraali/
   inaktiivinen" ei tarkoita "harmaa" — teemaväri (jää=sini) viestii tilan
   paremmin ja näyttää paremmalta.
+
+### Iter 15 — HUD:n pelaajatilastojen ikonit (luotettavuus)
+- PLAN: kaappaa koko sivu (HUD + kartta) ja tarkista aina näkyvä yläpalkki.
+- EXECUTE (työkalu): screenshot.mjs FULLPAGE=1 → kaappaa koko sivun.
+- REVIEW-LÖYTÖ (hud.png): pelaajatilastot käyttivät `🂠` (U+1F0A0 pelikortin
+  selkä) korttien ikonina → renderöityi TOFUNA (▯) — glyfi on huonosti tuettu
+  monilla alustoilla. Myös `⚔` putosi tekstitilaan (✗).
+- EXECUTE (korjaus): `🂠`→`🃏` (hyvin tuettu, sama jonka sovellus käyttää
+  muualla) ja `⚔`→`⚔️` (FE0F pakottaa emoji-esityksen). Alueet `⬢` ok.
+- REVIEW (hud2.png): kortti-ikoni renderöityy nyt (ei tofua), miekat selvemmät.
+  Oikeilla laitteilla (iOS/Android) väriemojit. node --check ok.
+- LESSONS: (1) Aina näkyvä HUD ansaitsee oman reviewin — se jäi katveeseen
+  koska kaappasin vain #map-wrapin. FULLPAGE-lippu paljasti sen. (2) Obskuurit
+  Unicode-glyfit (pelikortit, harvinaiset symbolit) = tofuriski; suosi hyvin
+  tuettuja emojeja + FE0F-variaatiovalitsinta kun haluat emoji-esityksen.
+- HUOM: silmukka on nyt kattanut koko sovelluksen (setup → lauta → in-play →
+  dialogit → moodit → HUD). Perusviimeistely valmis; jatko kohdistuu
+  yksityiskohtiin ja uusiin ominaisuuksiin.

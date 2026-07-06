@@ -80,7 +80,8 @@ await page.waitForFunction(() => document.querySelectorAll('#g-regions .region, 
 if (process.env.LITE) { await page.evaluate(() => document.body.classList.add('lite')); }
 await page.waitForTimeout(600);
 
-const map = await page.$('#map-wrap');
+// FULLPAGE=1 → kaappaa koko sivu (HUD + kartta), muuten vain kartta-alue.
+const map = process.env.FULLPAGE ? null : await page.$('#map-wrap');
 await (map || page).screenshot({ path: out });
 console.log('Kuva tallennettu:', out);
 

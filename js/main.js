@@ -1069,7 +1069,7 @@ function renderPlayers() {
     chip.style.setProperty('--chip-glow', p.color);
     chip.innerHTML = `<span class="dot" style="background:${p.color}"></span>` +
       `<span>${p.name}</span>` +
-      `<span class="pc-stats">${snap[i].territories}⬢ ${snap[i].armies}⚔ ${snap[i].cards}🂠</span>`;
+      `<span class="pc-stats">${snap[i].territories}⬢ ${snap[i].armies}⚔️ ${snap[i].cards}🃏</span>`;
     panel.appendChild(chip);
     if (isActive) activeChip = chip;
   });
