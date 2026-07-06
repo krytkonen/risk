@@ -29,8 +29,13 @@
 }
 
 /* ---- Koristeet: staattisia, eivät nappaa osoitintapahtumia --------------- */
+/* Uudet fake-3D/koriste-elementit (.cont-plinth, .region-bevel, .token-shadow,
+   .neatline-orn, .cont-legend, .sea-islands) ovat suodattimettomia staattisia
+   polkuja/gradientteja – ei #map.interacting-eskaappia tarvita. */
 .sea-deco, .cont-shelf, .node-rim, .node-ring-dark, .node-gloss,
-.coastline, .ridge, .ridge-hi {
+.coastline, .ridge, .ridge-hi,
+.cont-plinth, .region-bevel, .token-shadow, .neatline-orn,
+.cont-legend, .sea-islands {
   pointer-events: none;
 }
 
