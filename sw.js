@@ -1,20 +1,30 @@
-// Service Worker: offline-tuki (sovelluskuori välimuistissa). Mahdollistaa
-// pelin asentamisen Android-puhelimeen ja pelaamisen ilman verkkoa.
-const CACHE = 'risk-v2';
+// Service Worker: offline-tuki (sovelluskuori välimuistissa).
+//
+// Strategia:
+// - Navigointipyynnöt (sivun avaus): verkko ensin, välimuisti varalla.
+//   Näin asennettu sovellus saa aina tuoreimman version kun verkko toimii.
+// - Muut saman originin GET-pyynnöt (JS/CSS/kuvat): välimuisti ensin ja
+//   päivitys taustalla (stale-while-revalidate). Jos haku epäonnistuu eikä
+//   välimuistissa ole mitään, palautetaan virhe — EI KOSKAAN index.html:ää
+//   aliresurssina (HTML JavaScriptinä kaataisi koko sovelluksen).
+const CACHE = 'risk-v3';
 const ASSETS = [
   './',
   './index.html',
   './css/styles.css',
+  './css/map-theme.css',
   './manifest.webmanifest',
   './icons/icon.svg',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './js/main.js',
   './js/data/territories.js',
+  './js/data/scenarios.js',
   './js/data/maps/_util.js',
   './js/data/maps/classic.js',
   './js/data/maps/europe.js',
   './js/data/maps/antiquity.js',
+  './js/data/maps/nato.js',
   './js/engine/rng.js',
   './js/engine/combat.js',
   './js/engine/cards.js',
@@ -34,16 +44,40 @@ self.addEventListener('activate', (e) => {
   );
 });
 
+/** Tallenna vastaus välimuistiin (vain onnistuneet perusvastaukset). */
+function putInCache(request, response) {
+  if (!response || response.status !== 200 || response.type !== 'basic') return;
+  const copy = response.clone();
+  caches.open(CACHE).then((c) => c.put(request, copy)).catch(() => {});
+}
+
 self.addEventListener('fetch', (e) => {
-  if (e.request.method !== 'GET') return;
+  const req = e.request;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return; // ulkoiset menevät suoraan
+
+  // Sivun avaus: verkko ensin (tuore versio), välimuisti varalla (offline).
+  if (req.mode === 'navigate') {
+    e.respondWith(
+      fetch(req).then((res) => { putInCache(req, res); return res; })
+        .catch(() => caches.match('./index.html', { cacheName: CACHE }))
+    );
+    return;
+  }
+
+  // Aliresurssit: välimuisti heti, päivitys taustalla.
   e.respondWith(
-    caches.match(e.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(e.request).then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(e.request, copy)).catch(() => {});
-        return res;
-      }).catch(() => caches.match('./index.html'));
+    caches.match(req).then((cached) => {
+      const network = fetch(req).then((res) => { putInCache(req, res); return res; });
+      if (cached) {
+        // Päivitä taustalla; virheet taustapäivityksessä eivät haittaa.
+        e.waitUntil(network.catch(() => {}));
+        return cached;
+      }
+      // Ei välimuistissa: palauta verkon vastaus tai REHELLINEN virhe.
+      // (Ei index.html-fallbackia aliresursseille!)
+      return network.catch(() => new Response('', { status: 504, statusText: 'Offline' }));
     })
   );
 });

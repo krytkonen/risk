@@ -202,6 +202,35 @@
     </div>
   </div>
 
+  <script>
+    // Virheiden näyttö ruudussa: asennetussa PWA:ssa ei ole devtoolseja,
+    // joten käsittelemättömät virheet (esim. moduulin latausvika) piirretään
+    // punaiseen palkkiin sen sijaan että sovellus kaatuisi hiljaa.
+    (function () {
+      function show(msg) {
+        var d = document.getElementById('err-banner');
+        if (!d) {
+          d = document.createElement('div');
+          d.id = 'err-banner';
+          d.style.cssText = 'position:fixed;left:8px;right:8px;bottom:8px;z-index:9999;' +
+            'background:#7a1f1f;color:#fff;font:12px/1.4 monospace;padding:8px 10px;' +
+            'border-radius:8px;max-height:40vh;overflow:auto;';
+          d.addEventListener('click', function () { d.remove(); });
+          document.body.appendChild(d);
+        }
+        var p = document.createElement('div');
+        p.textContent = msg;
+        d.appendChild(p);
+      }
+      window.addEventListener('error', function (e) {
+        var f = e.filename ? ' @ ' + e.filename.split('/').pop() + ':' + e.lineno : '';
+        show((e.message || 'Latausvirhe: ' + (e.target && (e.target.src || e.target.href) || '?')) + f);
+      }, true);
+      window.addEventListener('unhandledrejection', function (e) {
+        show('Promise-virhe: ' + ((e.reason && e.reason.message) || e.reason));
+      });
+    })();
+  </script>
   <script type="module" src="js/main.js"></script>
 </body>
 </html>
