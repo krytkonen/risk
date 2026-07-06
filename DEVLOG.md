@@ -347,3 +347,33 @@ itsessään on kehityksen kohde — sen puutteet kirjataan ja korjataan.
   kohdennettuun kehitykseen (uudet ominaisuudet/sisältö) avoimen "jatka"-
   silmukan sijaan — muuten riskinä on arvoa tuottamaton churn. Silmukka teki
   tehtävänsä; se osaa nyt myös TUNNISTAA kun on valmis.
+
+### Iter 18 — Viimeiset maksunäkymät (loppuruutu + korttienvaihto)
+- PLAN: kaappaa 2 viimeistä tarkistamatonta näkymää oikealla pelisimulaatiolla.
+- EXECUTE (työkalu): shot-endgame.mjs klikit force+lyhyt timeout (aiempi
+  hitaus johtui ei-force-klikkien 30s retry:stä → nyt ~sekunti/vuoro).
+  TRADE=1-lippu avaa korttienvaihdon kun ihmisellä ≥3 korttia.
+- REVIEW:
+  - Loppuruutu: 2-pelaajan peli JUMIUTUI (ihminen linnoittautui 3 alueeseen
+    paksuilla armeijoilla, TÄ ei murtanut, ihminen ei laajentanut → vuorot
+    31–40 tasan). Ei voittajaa 40 vuorossa → ei kaappausta. Loppuruutu jää
+    koodikatselmoiduksi (rakenne kunnossa: pokaali + teksti + tilastotaulu +
+    konfetti). HAVAINTO: aggressiivinen-sitten-saarrettu pelaaja voi turtata;
+    ei bugi mutta pelidynamiikan reunatapaus.
+  - Korttienvaihto (eg-trade.png): SIISTI — korttiruudut tyyppiemojilla
+    (🎯 tykistö, 🐎 ratsuväki, 🪖 jalkaväki) + lähtöalue, selkeä pakko-vaihto-
+    viesti "Seuraava sarja: +6", auto-vaihto, oikein himmennetty disabloitu nappi.
+    Ei vikaa. Emojit renderöityvät.
+- LESSONS: (1) Kaikki näkymät nyt tarkistettu — korttienvaihto ja loppuruutu
+  olivat viimeiset, molemmat hyvin rakennettu. (2) Simulaation determinismi:
+  force+lyhyt-timeout-klikit ovat välttämättömiä; ei-force-klikki jumittaa
+  30s jos modaali peittää. (3) Peli voi jumiutua 2 pelaajalla (turtle) —
+  mahdollinen jatkokehityskohde (esim. pehmeä vuororaja/pistevoitto).
+
+## Tilanne: perusviimeistely valmis (18 iteraatiota)
+Silmukka on käynyt läpi KOKO sovelluksen — 6 karttaa (full+lite), aloitusruutu,
+koko ihmisvuoro, kaikki dialogit (valloitus/linnoitus/kortit), sumu+lumimyrsky,
+HUD, valikko, säännöt, loppuruutu. Löydöt kutistuivat isoista (paletti, relief,
+letterbox, in-play-UX, luettavuus) marginaalisiin ja lopulta ei-bugeiksi.
+Seuraava arvo on KOHDENNETUSSA kehityksessä (uudet ominaisuudet / sisältö /
+tasapaino), ei avoimessa graafisessa silmukassa.

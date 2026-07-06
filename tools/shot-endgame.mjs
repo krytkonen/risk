@@ -61,16 +61,35 @@ const S = () => page.evaluate(() => {
   const owned = Object.keys(s.territories).filter((id) => s.territories[id].owner === cur);
   const border = owned.find((id) => window.__risk.adj(id).some((n) => s.territories[n].owner !== cur));
   return { phase: s.phase, reinf: s.reinforcements, isAI: s.players[cur].isAI,
-    winner: s.winner ?? null, owned, border: border || owned[0], busy: window.__risk.getUi().busy };
+    winner: s.winner ?? null, owned, border: border || owned[0], busy: window.__risk.getUi().busy,
+    cards: (s.players[cur].cards || []).length };
 });
-const primary = async () => { const b = page.locator('#controls button.primary'); try { await b.waitFor({ timeout: 1500 }); await b.click(); await wait(120); } catch {} };
-const clickT = (id) => page.click(`.territory[data-id="${id}"]`, { force: true }).catch(() => {});
+let tradeShot = false;
+const primary = async () => { try { await page.click('#controls button.primary', { force: true, timeout: 1200 }); await wait(90); } catch {} };
+const clickT = (id) => page.click(`.territory[data-id="${id}"]`, { force: true, timeout: 1200 }).catch(() => {});
 
 let st = await S();
 let turns = 0;
 while (!st.winner && turns < 40) {
   if (st.phase === 'gameover' || st.winner) break;
   if (st.isAI) { await wait(200); st = await S(); continue; }
+  // Korttienvaihto-UI: kun ihmisellä on ≥3 korttia vahvistusvaiheessa, avaa
+  // Kortit-nappi → kaappaa (kerran).
+  if (process.env.TRADE && !tradeShot && st.phase === 'reinforce' && st.cards >= 3) {
+    const btn = page.locator('#controls button', { hasText: 'Kortit' });
+    if (await btn.count()) {
+      await btn.first().click({ force: true, timeout: 1200 }).catch(() => {});
+      if (await page.locator('#modal-trade:not([hidden])').count()) {
+        await wait(250);
+        await page.screenshot({ path: (out.replace(/\.png$/, '') + '-trade.png') });
+        console.log('Kuva:', out.replace(/\.png$/, '') + '-trade.png', `(korttienvaihto, ${st.cards} korttia)`);
+        tradeShot = true;
+        await page.click('#trade-close', { force: true }).catch(() => {});
+        await wait(150);
+        st = await S();
+      }
+    }
+  }
   // Ihmisvuoro. Vahvistus:
   let g = 0;
   while (st.phase === 'reinforce' && st.reinf > 0 && g++ < 20) {
@@ -100,7 +119,7 @@ while (!st.winner && turns < 40) {
     await clickT(best.from); await wait(60); await clickT(best.to); await wait(60);
     const blitz = page.locator('#controls button.danger').nth(1);
     if (!(await blitz.count())) break;
-    await blitz.click().catch(() => {}); await wait(300);
+    await blitz.click({ force: true, timeout: 1200 }).catch(() => {}); await wait(160);
     st = await S();
   }
   if (await page.locator('#modal-conquest:not([hidden])').count()) { await page.click('#conquest-confirm').catch(() => {}); await wait(150); }
