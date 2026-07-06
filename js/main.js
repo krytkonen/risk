@@ -1352,7 +1352,7 @@ function applyView() {
 // ohitetaan jos käyttäjä on valinnut vähennetyn liikkeen (reduced motion).
 // ---------------------------------------------------------------------------
 
-const CAM = { ZOOM_THRESHOLD: 1.25, ZOOM_FACTOR: 1.6, ANGLE: 4, HOLD_MS: 850, IN_MS: 260, OUT_MS: 340 };
+const CAM = { ZOOM_THRESHOLD: 1.7, ZOOM_FACTOR: 2.4, ANGLE: 4, HOLD_MS: 850, IN_MS: 260, OUT_MS: 340 };
 let _camRaf = null, _camHold = null, _camBase = null, _camActive = false;
 
 function cameraEnabled() {
