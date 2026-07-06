@@ -1421,6 +1421,11 @@ export function updateMap(refs, state, ui = {}) {
       r.region.classList.toggle('region-target', !blocked && id === attackTarget);
       r.region.classList.toggle('region-valid',
         !blocked && id !== selected && id !== attackTarget && targets.has(id));
+      // Vahvistusvaihe: omat alueet joihin voi sijoittaa saavat hillityn
+      // "sijoitettava"-korostuksen → pelaaja näkee mihin napauttaa.
+      r.region.classList.toggle('region-placeable',
+        state.phase === 'reinforce' && state.reinforcements > 0 &&
+        owner === state.current && !blocked && !hidden && id !== selected);
     }
 
     // Armeijamäärä – pop-animaatio kun luku muuttuu. Suljetussa ei lukua, sumussa '?'.
