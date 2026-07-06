@@ -58,8 +58,10 @@ await page.waitForSelector('.region, #g-regions .region', { timeout: 8000 });
 
 const getState = () => page.evaluate(() => {
   const s = window.__risk.getState();
-  return { phase: s.phase, reinforcements: s.reinforcements,
-    owned: Object.keys(s.territories).filter((id) => s.territories[id].owner === s.current) };
+  const owned = Object.keys(s.territories).filter((id) => s.territories[id].owner === s.current);
+  // Rajaruutu: oma alue jolla on vihollisnaapuri (→ vahva hyökkääjä syntyy sinne).
+  const border = owned.find((id) => window.__risk.adj(id).some((n) => s.territories[n].owner !== s.current));
+  return { phase: s.phase, reinforcements: s.reinforcements, owned, border: border || owned[0] };
 });
 const clickPrimary = async () => {
   const btn = page.locator('#controls button.primary');
@@ -72,7 +74,7 @@ const clickPrimary = async () => {
 let st = await getState();
 let guard = 0;
 while (st.phase === 'reinforce' && st.reinforcements > 0 && guard++ < 20) {
-  await page.click(`.territory[data-id="${st.owned[0]}"]`); // valitse
+  await page.click(`.territory[data-id="${st.border}"]`);  // valitse rajaruutu
   await wait(120);
   await clickPrimary();                                     // "+N" sijoittaa
   st = await getState();
@@ -110,6 +112,47 @@ if (atk && st.phase === 'attack') {
     await (map || page).screenshot({ path: `${prefix}-zoom.png` });
     console.log('Kuva:', `${prefix}-zoom.png`, '(hyökkäyskamera zoom)');
   } catch { console.log('Ei Nopat-nappia; ohitin zoom-kuvan'); }
+
+  // --- Valloitusdialogi. Ehkä jo auki (Nopat-hyökkäys valloitti); muuten aja
+  //     ison ylivoiman hyökkäys Blitzillä kunnes valloitus. ---
+  try {
+    if (await page.locator('#modal-conquest:not([hidden])').count()) {
+      await wait(200);
+      await page.screenshot({ path: `${prefix}-conquest.png` });
+      console.log('Kuva:', `${prefix}-conquest.png`, '(valloitusdialogi — Nopat valloitti)');
+    } else
+    for (let tries = 0; tries < 10; tries++) {
+      const best = await page.evaluate(() => {
+        const s = window.__risk.getState();
+        let b = null;
+        for (const id of Object.keys(s.territories)) {
+          if (s.territories[id].owner !== s.current || s.territories[id].armies < 3) continue;
+          for (const n of window.__risk.adj(id)) {
+            if (s.territories[n].owner === s.current) continue;
+            const adv = s.territories[id].armies - s.territories[n].armies;
+            if (!b || adv > b.adv) b = { from: id, to: n, adv };
+          }
+        }
+        return b;
+      });
+      if (!best) break;
+      await page.click(`.territory[data-id="${best.from}"]`, { force: true });
+      await wait(120);
+      await page.click(`.territory[data-id="${best.to}"]`, { force: true });
+      await wait(120);
+      const blitz = page.locator('#controls button.danger').nth(1); // "Blitz ⚡"
+      if (!(await blitz.count())) break;
+      await blitz.click();
+      // Odota joko valloitusdialogi tai taistelun ratkeaminen.
+      try {
+        await page.waitForSelector('#modal-conquest:not([hidden])', { timeout: 2500 });
+        await wait(200);
+        await page.screenshot({ path: `${prefix}-conquest.png` });
+        console.log('Kuva:', `${prefix}-conquest.png`, `(valloitusdialogi ${best.from}→${best.to})`);
+        break;
+      } catch { await wait(400); /* ei valloitusta tällä; kokeile seuraavaa */ }
+    }
+  } catch (e) { console.log('Valloitusdialogin kaappaus ei onnistunut:', e.message); }
 } else {
   await (map || page).screenshot({ path: `${prefix}-select.png` });
   console.log('Ei hyökkäysmahdollisuutta; kaappasin laudan:', `${prefix}-select.png`, 'phase=', st.phase);

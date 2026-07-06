@@ -851,8 +851,13 @@ function openConquest() {
   const pc = state.pendingConquest;
   if (!pc) return;
   clearTimeout(_camHold); // pidä kamera kohdistettuna dialogin ajan
-  $('conquest-text').textContent =
-    `Valtasit ${TERRITORIES[pc.toId].gen}! Siirrä ${pc.minMove}–${pc.maxMove} armeijaa alueelle.`;
+  // Kun siirtomäärä on pakotettu (min === max), liukusäädin + Min/Max ovat
+  // kuolleita kontrolleja → piilota ne ja kerro määrä suoraan.
+  const forced = pc.minMove >= pc.maxMove;
+  $('modal-conquest').classList.toggle('forced', forced);
+  $('conquest-text').textContent = forced
+    ? `Valtasit ${TERRITORIES[pc.toId].gen}! ${pc.maxMove} armeijaa siirtyy alueelle.`
+    : `Valtasit ${TERRITORIES[pc.toId].gen}! Siirrä ${pc.minMove}–${pc.maxMove} armeijaa alueelle.`;
   const r = $('conquest-range');
   r.min = pc.minMove; r.max = pc.maxMove; r.value = pc.maxMove;
   updateConquestInfo();

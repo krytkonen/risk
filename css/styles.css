@@ -189,6 +189,11 @@ body {
 }
 .halo { transform-box: fill-box; transform-origin: center; }
 
+/* Valloitusdialogi: kun siirtomäärä on pakotettu, piilota kuolleet kontrollit
+   (liukusäädin + Min/Max + "N siirtyvää armeijaa" -toisto). */
+#modal-conquest.forced .range-row,
+#modal-conquest.forced .range-val { display: none; }
+
 /* Aluetason korostus: rengashalojen LISÄKSI kirkas ääriviiva itse alueelle,
    jotta valinta ja hyökkäysvaihtoehdot erottuvat myös koko laudan mitassa
    (ei vain pieni nappirengas). Pelkkä stroke → ei suodatinta, halpa. */

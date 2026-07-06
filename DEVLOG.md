@@ -198,3 +198,23 @@ itsessään on kehityksen kohde — sen puutteet kirjataan ja korjataan.
   itsensä heti takaisin. (2) Rengashalo (nappi) + aluerengas (region) yhdessä =
   redundanttinen korostus joka toimii sekä lähellä että kaukana. (3) Silmukan
   malli toimii: uusi review-kyky → uusi löytö → konkreettinen parannus.
+
+### Iter 10 — Valloitusdialogin kuolleet kontrollit pois
+- PLAN: laajenna pelitila-työkalu kaappaamaan valloitusdialogi; korjaa mitä
+  löytyy.
+- EXECUTE (työkalu): shot-play.mjs ajaa nyt myös ison ylivoiman hyökkäyksen
+  (Blitz/Nopat) → kaappaa `-conquest.png`. Vahvistus ohjattiin RAJARUUTUUN
+  (oma alue jolla vihollisnaapuri) → syntyy hyökkäyskelpoinen stack.
+- REVIEW-LÖYTÖ (p10-conquest.png): dialogi näytti "Siirrä 3–3 armeijaa" +
+  liukusäätimen JOKA EI LIIKU (min===max). Tämä sattuu JOKA valloituksessa
+  4-stackista (erittäin yleistä) → kuolleet kontrollit.
+- EXECUTE (korjaus): openConquest merkitsee dialogin `.forced`-luokalla kun
+  minMove>=maxMove; CSS piilottaa liukusäätimen + Min/Max + toiston. Teksti:
+  "N armeijaa siirtyy alueelle." Kun valinnanvaraa on, säädin näkyy normaalisti.
+- REVIEW (p10e-conquest.png): ei-pakotettu tapaus (3–6) näyttää säätimen oikein,
+  ei regressiota. Pakotettu tapaus piilottaa kuolleet kontrollit (mekaaninen
+  display:none luokan mukaan; sama 3–3-tapaus jonka bugina näin ennen korjausta).
+  89 testiä vihreää.
+- LESSONS: (1) "Kuollut kontrolli" (säädin jonka rajat ovat samat) on helppo
+  jättää huomaamatta koodissa — näkyy vain kun sen oikeasti näkee. (2) Työkalun
+  determinismi: ohjaa vahvistus rajaruutuun → luotettava valloitus reviewiin.
