@@ -326,3 +326,24 @@ itsessään on kehityksen kohde — sen puutteet kirjataan ja korjataan.
   tee elementti LUETTAVAKSI päällekkäisyydestä huolimatta (opaakki tausta) sen
   sijaan että jahtaa mahdotonta ei-päällekkäisyyttä. (3) Kaikki 6 karttaa nyt
   visuaalisesti tarkistettu.
+
+### Iter 17 — Karttakattavuuden viimeistely + tilannearvio
+- PLAN: tarkista viimeiset kartat (Antiikin maailma, Eurooppa) ja varmista
+  Iter 16:n pillerikorjaus.
+- REVIEW:
+  - Antiikin maailma: EPÄILY — mannerlegenda näytti leikkautuvan vasemmasta
+    reunasta pystykaappauksessa. LEVEÄ kaappaus (1400×1000, kartan oma
+    kuvasuhde) paljasti: legenda on EHJÄ (väripalat + "+2/+3/+3/+3/+4"). Ei
+    bugia — letterbox-skaalaus vain teki siitä ahtaan näköisen pystyssä.
+  - Eurooppa: labelit siistit. "VAHVISTUS" keskellä = ohimenevä vaihebanneri
+    (reduced-motion-gated), ei vika.
+- LESSONS: (1) **Letterbox voi valehdella** — jos elementti näyttää leikatulta
+  pystykaappauksessa, tarkista kartan omalla kuvasuhteella ennen "korjausta".
+  Olisin melkein korjannut ei-bugin. (2) Kaikki 6 karttaa + kaikki näkymät nyt
+  tarkistettu.
+- TILANNEARVIO: 17 iteraatiota. Silmukka on kattanut koko sovelluksen ja löydöt
+  ovat kutistuneet isoista (paletti, relief, letterbox, in-play-UX) marginaali-
+  siin/ei-bugeiksi. **Perusviimeistely on valmis.** Jatko kannattaa suunnata
+  kohdennettuun kehitykseen (uudet ominaisuudet/sisältö) avoimen "jatka"-
+  silmukan sijaan — muuten riskinä on arvoa tuottamaton churn. Silmukka teki
+  tehtävänsä; se osaa nyt myös TUNNISTAA kun on valmis.
