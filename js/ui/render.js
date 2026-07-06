@@ -1025,7 +1025,9 @@ export function buildMap(svg, onTap) {
     placedLabels.push({ x: lx, y: ly, w: lblW, h: lblH });
     labelG.appendChild(el('rect', {
       x: lx, y: ly, width: lblW, height: lblH, rx: 10.5, ry: 10.5,
-      fill: '#04101c', 'fill-opacity': 0.55, stroke: color, 'stroke-opacity': 0.55, 'stroke-width': 1,
+      // Läpinäkymättömämpi pilleri (0.82) → nimi pysyy luettavana myös tiheillä
+      // kartoilla (esim. Eurooppa 2025), joissa labelin on pakko osua napin päälle.
+      fill: '#04101c', 'fill-opacity': 0.82, stroke: color, 'stroke-opacity': 0.7, 'stroke-width': 1,
     }));
     const label = el('text', {
       x: lx + lblW / 2, y: ly + lblH / 2, fill: mix(color, '#ffffff', 0.25),

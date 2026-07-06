@@ -302,3 +302,27 @@ itsessään on kehityksen kohde — sen puutteet kirjataan ja korjataan.
 - HUOM: silmukka on nyt kattanut koko sovelluksen (setup → lauta → in-play →
   dialogit → moodit → HUD). Perusviimeistely valmis; jatko kohdistuu
   yksityiskohtiin ja uusiin ominaisuuksiin.
+
+### Iter 16 — Loput kartat + valikko/säännöt + labelpillerin luettavuus
+- PLAN: kaappaa näkymät joita EI ollut vielä tarkistettu: 4 muuta karttaa,
+  valikko, säännöt, loppuruutu.
+- EXECUTE (työkalu): OPEN="#sel,#sel2" -lippu screenshot.mjs:ään (avaa
+  overlayt esim. valikko/säännöt); shot-endgame.mjs (aja peli loppuun).
+- REVIEW:
+  - Valikko + Säännöt: siistit, yhtenäiset, ei vikaa.
+  - Loppuruutu: shot-endgame liian hidas (~90s/vuoro selaimessa, ei käytännöllinen
+    koko pelin ajoon) → koodikatselmoitu: pokaali + voittoteksti + tilastotaulu
+    (valloitukset/taistelut/sarjat/pudotukset/vuorot) + konfetti. Rakenne kunnossa.
+  - Kartat: Maailma (klassinen), Eurooppa, Antiikin — labelit siistit. **LÖYTÖ:
+    Eurooppa 2025** (tiheä kartta) — mannerlabelit (Itämeren rannikko, Suomi,
+    Ukraina, Venäjä) osuvat nappien päälle ja läpikuultava pilleri (0.55) päästi
+    napin läpi → huono luettavuus.
+- EXECUTE (korjaus): labelpillerin fill-opacity 0.55→0.82, stroke 0.55→0.7 →
+  nimi luettavissa vaikka pilleri osuisi napin päälle.
+- REVIEW (eur2025b + classicb): Eurooppa 2025 labelit selvästi luettavampia;
+  klassinen kartta ei regressoinut (jopa premiumimpi). 89 testiä vihreää.
+- LESSONS: (1) TIHEÄT kartat paljastavat layout-ongelmat joita harvat eivät —
+  tarkista aina myös tihein tapaus. (2) Kun täydellistä sijoittelua ei ole,
+  tee elementti LUETTAVAKSI päällekkäisyydestä huolimatta (opaakki tausta) sen
+  sijaan että jahtaa mahdotonta ei-päällekkäisyyttä. (3) Kaikki 6 karttaa nyt
+  visuaalisesti tarkistettu.

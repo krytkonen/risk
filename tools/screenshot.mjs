@@ -80,8 +80,15 @@ await page.waitForFunction(() => document.querySelectorAll('#g-regions .region, 
 if (process.env.LITE) { await page.evaluate(() => document.body.classList.add('lite')); }
 await page.waitForTimeout(600);
 
+// OPEN="#sel1,#sel2" → klikkaa valitsimet järjestyksessä (avaa esim. valikko/säännöt).
+if (process.env.OPEN) {
+  for (const sel of process.env.OPEN.split(',')) {
+    await page.click(sel.trim()).catch(() => {});
+    await page.waitForTimeout(250);
+  }
+}
 // FULLPAGE=1 → kaappaa koko sivu (HUD + kartta), muuten vain kartta-alue.
-const map = process.env.FULLPAGE ? null : await page.$('#map-wrap');
+const map = (process.env.FULLPAGE || process.env.OPEN) ? null : await page.$('#map-wrap');
 await (map || page).screenshot({ path: out });
 console.log('Kuva tallennettu:', out);
 
