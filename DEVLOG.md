@@ -410,3 +410,30 @@ tasapaino), ei avoimessa graafisessa silmukassa.
   Panorointi-gate (#g-fog hidden) säilyy → suorituskyky ok.
 - LESSON: paljastus KOHTEEN OMALLA MUODOLLA (ei kiinteä primitiivi) on avain
   orgaaniseen fog-of-wariin; yksi jaettu blur riittää reunan pehmennykseen.
+
+## 3 iteraation kierros (käyttäjä: "next iteration loops 3x")
+### Loop-iter 1 — Sumun "?"-nappulat verhotuiksi
+- Viileä sumuorbi-gradientti + läpikuultavuus (0.8) → tuntematon "häämöttää"
+  sumussa eikä ole kiinteä musta pallo. Review: fog_q.png. 91 vihreää.
+### Loop-iter 2 — Vahvistuksen sijoituskorostus
+- Omat alueet saavat vahvistusvaiheessa hillityn hengittävän kultaääriviivan
+  (.region-placeable, reduced-motion-gated) → pelaaja näkee mihin napauttaa.
+  Review: reinforce_cue.png.
+### Loop-iter 3 — Mannersiluettien realismihionta (käyttäjän valinta #2)
+- Kysymys: pitäisikö kartat esittää oikeita mannermuotoja? Vastaus: kevyt
+  siluettihionta, ei geometrian remonttia.
+- LÖYTÖ: continentOutline käytti KONVEKSIA peitettä (convex hull + säteispush)
+  → mantereet olivat pyöreitä möykkyjä (ei niemekkeitä/lahtia).
+- Ratkaisu: kulmapyyhkäisy — N=42 sektoria, kussakin uloin alue → ääriviiva
+  MYÖTÄILEE alueita (niemekkeet ulos, lahdet sisään). Alueet ovat jo
+  maantieteellisesti aseteltuja, joten tunnistettavuus paranee. Konkaavius
+  pidetty LOIVANA (naapurivaikutus 0.9, tyhjien interpolointi 0.82) ettei
+  Voronoi-puolitasoleikkaus riko soluja. Solut täyttyvät automaattisesti (ne
+  leikataan samasta ääriviivasta).
+- REVIEW (KAIKKI 6 karttaa, leveä kuvasuhde): iso parannus — Etelä-Amerikka
+  kapenee Argentiinaan, Afrikka pullistuu länteen & kapenee etelään, Italia
+  saapasmainen, Iberia niemeke, Kamtšatka/Intia niemekkeitä. EI soluglitchejä
+  yhdelläkään kartalla. 91 vihreää.
+- LESSON: kun alueet ovat valmiiksi oikein aseteltuja, ääriviivan kulmapyyhkäisy
+  (ei konveksi hull) tuo geografian esiin ILMAN aluegeometrian uusintaa —
+  halpa, iso vaikutus. Geometriamuutos = tarkista KAIKKI kartat.

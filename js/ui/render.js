@@ -512,8 +512,7 @@ function continentOutline(contId, seed, pad = 50) {
   const cy = points.reduce((s, p) => s + p.y, 0) / points.length;
 
   let base;
-  const hull = convexHull(points);
-  if (hull.length < 3) {
+  if (points.length < 3) {
     // Liian vähän pisteitä peitteeksi: tee kahdeksankulmio bbox-keskuksen ympäri.
     const xs = points.map((p) => p.x), ys = points.map((p) => p.y);
     const w = Math.max(40, Math.max(...xs) - Math.min(...xs)) / 2 + pad;
@@ -525,12 +524,40 @@ function continentOutline(contId, seed, pad = 50) {
     }
     base = oct;
   } else {
-    // Laajenna jokainen peitteen kärki säteittäin ulospäin keskipisteestä.
-    base = hull.map((p) => {
-      const dx = p.x - cx, dy = p.y - cy;
-      const len = Math.hypot(dx, dy) || 1;
-      return { x: p.x + (dx / len) * pad, y: p.y + (dy / len) * pad };
-    });
+    // Kulmapyyhkäisy: ääriviiva MYÖTÄILEE alueita (niemekkeet ulos, lahdet
+    // sisään) konveksin "möykyn" sijaan → mantereet muistuttavat oikeita
+    // muotoja. Alueet ovat maantieteellisesti aseteltuja, joten kun ääriviiva
+    // seuraa niiden kulmajakaumaa, tunnistettavuus paranee. Konkaavius pidetään
+    // LOIVANA (interpolointi 0.82), ettei Voronoi-puolitasoleikkaus riko soluja.
+    const N = 42;
+    const rad = new Array(N).fill(-1);
+    const binOf = (a) => ((Math.round(((a + Math.PI) / (Math.PI * 2)) * N)) % N + N) % N;
+    for (const p of points) {
+      const a = Math.atan2(p.y - cy, p.x - cx);
+      const d = Math.hypot(p.x - cx, p.y - cy);
+      const bi = binOf(a);
+      if (d > rad[bi]) rad[bi] = d;
+      // Levennä niemekettä viereisiin sektoreihin (pyöreä bumppi, ei piikki).
+      const b1 = (bi + 1) % N, b2 = (bi - 1 + N) % N;
+      rad[b1] = Math.max(rad[b1], d * 0.9);
+      rad[b2] = Math.max(rad[b2], d * 0.9);
+    }
+    // Täytä tyhjät sektorit naapureista → loiva lahti (0.82 sisennys).
+    for (let pass = 0; pass < 3; pass++) {
+      for (let k = 0; k < N; k++) {
+        if (rad[k] >= 0) continue;
+        const vals = [rad[(k - 1 + N) % N], rad[(k + 1) % N]].filter((v) => v >= 0);
+        if (vals.length) rad[k] = (vals.reduce((s, v) => s + v, 0) / vals.length) * 0.82;
+      }
+    }
+    const filled = rad.filter((v) => v >= 0);
+    const avg = filled.length ? filled.reduce((s, v) => s + v, 0) / filled.length : 60;
+    base = [];
+    for (let k = 0; k < N; k++) {
+      const r = (rad[k] >= 0 ? rad[k] : avg) + pad;
+      const ang = (Math.PI * 2 * k) / N - Math.PI;
+      base.push({ x: cx + Math.cos(ang) * r, y: cy + Math.sin(ang) * r });
+    }
   }
   return { pts: densifyAndJitter(base, seed * 13 + 3, 40, 8), cx, cy };
 }
