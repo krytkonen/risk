@@ -1026,7 +1026,8 @@ export function buildMap(svg, onTap) {
           const bow = Math.min(20, 12 + dist * 0.02);
           const sign = seededNoise(7, seaEdgeIdx++) >= 0 ? 1 : -1;
           const d = `M ${a.x} ${a.y} Q ${(mx + px * bow * sign).toFixed(1)} ${(my + py * bow * sign).toFixed(1)} ${b.x} ${b.y}`;
-          // Pehmeä hehkuva katkoviiva (taustaviiva + päällysviiva).
+          // Purjehdusreitti: pehmeä hehku + katkoviiva + pienet satamapisteet
+          // päissä (reitti "kiinnittyy" maahan). Kolme kerrosta, ei suodatinta.
           gEdges.appendChild(el('path', {
             d, fill: 'none',
             'class': 'edge-sea-glow', stroke: '#6fb6e8', 'stroke-opacity': 0.12,
@@ -1037,12 +1038,21 @@ export function buildMap(svg, onTap) {
             'class': 'edge-sea', stroke: '#9fd0f0', 'stroke-opacity': 0.4,
             'stroke-width': 1.4, 'stroke-linecap': 'round', 'stroke-dasharray': '2 11',
           }));
+          gEdges.appendChild(el('circle', { cx: a.x, cy: a.y, r: 2.4, 'class': 'edge-port', fill: '#0a1a28', stroke: '#9fd0f0', 'stroke-opacity': 0.5, 'stroke-width': 1 }));
+          gEdges.appendChild(el('circle', { cx: b.x, cy: b.y, r: 2.4, 'class': 'edge-port', fill: '#0a1a28', stroke: '#9fd0f0', 'stroke-opacity': 0.5, 'stroke-width': 1 }));
         } else {
-          // Lyhyt mannerten välinen yhteys: "salmi/silta" – lyhyt yhtenäinen viiva.
+          // Lyhyt mannerten välinen yhteys: "salmi/silta". Tumma kotelo +
+          // vaalea ydin → reitti lukee syvyydellä eikä litteänä kirkkaana
+          // palkkina joka halkoo alueita.
           gEdges.appendChild(el('line', {
             x1: a.x, y1: a.y, x2: b.x, y2: b.y,
-            'class': 'edge-land', stroke: '#cfe2f2', 'stroke-opacity': 0.5,
-            'stroke-width': 2, 'stroke-linecap': 'round',
+            'class': 'edge-land-casing', stroke: '#06131f', 'stroke-opacity': 0.55,
+            'stroke-width': 4, 'stroke-linecap': 'round',
+          }));
+          gEdges.appendChild(el('line', {
+            x1: a.x, y1: a.y, x2: b.x, y2: b.y,
+            'class': 'edge-land', stroke: '#d7e8f6', 'stroke-opacity': 0.6,
+            'stroke-width': 1.6, 'stroke-linecap': 'round',
           }));
         }
       }

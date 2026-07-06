@@ -108,3 +108,16 @@ itsessään on kehityksen kohde — sen puutteet kirjataan ja korjataan.
   suunnattua syvyyttä ilman suodatinta/maskia — sama tekniikka kuin vaahdolla,
   vain käänteinen sävy ja leveämpi. (2) Kerrostettu leveä→kapea + haalea→tumma
   antaa pehmeän gradientin ilman feGaussianBlurria.
+
+### Iter 5 — Yhteysviivat purjehdusreiteiksi (kotelo + ydin + satamat)
+- PLAN: naapuruusviivat lukevat reitteinä, eivät kirkkaina palkkeina jotka
+  halkovat alueita. Säilytä luettavuus (viivat kertovat pelattavan naapuruuden).
+- EXECUTE: lyhyt maayhteys = tumma kotelo (#06131f, 4px) + vaalea ydin
+  (#d7e8f6, 1.6px) → syvyys. Merireitit saivat pienet satamapisteet (r2.4)
+  päihinsä → reitti "kiinnittyy" maahan. Ei suodattimia, kaikki vetoja/ympyröitä.
+- REVIEW (iter5.png): viivat integroituvat lautaan siistimmin; kotelo erottaa
+  ne aluevärista ilman että ne katoavat. Ei PAGE ERR, 89 testiä vihreää.
+- LESSONS: (1) Kotelo+ydin (tumma leveä alla + vaalea kapea päällä) on sama
+  syvyystemppu kuin rannikkovarjossa — toimiva yleiskuvio viivoille. (2) Hienovarainen
+  polish: ero on pieni mutta oikeaan suuntaan. Seuraavaksi isompi hyppy:
+  mannerlabelien päällekkäisyys nappien kanssa (Etelä-Aasia/Oseania piiloutuvat).
