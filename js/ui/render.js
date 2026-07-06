@@ -153,6 +153,24 @@ function buildDefs(warmth = 0) {
   noise.appendChild(noiseCm);
   defs.appendChild(noise);
 
+  // --- Maan RELIEF-materiaali: kohotettu maasto (vaaleat huiput + tummat
+  // rotkot) yhdestä fraktaalikohinasta. STAATTINEN, rasteroidaan kerran.
+  // Kytketään pois panoroinnin (#map.interacting) ja kevyt-tilan (body.lite)
+  // aikana CSS:llä, jotta suodatin ei rasteroidu joka framella. Maskataan
+  // maamassaan (#land-mask) → meri jää koskematta. Antaa alueille
+  // materiaalintunnun litteän väripaperin sijaan.
+  const relief = el('filter', { id: 'land-relief', x: '0%', y: '0%', width: '100%', height: '100%' });
+  relief.appendChild(el('feTurbulence', { type: 'fractalNoise', baseFrequency: '0.09 0.12', numOctaves: 3, seed: 11, result: 'n' }));
+  // Tummat rotkot: vain kohinan yläpää → harva tumma pilkutus.
+  relief.appendChild(el('feColorMatrix', { in: 'n', type: 'matrix', values: '0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.85 -0.32', result: 'dark' }));
+  // Vaaleat huiput: käänteinen alfa → hento valkoinen kohokuvio.
+  relief.appendChild(el('feColorMatrix', { in: 'n', type: 'matrix', values: '0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 -0.8 0.42', result: 'lite' }));
+  const reliefMerge = el('feMerge');
+  reliefMerge.appendChild(el('feMergeNode', { in: 'lite' }));
+  reliefMerge.appendChild(el('feMergeNode', { in: 'dark' }));
+  relief.appendChild(reliefMerge);
+  defs.appendChild(relief);
+
   // --- Pehmeä varjo napeille. ---
   const nodeShadow = el('filter', { id: 'node-shadow', x: '-60%', y: '-60%', width: '220%', height: '220%' });
   const dropB = el('feDropShadow', { dx: 0, dy: 2, stdDeviation: 2.2, 'flood-color': '#000', 'flood-opacity': 0.55 });
@@ -816,6 +834,12 @@ export function buildMap(svg, onTap) {
   const gBevel = el('g', { id: 'g-bevel', 'pointer-events': 'none' }); // reunusviiste (fake-3D)
   const gCoast = el('g', { id: 'g-coasts', 'pointer-events': 'none' }); // rantaviiva + kartussit
   const gRidges = el('g', { id: 'g-ridges', 'pointer-events': 'none' }); // vuoristoharjanteet
+
+  // Relief-maski: valkoiset mannerkopiot mustalla pohjalla → relief-tekstuuri
+  // rajautuu tarkasti maamassaan (mereen ei kosketa). Täytetään loopissa.
+  const landMask = el('mask', { id: 'land-mask', maskUnits: 'userSpaceOnUse', maskContentUnits: 'userSpaceOnUse', x: 0, y: 0, width: 1000, height: 700 });
+  landMask.appendChild(el('rect', { x: 0, y: 0, width: 1000, height: 700, fill: '#000' }));
+
   const regionEls = {};
   const contIds = Object.keys(CONTINENTS);
   contIds.forEach((contId, ci) => {
@@ -824,6 +848,9 @@ export function buildMap(svg, onTap) {
     const { pts, cx, cy } = continentOutline(contId, ci);
     const path = closedPolyPath(pts);
     const shelfPath = closedPolyPath(offsetRadial(pts, cx, cy, 10));
+
+    // Relief-maskiin valkoinen mannerkopio (näyttää tekstuurin vain maalla).
+    landMask.appendChild(el('path', { d: path, fill: '#fff' }));
 
     // Mannerjalustan EKSTRUUSIO (fake-3D): sama ääriviiva siirrettynä alas
     // (7 px tumma "seinä" + 4 px keskisävy) → maamassa kohoaa laattana merestä.
@@ -958,6 +985,14 @@ export function buildMap(svg, onTap) {
   gMap.appendChild(gCont);
   gMap.appendChild(gPlinth);
   gMap.appendChild(gRegions);
+  // Relief-tekstuuri alueiden PÄÄLLE mutta viisteen/rantaviivan ALLE, jotta
+  // reunat pysyvät terävinä. Yksi maskattu+suodatettu rect = halpa (kytketään
+  // pois panoroinnin ja lite-tilan ajaksi CSS:llä).
+  gMap.appendChild(landMask);
+  gMap.appendChild(el('rect', {
+    x: 0, y: 0, width: 1000, height: 700, 'class': 'land-relief',
+    filter: 'url(#land-relief)', mask: 'url(#land-mask)', opacity: 0.42, 'pointer-events': 'none',
+  }));
   gMap.appendChild(gBevel);
   gMap.appendChild(gCoast);
   gMap.appendChild(gRidges);

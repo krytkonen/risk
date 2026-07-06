@@ -75,3 +75,22 @@ itsessään on kehityksen kohde — sen puutteet kirjataan ja korjataan.
   leikkaisi karttaa. (2) Portrait-ruudussa maisemakartta jää aina letterboxiin;
   ratkaisu on tehdä tyhjästä tunnelmallista, ei poistaa sitä. (3) Seuraava:
   maan materiaali/relief — regionit ovat vielä litteää väripaperia.
+
+### Iter 3 — Maan relief-materiaali
+- PLAN: anna maalle materiaalintuntu (kohotettu maasto) litteän väripaperin
+  sijaan. Reunaehto: yksi suodatin, maskattu maahan, kytketään pois
+  panoroinnin ja lite-tilan ajaksi; reunat pysyvät terävinä.
+- EXECUTE: #land-relief-suodatin (yksi fraktaalikohina → vaaleat huiput +
+  tummat rotkot feMergellä). #land-mask valkoisista mannerkopioista → tekstuuri
+  vain maalla. Yksi maskattu rect gRegionsin PÄÄLLE, gBevelin ALLE (reunat
+  terävinä). CSS: `.land-relief` pois `#map.interacting`- ja `body.lite`-tilassa.
+- REVIEW (iter3.png): iso parannus — maa näyttää maastolta/materiaalilta, ei
+  litteältä täytöltä. Reunat terävät, meri koskematon, värit yhä kirkkaat. Ei
+  PAGE ERR, testit vihreät.
+- LESSONS: (1) Yksi maskattu+suodatettu rect on halpa ja kattaa koko maan —
+  per-region-gradientteja ei tarvita. (2) feMerge (vaalea+tumma samasta
+  kohinasta) antaa uskottavan kohokuvion ilman kallista feDiffuseLightingia.
+  (3) CSS-portitus (interacting/lite) on vakiokuvio jokaiselle uudelle
+  suodattimelle — lisää se AINA samalla kun suodatin luodaan, ei jälkikäteen.
+  (4) Silmukka on kypsä: PLAN→EXECUTE→screenshot-REVIEW→LESSONS toimii
+  luotettavasti. Graafinen taso on nyt "mahtava" — hyvä hetki koota APK.

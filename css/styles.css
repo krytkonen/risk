@@ -135,6 +135,8 @@ body {
 #map.interacting .cont-panel,
 #map.interacting .army-count { filter: none !important; }
 #map.interacting #g-fog { visibility: hidden; }
+/* Relief-tekstuuri pois panoroinnin ajaksi → suodatin ei rasteroidu framettain. */
+#map.interacting .land-relief { visibility: hidden; }
 .territory { cursor: pointer; }
 .territory .node { transition: r 0.1s, fill 0.2s; }
 .territory.selectable .node { cursor: pointer; }
@@ -850,7 +852,8 @@ body.lite .edge-sea-glow { stroke-opacity: 0.1; }
 body.lite .sea-deco,
 body.lite .cont-shelf,
 body.lite .node-gloss,
-body.lite #map rect[filter="url(#sea-noise)"] { display: none; }
+body.lite #map rect[filter="url(#sea-noise)"],
+body.lite .land-relief { display: none; }
 /* Backdrop-sumennukset ovat raskaita vanhoilla GPU:illa. */
 body.lite #zoom-controls .icon-btn { backdrop-filter: none; }
 body.lite .overlay { backdrop-filter: none; }
