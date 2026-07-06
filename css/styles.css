@@ -189,6 +189,20 @@ body {
 }
 .halo { transform-box: fill-box; transform-origin: center; }
 
+/* Aluetason korostus: rengashalojen LISÄKSI kirkas ääriviiva itse alueelle,
+   jotta valinta ja hyökkäysvaihtoehdot erottuvat myös koko laudan mitassa
+   (ei vain pieni nappirengas). Pelkkä stroke → ei suodatinta, halpa. */
+.region-valid { stroke: #ff9a9a !important; stroke-width: 3 !important; stroke-opacity: 0.9 !important; }
+.region-selected { stroke: #ffd34d !important; stroke-width: 3.5 !important; stroke-opacity: 1 !important; }
+.region-target { stroke: #ff3030 !important; stroke-width: 4.5 !important; stroke-opacity: 1 !important; }
+@media (prefers-reduced-motion: no-preference) {
+  .region-valid { animation: region-valid-breathe 1.8s ease-in-out infinite; }
+}
+@keyframes region-valid-breathe {
+  0%, 100% { stroke-opacity: 0.9; }
+  50% { stroke-opacity: 0.45; }
+}
+
 /* Armeijamäärän pop kun luku muuttuu */
 .army-count.count-pop { animation: count-pop 0.32s ease-out; transform-box: fill-box; transform-origin: center; }
 @keyframes count-pop {

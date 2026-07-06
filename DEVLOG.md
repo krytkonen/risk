@@ -179,3 +179,22 @@ itsessään on kehityksen kohde — sen puutteet kirjataan ja korjataan.
   sijoittaa) → työkalut on pidettävä ajan tasalla oikean flow'n kanssa.
   (4) Silmukan review kattaa nyt: staattinen lauta (≥2 karttaa) + pelitilanne
   (valinta + zoom). Seuraavat iteraatiot voivat kohdistua in-play-UX:ään.
+
+### Iter 9 — Aluetason valintakorostus (in-play UX)
+- PLAN: valinta/kohde/kelvolliset kohteet erottuvat myös koko laudan mitassa,
+  ei vain pieni nappirengas. Uuden pelitila-työkalun (Iter 8) mahdollistama
+  in-play-parannus.
+- EXECUTE: LÖYTÖ — .region-selected/-target/-valid-luokat toggletettiin JS:ssä
+  mutta niillä ei ollut LAINKAAN CSS:ää (vain nappihalo korosti). Lisätty
+  kirkkaat ääriviivat: kulta (valittu 3.5px), punainen (kohde 4.5px), koralli
+  (kelvollinen 3px + hengittävä pulssi reduced-motionissa gated). Pelkkä stroke
+  → ei suodatinta, halpa.
+- REVIEW (play9-select/zoom.png): selkeä UX-voitto. Valittu alue hehkuu
+  kullalla, kohde punaisella + nuoli, hyökättävät korallilla — hyökkäys-
+  vaihtoehdot luettavissa yhdellä silmäyksellä sekä täys- että lähikuvassa.
+  89 testiä vihreää.
+- LESSONS: (1) **Kuollut koodi paljastui vasta oikeassa selain-reviewissä**:
+  luokkia togglettiin turhaan ilman CSS:ää kuukausia. Työkalu (Iter 8) maksoi
+  itsensä heti takaisin. (2) Rengashalo (nappi) + aluerengas (region) yhdessä =
+  redundanttinen korostus joka toimii sekä lähellä että kaukana. (3) Silmukan
+  malli toimii: uusi review-kyky → uusi löytö → konkreettinen parannus.
