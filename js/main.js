@@ -561,6 +561,7 @@ function humanTurnStart() {
 }
 
 async function runAI() {
+  cameraFocusOut(); // varmista alkuperäinen näkymä ennen tekoälyn vuoroa
   ui.busy = true; ui.selected = null; ui.validTargets = new Set();
   render();
   await delay(aiDelay());
@@ -578,6 +579,7 @@ async function runAI() {
 }
 
 function afterHumanTurnEnd() {
+  cameraFocusOut();
   ui.selected = null; ui.validTargets = new Set();
   render();
   beginTurn();
@@ -767,6 +769,7 @@ function doSingleAttack() {
   animateAttack(fromId, toId);
   const res = attack(state, fromId, toId);
   if (!res.ok) { toast(res.reason || 'Hyökkäys ei onnistunut.'); return; }
+  cameraFocusIn(fromId, toId);
   sfx('attack');
   haptic(15);
   showBattle(fromId, toId, res);
@@ -781,6 +784,7 @@ async function doBalancedBlitz() {
   const fromId = ui.selected, toId = ui.attackTarget;
   if (!fromId || !toId) return;
   ui.busy = true; render();
+  cameraFocusIn(fromId, toId, false); // blitz palauttaa kameran itse silmukan jälkeen
   const fromA = state.territories[fromId].armies;
   const toA = state.territories[toId].armies;
   const result = resolveBalancedBlitz(fromA, toA, state.rng);
@@ -797,6 +801,7 @@ async function doBalancedBlitz() {
   ui.busy = false;
   saveGame();
   if (state.pendingConquest) { render(); openConquest(); return; }
+  cameraFocusOut();
   hideBattle();
   if ((state.territories[fromId]?.armies ?? 0) < 2) clearSelection();
   else { ui.attackTarget = null; recomputeAttackTargets(); }
@@ -845,6 +850,7 @@ function clearSelection() { ui.selected = null; ui.attackTarget = null; ui.valid
 function openConquest() {
   const pc = state.pendingConquest;
   if (!pc) return;
+  clearTimeout(_camHold); // pidä kamera kohdistettuna dialogin ajan
   $('conquest-text').textContent =
     `Valtasit ${TERRITORIES[pc.toId].gen}! Siirrä ${pc.minMove}–${pc.maxMove} armeijaa alueelle.`;
   const r = $('conquest-range');
@@ -872,6 +878,7 @@ function confirmConquest() {
   sfx('conquer');
   haptic(30);
   flashConquest(conqueredId);
+  cameraFocusOut();
   saveGame();
   if (state.phase === PHASES.GAMEOVER) { render(); return gameOver(); }
   ui.attackTarget = null;
@@ -1313,7 +1320,7 @@ function anyModalOpen() {
 // Zoom & pan
 // ---------------------------------------------------------------------------
 
-const view = { scale: 1, tx: 0, ty: 0 };
+const view = { scale: 1, tx: 0, ty: 0, rot: 0, rcx: 500, rcy: 350 };
 let _interactTimer = null;
 /**
  * Merkitsee kartan "interacting"-tilaan raahauksen/zoomauksen ajaksi ja
@@ -1330,15 +1337,95 @@ function markInteracting() {
 }
 function applyView() {
   const g = $('map').querySelector('#g-map');
-  if (g) g.setAttribute('transform', `translate(${view.tx} ${view.ty}) scale(${view.scale})`);
+  if (g) {
+    const rot = view.rot ? ` rotate(${view.rot.toFixed(3)} ${view.rcx.toFixed(1)} ${view.rcy.toFixed(1)})` : '';
+    g.setAttribute('transform', `translate(${view.tx} ${view.ty}) scale(${view.scale})${rot}`);
+  }
   markInteracting();
+}
+
+// ---------------------------------------------------------------------------
+// Hyökkäyskamera: pieni kääntö + zoom hyökkäyksen ajaksi, paluu jälkeen.
+// Kääntösuunta riippuu hyökättävän alueen sijainnista kartan x-puoliväliin
+// nähden. Zoom vain jos alkuperäinen näkymä on riittävän kaukana. Puhdas
+// transform-animaatio (ei suodattimia) → kevyt myös vanhoilla laitteilla;
+// ohitetaan jos käyttäjä on valinnut vähennetyn liikkeen (reduced motion).
+// ---------------------------------------------------------------------------
+
+const CAM = { ZOOM_THRESHOLD: 1.25, ZOOM_FACTOR: 1.6, ANGLE: 4, HOLD_MS: 850, IN_MS: 260, OUT_MS: 340 };
+let _camRaf = null, _camHold = null, _camBase = null, _camActive = false;
+
+function cameraEnabled() {
+  try { return !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); }
+  catch (_) { return true; }
+}
+const _easeOut = (k) => 1 - Math.pow(1 - k, 3);
+const _easeInOut = (k) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
+
+function _tweenView(target, dur, ease, done) {
+  if (_camRaf) cancelAnimationFrame(_camRaf);
+  const from = { scale: view.scale, tx: view.tx, ty: view.ty, rot: view.rot };
+  view.rcx = target.rcx; view.rcy = target.rcy; // pivot suoraan (ei tweenata)
+  const start = performance.now();
+  const step = (now) => {
+    const k = ease(Math.min(1, (now - start) / dur));
+    view.scale = from.scale + (target.scale - from.scale) * k;
+    view.tx = from.tx + (target.tx - from.tx) * k;
+    view.ty = from.ty + (target.ty - from.ty) * k;
+    view.rot = from.rot + (target.rot - from.rot) * k;
+    applyView();
+    if (k < 1) _camRaf = requestAnimationFrame(step);
+    else { _camRaf = null; if (done) done(); }
+  };
+  _camRaf = requestAnimationFrame(step);
+}
+
+/** Kohdista kamera hyökkäykseen. hold=true palauttaa itsestään pienen viiveen jälkeen. */
+function cameraFocusIn(fromId, toId, hold = true) {
+  if (!cameraEnabled()) return;
+  const a = TERRITORIES[fromId], b = TERRITORIES[toId];
+  const vb = $('map')?.viewBox?.baseVal;
+  if (!a || !b || !vb) return;
+  if (!_camActive) { _camBase = { scale: view.scale, tx: view.tx, ty: view.ty }; _camActive = true; }
+  clearTimeout(_camHold);
+  const midX = vb.width / 2, midY = vb.height / 2;
+  const fx = (a.x + b.x) / 2, fy = (a.y + b.y) / 2;       // fokus taistelun keskelle
+  const doZoom = _camBase.scale <= CAM.ZOOM_THRESHOLD;    // zoom vain jos kaukana
+  const scaleT = doZoom ? clamp(_camBase.scale * CAM.ZOOM_FACTOR, 0.6, 4) : _camBase.scale;
+  const rotT = (b.x < vb.width / 2) ? CAM.ANGLE : -CAM.ANGLE; // suunta x-puolivälistä
+  const txT = doZoom ? midX - scaleT * fx : _camBase.tx;
+  const tyT = doZoom ? midY - scaleT * fy : _camBase.ty;
+  _tweenView({ scale: scaleT, tx: txT, ty: tyT, rot: rotT, rcx: fx, rcy: fy }, CAM.IN_MS, _easeOut);
+  if (hold) _camHold = setTimeout(cameraFocusOut, CAM.HOLD_MS);
+}
+
+/** Palauttaa kameran käyttäjän alkuperäiseen näkymään. */
+function cameraFocusOut() {
+  clearTimeout(_camHold);
+  if (!_camActive || !_camBase) return;
+  const base = _camBase;
+  _tweenView({ scale: base.scale, tx: base.tx, ty: base.ty, rot: 0, rcx: view.rcx, rcy: view.rcy },
+    CAM.OUT_MS, _easeInOut, () => {
+      view.scale = base.scale; view.tx = base.tx; view.ty = base.ty; view.rot = 0;
+      applyView();
+      _camActive = false; _camBase = null;
+    });
+}
+
+/** Peruu kameran (käyttäjän oma pan/zoom ottaa vallan; ei palauteta vanhaa). */
+function cancelCamera() {
+  clearTimeout(_camHold);
+  if (_camRaf) { cancelAnimationFrame(_camRaf); _camRaf = null; }
+  view.rot = 0;
+  _camActive = false; _camBase = null;
 }
 /** Sovittaa näkymän alueiden rajaamaan laatikkoon (padding ~40). */
 function resetView() {
+  cancelCamera();
   const svg = $('map');
   const vb = svg?.viewBox?.baseVal;
   const ids = Object.keys(TERRITORIES);
-  if (!vb || !vb.width || !ids.length) { view.scale = 1; view.tx = 0; view.ty = 0; applyView(); return; }
+  if (!vb || !vb.width || !ids.length) { view.scale = 1; view.tx = 0; view.ty = 0; view.rot = 0; applyView(); return; }
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const id of ids) {
     const t = TERRITORIES[id];
@@ -1358,6 +1445,7 @@ function resetView() {
   applyView();
 }
 function zoomBy(factor, cx = 500, cy = 350) {
+  cancelCamera(); // käyttäjän zoom ottaa vallan hyökkäyskameralta
   const ns = clamp(view.scale * factor, 0.6, 4);
   // zoomaa kohdistuspisteen ympäri
   view.tx = cx - (cx - view.tx) * (ns / view.scale);
@@ -1388,6 +1476,7 @@ function setupZoom() {
   svg.addEventListener('pointermove', (e) => {
     if (!dragging || pinchDist) return;
     const dx = e.clientX - lastX, dy = e.clientY - lastY;
+    if (_camActive) cancelCamera(); // raahaus ottaa vallan hyökkäyskameralta
     traveled += Math.abs(dx) + Math.abs(dy);
     const rect = svg.getBoundingClientRect();
     const vb = svg.viewBox.baseVal;
