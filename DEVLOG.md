@@ -121,3 +121,23 @@ itsessään on kehityksen kohde — sen puutteet kirjataan ja korjataan.
   syvyystemppu kuin rannikkovarjossa — toimiva yleiskuvio viivoille. (2) Hienovarainen
   polish: ero on pieni mutta oikeaan suuntaan. Seuraavaksi isompi hyppy:
   mannerlabelien päällekkäisyys nappien kanssa (Etelä-Aasia/Oseania piiloutuvat).
+
+### Iter 6 — Mannerlabelien sijoittelu (luettavuus)
+- PLAN: labelit eivät piiloudu nappien taakse eivätkä leikkaudu kehykseen.
+  Iso UX-hyppy: aiemmin Pohjois-/Etelä-Amerikka, Itä-Aasia, Oseania menivät
+  osin piiloon.
+- EXECUTE: 7 ehdokaspaikkaa (mereen ylä/ala ensin, sitten nappien yli/ali,
+  reunat) + pisteytys: nappiosuma ×10, label–label-osuma ×100, prioriteettisakko
+  (mereen 0 → reunat 1 → bounds-yläreuna 2), klamppaussakko (takertuu kehykseen)
+  + pieni etäisyyssakko keskeltä. `placedLabels` estää label–label-päällekkäisyyden.
+  clampX/Y pidetty neatline-kehyksen (18/20) sisällä.
+- REVIEW (2 karttaa × screenshot, 2 hienosäätökierrosta): 1) reunasakko 3 liian
+  kova → Sydänmetsä takertui kehykseen; klamppaussakko korjasi. 2) Itä-Aasia
+  meni reunasakolla nappien sekaan → laskettu reunasakko 1. Lopputulos: lähes
+  kaikki labelit selkeästi luettavissa molemmilla kartoilla; vain tiheän
+  Itä-Aasian label osin napin takana (manner ympäröity napeilla joka suunnalta).
+- LESSONS: (1) Sijoittelun pisteytys tarvitsi KAKSI screenshot-kierrosta eri
+  kartoilla — yhden kartan optimi rikkoi toisen. **Testaa aina ≥2 karttaa
+  layout-muutoksissa.** Silmukan parannus: review-vaiheeseen vakiona 2 karttaa.
+  (2) Pehmeät sakot (painotettu summa) > kova prioriteettijärjestys: sallii
+  "vähiten huono" -valinnan kun täydellistä paikkaa ei ole.

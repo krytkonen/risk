@@ -841,6 +841,9 @@ export function buildMap(svg, onTap) {
   landMask.appendChild(el('rect', { x: 0, y: 0, width: 1000, height: 700, fill: '#000' }));
 
   const regionEls = {};
+  // Sijoitettujen mannerlabelien suorakaiteet → uudet labelit väistävät myös
+  // toisiaan, eivät vain nappeja.
+  const placedLabels = [];
   const contIds = Object.keys(CONTINENTS);
   contIds.forEach((contId, ci) => {
     const b = continentBounds(contId);
@@ -955,15 +958,32 @@ export function buildMap(svg, onTap) {
       if (t.y < topT.y) topT = t;
       if (t.y > botT.y) botT = t;
     }
-    const clampX = (v) => Math.max(6, Math.min(v, 1000 - lblW - 6));
-    const clampY = (v) => Math.max(4, Math.min(v, 700 - lblH - 4));
+    // Pidä labelit neatline-kehyksen (x 16, y 16) sisällä → ei leikkaudu reunaan.
+    const clampX = (v) => Math.max(18, Math.min(v, 1000 - lblW - 18));
+    const clampY = (v) => Math.max(20, Math.min(v, 700 - lblH - 20));
+    const cx0 = b.x + b.w / 2;
+    // Ehdokaspaikat + prioriteettisakko: ensisijaisesti mereen mantereen ala-/
+    // yläpuolelle (siellä ei nappeja); reunat/nappien lähelle vain jos parempaa
+    // ei ole. `pri` painottaa: mereen-sijoittelu voittaa reunaan takertumisen.
+    const cand = (x, y, pri) => {
+      const px = x - lblW / 2, py = y;
+      const cxx = clampX(px), cyy = clampY(py);
+      // Lisäsakko jos klampatus siirsi labelia paljon (takertui kehykseen).
+      const clampPen = (Math.abs(cxx - px) + Math.abs(cyy - py)) * 0.05;
+      return { x: cxx, y: cyy, pri: pri + clampPen };
+    };
     const candidates = [
-      { x: clampX(topT.x - lblW / 2), y: clampY(topT.y - NODE_R - 16 - lblH) },
-      { x: clampX(b.x + b.w / 2 - lblW / 2), y: clampY(b.y + 4) },
-      { x: clampX(botT.x - lblW / 2), y: clampY(botT.y + NODE_R + 18) },
+      cand(cx0, b.y - lblH - 6, 0),                 // mereen yläpuolelle
+      cand(cx0, b.y + b.h + 6, 0),                  // mereen alapuolelle
+      cand(topT.x, topT.y - NODE_R - 16 - lblH, 1), // ylimmän napin yli
+      cand(botT.x, botT.y + NODE_R + 18, 1),        // alimman napin ali
+      cand(cx0, b.y + 4, 2),                        // bounds-yläreuna
+      cand(b.x - lblW / 2 - 2, b.y + b.h / 2, 1),   // vasen reuna
+      cand(b.x + b.w + lblW / 2 + 2, b.y + b.h / 2, 1), // oikea reuna
     ];
-    // Päällekkäisyydet minkä tahansa aluenapin kanssa (rect–circle-etäisyys).
-    const overlaps = (c) => {
+    // Sakko: nappipäällekkäisyys painava, label–label-päällekkäisyys erittäin
+    // painava, + pieni etäisyyssakko mantereen keskeltä (pidä lähellä).
+    const nodeHits = (c) => {
       let n = 0;
       for (const tid of TERRITORY_IDS) {
         const p = TERRITORIES[tid];
@@ -973,12 +993,23 @@ export function buildMap(svg, onTap) {
       }
       return n;
     };
-    let bestPos = candidates[0], bestN = overlaps(candidates[0]);
-    for (let k = 1; k < candidates.length && bestN > 0; k++) {
-      const n = overlaps(candidates[k]);
-      if (n < bestN) { bestN = n; bestPos = candidates[k]; }
+    const labelHits = (c) => {
+      let n = 0;
+      for (const r of placedLabels) {
+        if (c.x < r.x + r.w + 4 && c.x + lblW + 4 > r.x &&
+            c.y < r.y + r.h + 3 && c.y + lblH + 3 > r.y) n++;
+      }
+      return n;
+    };
+    const score = (c) => nodeHits(c) * 10 + labelHits(c) * 100 + c.pri +
+      Math.hypot(c.x + lblW / 2 - cx0, c.y + lblH / 2 - (b.y + b.h / 2)) * 0.008;
+    let bestPos = candidates[0], bestS = score(candidates[0]);
+    for (let k = 1; k < candidates.length; k++) {
+      const s = score(candidates[k]);
+      if (s < bestS) { bestS = s; bestPos = candidates[k]; }
     }
     const lx = bestPos.x, ly = bestPos.y;
+    placedLabels.push({ x: lx, y: ly, w: lblW, h: lblH });
     labelG.appendChild(el('rect', {
       x: lx, y: ly, width: lblW, height: lblH, rx: 10.5, ry: 10.5,
       fill: '#04101c', 'fill-opacity': 0.55, stroke: color, 'stroke-opacity': 0.55, 'stroke-width': 1,
