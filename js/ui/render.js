@@ -742,6 +742,11 @@ export function buildMap(svg, onTap) {
   const warmth = mapWarmth();
   svg.appendChild(buildDefs(warmth));
 
+  // Bleed-meri: ulottuu reilusti viewBoxin yli, jotta pystyruudun letterbox-
+  // kaistaleet (SVG:n meet-sovitus) täyttyvät syvällä merellä eikä litteää
+  // taustaseinää näy. Ei transformoidu (svg:n lapsi, ei #g-map) → pysyy
+  // ruudulla paikallaan. Yksi rect = halpa.
+  svg.appendChild(el('rect', { x: -800, y: -900, width: 2600, height: 2500, fill: mix('#06121f', warmth > 0 ? '#0a1512' : '#050f1b', Math.abs(warmth) * 0.5), 'pointer-events': 'none' }));
   // Meri – kerroksittain: pohjagradientti, syvyyshehku, kohina, sävy, ruudukko, vinjetti.
   svg.appendChild(el('rect', { x: 0, y: 0, width: 1000, height: 700, fill: 'url(#sea)' }));
   // Syvyyshehku nostaa laudan tummasta taustasta.

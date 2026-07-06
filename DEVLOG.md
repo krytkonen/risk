@@ -60,3 +60,18 @@ itsessään on kehityksen kohde — sen puutteet kirjataan ja korjataan.
   osana reviewiä ja tarkista PAGE ERR -tuloste. (2) Suurin jäljellä oleva
   heikkous: letterbox-tyhjä ylä/alareunassa (SVG viewBox 1000×700 mahtuu
   pystyruutuun jättäen kaistaleet) + maan litteä materiaali.
+
+### Iter 2 — Letterbox-tyhjän täyttö (syvä meri)
+- PLAN: poista musta tyhjä ylä/alareunasta niin että se lukeutuu tarkoituksena
+  (syvä valtameri) eikä rikkinäisenä bändinä. Reunaehto: ei uusia suodattimia.
+- EXECUTE: buildMap:iin iso "bleed"-meririkti (x-800 y-900 w2600 h2500) heti
+  #sea-riktin ALLE — se ei ole #g-map:n sisällä joten se ei skaalaudu/pannaa
+  vaan peittää letterbox-kaistaleet. Väri lämpöportettu (mix #06121f). CSS
+  #map-wrap taustaväri radial-gradientistä tasaiseksi #06121f → sauma katoaa.
+- REVIEW (kuvakaappaus iter2.png): onnistui — ylä/alakaistaleet ovat nyt
+  yhtenäistä syvää merta + vinjetti, ei mustaa aukkoa. Ei PAGE ERR.
+- LESSONS: (1) SVG-lapsi #g-map:n ULKOPUOLELLA on oikea tapa täyttää
+  transform-riippumaton tausta — halvempi kuin fit-scalen kasvatus joka
+  leikkaisi karttaa. (2) Portrait-ruudussa maisemakartta jää aina letterboxiin;
+  ratkaisu on tehdä tyhjästä tunnelmallista, ei poistaa sitä. (3) Seuraava:
+  maan materiaali/relief — regionit ovat vielä litteää väripaperia.
