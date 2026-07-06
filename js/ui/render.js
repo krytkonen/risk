@@ -483,8 +483,11 @@ function densifyAndJitter(pts, seed, step = 40, amp = 8) {
     const len = Math.hypot(nx, ny) || 1;
     nx /= len; ny /= len;
     const tx = (next.x - prev.x) / len, ty = (next.y - prev.y) / len;
-    const j = seededNoise(seed, i) * amp;              // normaalin suuntaan
-    const j2 = seededNoise(seed + 57, i) * amp * 0.35; // kevyt tangentiaalinen huojunta
+    // Monimittakaavainen rannikko: karkea aalto (niemet/lahdet, muuttuu ~4
+    // pisteen välein) + hieno rosoisuus → uskottava rosoinen rannikko.
+    const j = seededNoise(seed, i) * amp * 0.5                    // hieno detalji
+            + seededNoise(seed + 91, Math.floor(i / 4)) * amp * 1.15; // karkeat niemet/lahdet
+    const j2 = seededNoise(seed + 57, i) * amp * 0.3;            // kevyt tangentiaalinen huojunta
     return { x: p.x + nx * j + tx * j2, y: p.y + ny * j + ty * j2 };
   });
 }
@@ -524,12 +527,16 @@ function continentOutline(contId, seed, pad = 50) {
     }
     base = oct;
   } else {
-    // Kulmapyyhkäisy: ääriviiva MYÖTÄILEE alueita (niemekkeet ulos, lahdet
-    // sisään) konveksin "möykyn" sijaan → mantereet muistuttavat oikeita
-    // muotoja. Alueet ovat maantieteellisesti aseteltuja, joten kun ääriviiva
-    // seuraa niiden kulmajakaumaa, tunnistettavuus paranee. Konkaavius pidetään
-    // LOIVANA (interpolointi 0.82), ettei Voronoi-puolitasoleikkaus riko soluja.
-    const N = 42;
+    // Kulmapyyhkäisy: ääriviiva MYÖTÄILEE alueita tiukasti → mantereen todellinen
+    // muoto (niemekkeet, kannakset, lahdet) tulee esiin. Alueet ovat
+    // maantieteellisesti aseteltuja, joten tiukka myötäily = tunnistettava manner.
+    // - Rannikkoalueiden VÄLI: lineaari-interpolaatio (suora rannikko, ei
+    //   valelahtia vierekkäisten alueiden väliin).
+    // - AITO lahti vain isoon tyhjään sektoriin (iso kulmaväli = rannikko
+    //   vetäytyy), syvyys kasvaa raon mukaan (sini-profiili).
+    // Säde on radiaalinen keskipisteestä → polygoni pysyy yksinkertaisena
+    // (ei pinch-pisteitä) → Voronoi-solut eivät riko vaikka konkaavius on syvä.
+    const N = 60;
     const rad = new Array(N).fill(-1);
     const binOf = (a) => ((Math.round(((a + Math.PI) / (Math.PI * 2)) * N)) % N + N) % N;
     for (const p of points) {
@@ -537,24 +544,33 @@ function continentOutline(contId, seed, pad = 50) {
       const d = Math.hypot(p.x - cx, p.y - cy);
       const bi = binOf(a);
       if (d > rad[bi]) rad[bi] = d;
-      // Levennä niemekettä viereisiin sektoreihin (pyöreä bumppi, ei piikki).
+      // Yksittäinen alue = pyöreä niemi, ei neula: levennä hieman viereisiin.
       const b1 = (bi + 1) % N, b2 = (bi - 1 + N) % N;
-      rad[b1] = Math.max(rad[b1], d * 0.9);
-      rad[b2] = Math.max(rad[b2], d * 0.9);
+      rad[b1] = Math.max(rad[b1], d * 0.95);
+      rad[b2] = Math.max(rad[b2], d * 0.95);
     }
-    // Täytä tyhjät sektorit naapureista → loiva lahti (0.82 sisennys).
-    for (let pass = 0; pass < 3; pass++) {
+    const filledCount = rad.filter((v) => v >= 0).length;
+    if (filledCount >= 2) {
       for (let k = 0; k < N; k++) {
         if (rad[k] >= 0) continue;
-        const vals = [rad[(k - 1 + N) % N], rad[(k + 1) % N]].filter((v) => v >= 0);
-        if (vals.length) rad[k] = (vals.reduce((s, v) => s + v, 0) / vals.length) * 0.82;
+        let ld = 0, rd = 0, left = -1, right = -1;
+        for (let s = 1; s <= N; s++) { const i = (k - s + N) % N; if (rad[i] >= 0) { left = rad[i]; ld = s; break; } }
+        for (let s = 1; s <= N; s++) { const i = (k + s) % N; if (rad[i] >= 0) { right = rad[i]; rd = s; break; } }
+        if (left < 0 || right < 0) continue;
+        const gap = ld + rd;                       // tyhjän sektorin leveys (bineinä)
+        const interp = left + (right - left) * (ld / gap); // lineaari rannikko
+        // Lahtisyvyys: iso rako → syvempi sisennys keskellä (sini 0→1→0).
+        const mid = Math.sin(Math.PI * (ld / gap));
+        const bay = 1 - Math.min(0.55, (gap / N) * 1.9) * mid;
+        rad[k] = interp * bay;
       }
     }
-    const filled = rad.filter((v) => v >= 0);
-    const avg = filled.length ? filled.reduce((s, v) => s + v, 0) / filled.length : 60;
+    const filled2 = rad.filter((v) => v >= 0);
+    const avg = filled2.length ? filled2.reduce((s, v) => s + v, 0) / filled2.length : 60;
+    const coastPad = 22;
     base = [];
     for (let k = 0; k < N; k++) {
-      const r = (rad[k] >= 0 ? rad[k] : avg) + pad;
+      const r = (rad[k] >= 0 ? rad[k] : avg) + coastPad;
       const ang = (Math.PI * 2 * k) / N - Math.PI;
       base.push({ x: cx + Math.cos(ang) * r, y: cy + Math.sin(ang) * r });
     }

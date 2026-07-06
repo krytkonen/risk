@@ -437,3 +437,22 @@ tasapaino), ei avoimessa graafisessa silmukassa.
 - LESSON: kun alueet ovat valmiiksi oikein aseteltuja, ääriviivan kulmapyyhkäisy
   (ei konveksi hull) tuo geografian esiin ILMAN aluegeometrian uusintaa —
   halpa, iso vaikutus. Geometriamuutos = tarkista KAIKKI kartat.
+
+## Mannersiluetit v2 — voimakkaampi (käyttäjä: "muutos oli pieni, vie pidemmälle")
+- Edellinen versio kapitoi konkaaviuden liikaa (interpolointi 0.82, pad 40) →
+  muutos jäi hienovaraiseksi.
+- v2: kulmapyyhkäisy N=60, RANNIKKOALUEIDEN VÄLI lineaari-interpoloidaan (suora
+  rannikko, ei valelahtia), AITO lahti vain isoon tyhjään sektoriin (syvyys
+  kasvaa raon mukaan, sini-profiili, jopa -55 %). Pad 40→22 (tiukka myötäily).
+  Rannikko monimittakaavainen: karkeat niemet/lahdet (~4 pisteen välein) + hieno
+  rosoisuus. Säde radiaalinen → polygoni yksinkertainen (ei pinch) → solut ehjät
+  syvälläkin konkaaviudella.
+- REVIEW (KAIKKI 6 karttaa): iso parannus — Pohjois-Amerikka kapenee Keski-
+  Amerikan kannakseen, Etelä-Amerikka kärkeen (Argentiina), Afrikka pullistuu
+  pohjoiseen & kapenee etelään + Madagaskar erillinen, Aasia niemekkeineen
+  (Intia/Kamtšatka/Kaukoitä), Iberia & Italia niemekkeitä. Rannikot rosoiset.
+  EI soluglitchejä millään kartalla (myös tiheä Eurooppa 2025 & erillis-
+  saariset Taruvaltakunnat ehjiä). 91 testiä vihreää.
+- LESSON: lineaari-interp rannikkoalueiden VÄLILLÄ (ei radiuksen vaimennus) +
+  lahti vain isoon rakoon = coast myötäilee alueita luonnollisesti. Radiaalinen
+  r(θ) takaa pinch-vapaan polygonin → syväkin konkaavius on solu-turvallinen.
