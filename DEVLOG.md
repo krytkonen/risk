@@ -43,3 +43,20 @@ itsessään on kehityksen kohde — sen puutteet kirjataan ja korjataan.
   puuttuvat elementit. Seuraavat iteraatiot: väripaletti + maan pinta +
   nappuladesign. (3) Silmukan parannus: ota kuvat sekä puhelin- (900×1500)
   että työpöytäleveydellä, ja sekä vapaa peli että keskellä-peliä.
+
+### Iter 1 — Väri & kontrasti + nappuladesign
+- PLAN: nosta omistuksen luettavuus (pois sameus) ja tee nappuloista premium.
+- EXECUTE (agentti): per-omistaja pystygradientit regioneille (#region-grad-*),
+  kirkas mutta syvä; nappulat enameli-medaljongeiksi (tiukennettu spekulaari,
+  2-sävyinen metallireunus); levottomat katkoviivarenkaat pois → tilalle
+  pieni värisokeuspipetti, jonka MUOTO vaihtelee pelaajittain (ympyrä/neliö/
+  kolmio/vinoneliö/viisikulmio/tähti); vahvempi vinjetti + board-sheen.
+- REVIEW (kuvakaappaus): iso parannus — värit kirkkaat ja erottuvat,
+  nappulat siistit. BUGI: pipetti käytti state.territories[id] (owner/armies)
+  koordinaatteina → NaN-polku selaimessa. Korjattu → TERRITORIES[id].
+- LESSONS: (1) DOM-shim-savutesti EI nappaa NaN:ia kun getBBox on stub ja
+  koordinaatit tulevat väärästä lähteestä — **oikea selain-review (screenshot)
+  löysi bugin jota testit eivät**. Silmukan parannus: aja screenshot aina
+  osana reviewiä ja tarkista PAGE ERR -tuloste. (2) Suurin jäljellä oleva
+  heikkous: letterbox-tyhjä ylä/alareunassa (SVG viewBox 1000×700 mahtuu
+  pystyruutuun jättäen kaistaleet) + maan litteä materiaali.

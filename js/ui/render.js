@@ -15,10 +15,11 @@ const NEUTRAL_LIGHT = '#8a8a8a', NEUTRAL_MID = '#555', NEUTRAL_DARK = '#333';
 
 const FOG_HOLE_R = 70; // sumun läpi paljastuvan "portin" säde
 
-// Omistajakohtaiset reunusrenkaan katkoviivakuviot (värisokeusystävällisyys:
-// omistaja erottuu kuviosta ilman väriäkin). Indeksi = pelaajaindeksi.
-const RIM_DASH = ['none', '6 3', '2 3', '8 2 2 2', '1 4', '10 4'];
-const RIM_DASH_NEUTRAL = '1.5 4.5';
+// Omistajakohtainen VÄRISOKEUSVIHJE ilman meluisaa rengasta: pieni kiinteä
+// muotomerkki (pip) tokenin oikeaan alakulmaan. Muoto vaihtuu pelaajaindeksin
+// mukaan (ympyrä / neliö / kolmio / vinoneliö / viisikulmio / tähti), joten
+// omistaja erottuu myös ilman väriä. Piirretään yksi <path>, jonka 'd' vaihtuu.
+const PIP_SHAPES = ['circle', 'square', 'triangle', 'diamond', 'pentagon', 'star'];
 
 function el(name, attrs = {}) {
   const e = document.createElementNS(SVGNS, name);
@@ -59,13 +60,11 @@ function mix(a, b, t) {
   return rgbToHex({ r: A.r + (B.r - A.r) * t, g: A.g + (B.g - A.g) * t, b: A.b + (B.b - A.b) * t });
 }
 
-// --- Alue-REGIONIEN täyttövärit (esilaskettu kerran moduulitasolla) --------
-// Pelaajan väri tummennettuna merensiniseen päin: lauta pysyy tyylikkäänä eikä
-// huuda, mutta omistaja erottuu yhdellä silmäyksellä kuten oikeassa laudassa.
-const REGION_FILL = PLAYER_COLORS.map((c) => mix(c, '#0a1c2e', 0.45));
-const REGION_FILL_NEUTRAL = mix('#7a8894', '#0a1c2e', 0.55);
-const REGION_FILL_FOG = '#131c26';
-const REGION_FILL_BLIZZARD = '#9fc2d6';
+// --- Alue-REGIONIEN täyttö: per-omistaja PYSTYGRADIENTTI (#region-grad-*) ---
+// Litteä merensinellä tummennettu täyttö luki mutaisena; pystygradientti
+// säilyttää syvyyden (vaalea ylhäällä → tumma alhaalla) mutta palauttaa
+// kylläisyyden, joten omistus lukee kirkkaana. Gradientit luodaan kerran
+// buildDefsissä ja viitataan url()-täyttönä updateMapissa.
 
 /**
  * Laske kartan "mieliala" mantereiden keskivärin lämpötilana (-1 viileä .. +1 lämmin).
@@ -120,10 +119,19 @@ function buildDefs(warmth = 0) {
   const vigCol = warmth > 0 ? mix('#000000', '#1a0c00', Math.abs(warmth) * 0.6) : '#000000';
   // Kolmiportainen vinjetti antaa "kulhon" reunavarjon (syvyys), ei suodattimia.
   const vignette = el('radialGradient', { id: 'vignette', cx: '50%', cy: '48%', r: '75%' });
-  vignette.appendChild(el('stop', { offset: '48%', 'stop-color': vigCol, 'stop-opacity': 0 }));
-  vignette.appendChild(el('stop', { offset: '82%', 'stop-color': vigCol, 'stop-opacity': 0.2 }));
-  vignette.appendChild(el('stop', { offset: '100%', 'stop-color': vigCol, 'stop-opacity': 0.55 }));
+  vignette.appendChild(el('stop', { offset: '45%', 'stop-color': vigCol, 'stop-opacity': 0 }));
+  vignette.appendChild(el('stop', { offset: '80%', 'stop-color': vigCol, 'stop-opacity': 0.3 }));
+  vignette.appendChild(el('stop', { offset: '100%', 'stop-color': vigCol, 'stop-opacity': 0.68 }));
   defs.appendChild(vignette);
+
+  // --- Koko laudan valaistuskiilto (staattinen): hyvin hienovarainen ylhäältä
+  // tuleva valo, jotta lauta tuntuu valaistulta. Gradientti + yksi rect,
+  // ei suodattimia. ---
+  const boardSheen = el('linearGradient', { id: 'board-sheen', x1: '0%', y1: '0%', x2: '0%', y2: '100%' });
+  boardSheen.appendChild(el('stop', { offset: '0%', 'stop-color': '#eaf4ff', 'stop-opacity': 0.07 }));
+  boardSheen.appendChild(el('stop', { offset: '38%', 'stop-color': '#eaf4ff', 'stop-opacity': 0 }));
+  boardSheen.appendChild(el('stop', { offset: '100%', 'stop-color': '#02070d', 'stop-opacity': 0.12 }));
+  defs.appendChild(boardSheen);
 
   // --- Reunusviiste alueille (fake-3D ilman suodattimia): pystysuora
   // lineaarigradientti reunusvedoksi. Ylhäältä vaalea (kohovalo), keskeltä
@@ -185,9 +193,12 @@ function buildDefs(warmth = 0) {
   // Tiukennettu highlight (cx36% cy30% r66%) -> emaloitu, terävä markkeri.
   for (let i = 0; i < PLAYER_COLORS.length; i++) {
     const g = el('radialGradient', { id: `node-grad-${i}`, cx: '36%', cy: '30%', r: '66%' });
-    g.appendChild(el('stop', { offset: '0%', 'stop-color': PLAYER_COLORS_LIGHT[i] }));
-    g.appendChild(el('stop', { offset: '55%', 'stop-color': PLAYER_COLORS[i] }));
-    g.appendChild(el('stop', { offset: '100%', 'stop-color': PLAYER_COLORS_DARK[i] }));
+    // Emaloitu metallilaatta: tiukka spekulaari (ei koko yläosaa puhki
+    // palanut) → kirkas → rikas keskisävy → tumma reunus.
+    g.appendChild(el('stop', { offset: '0%', 'stop-color': mix(PLAYER_COLORS_LIGHT[i], '#ffffff', 0.35) }));
+    g.appendChild(el('stop', { offset: '22%', 'stop-color': PLAYER_COLORS_LIGHT[i] }));
+    g.appendChild(el('stop', { offset: '62%', 'stop-color': PLAYER_COLORS[i] }));
+    g.appendChild(el('stop', { offset: '100%', 'stop-color': mix(PLAYER_COLORS_DARK[i], '#000000', 0.18) }));
     defs.appendChild(g);
   }
   // Neutraali (omistamaton) alue.
@@ -220,6 +231,34 @@ function buildDefs(warmth = 0) {
     lg.appendChild(el('stop', { offset: '100%', 'stop-color': mix(c, '#000000', 0.35), 'stop-opacity': 0.3 }));
     defs.appendChild(lg);
   });
+
+  // --- Per-omistaja aluetäytön pystygradientit (#region-grad-i): vaalea ylä →
+  // tumma ala. Säilyttää "kulhosyvyyden" mutta palauttaa kylläisyyden (ei
+  // mutaa). objectBoundingBox (oletus), pystysuunta. Luodaan kerran. ---
+  for (let i = 0; i < PLAYER_COLORS.length; i++) {
+    const c = PLAYER_COLORS[i];
+    const rg = el('linearGradient', { id: `region-grad-${i}`, x1: '0', y1: '0', x2: '0', y2: '1' });
+    rg.appendChild(el('stop', { offset: '0%', 'stop-color': mix(c, '#eaf4ff', 0.18) }));
+    rg.appendChild(el('stop', { offset: '55%', 'stop-color': mix(c, '#0a1c2e', 0.15) }));
+    rg.appendChild(el('stop', { offset: '100%', 'stop-color': mix(c, '#0a1c2e', 0.42) }));
+    defs.appendChild(rg);
+  }
+  // Neutraali (omistamaton): kylläisyyden sijaan neutraali harmaa, sama syvyys.
+  const rgN = el('linearGradient', { id: 'region-grad-neutral', x1: '0', y1: '0', x2: '0', y2: '1' });
+  rgN.appendChild(el('stop', { offset: '0%', 'stop-color': mix('#8a97a3', '#eaf4ff', 0.16) }));
+  rgN.appendChild(el('stop', { offset: '55%', 'stop-color': mix('#8a97a3', '#0a1c2e', 0.30) }));
+  rgN.appendChild(el('stop', { offset: '100%', 'stop-color': mix('#8a97a3', '#0a1c2e', 0.55) }));
+  defs.appendChild(rgN);
+  // Sumu: tumma liuske, ei paljasta omistajaa.
+  const rgF = el('linearGradient', { id: 'region-grad-fog', x1: '0', y1: '0', x2: '0', y2: '1' });
+  rgF.appendChild(el('stop', { offset: '0%', 'stop-color': '#1a2530' }));
+  rgF.appendChild(el('stop', { offset: '100%', 'stop-color': '#0d151d' }));
+  defs.appendChild(rgF);
+  // Lumimyrsky: jäinen vaalea sini.
+  const rgB = el('linearGradient', { id: 'region-grad-blizzard', x1: '0', y1: '0', x2: '0', y2: '1' });
+  rgB.appendChild(el('stop', { offset: '0%', 'stop-color': mix('#9fc2d6', '#ffffff', 0.22) }));
+  rgB.appendChild(el('stop', { offset: '100%', 'stop-color': mix('#9fc2d6', '#3d5f74', 0.30) }));
+  defs.appendChild(rgB);
 
   return defs;
 }
@@ -652,6 +691,49 @@ function buildContinentLegend(corners) {
   return null;
 }
 
+/**
+ * Värisokeusvihjeen "pip"-merkki: pieni kiinteä muoto keskipisteessä (cx,cy)
+ * säteellä r. Muoto valitaan pelaajaindeksin mukaan (PIP_SHAPES). Palauttaa
+ * pelkän polkudatan (SVG 'd'), joka asetetaan attribuuttina updateMapissa –
+ * ei uusia elementtejä, ei suodattimia.
+ */
+function pipPath(shape, cx, cy, r) {
+  const f = (v) => v.toFixed(2);
+  const poly = (angs, rad) => {
+    let d = '';
+    angs.forEach((a, k) => {
+      d += `${k === 0 ? 'M' : 'L'} ${f(cx + Math.cos(a) * rad)} ${f(cy + Math.sin(a) * rad)} `;
+    });
+    return d + 'Z';
+  };
+  const reg = (n, rot) => {
+    const a = [];
+    for (let k = 0; k < n; k++) a.push(rot + (Math.PI * 2 * k) / n);
+    return poly(a, r);
+  };
+  switch (shape) {
+    case 'square': {
+      const s = r * 0.9;
+      return `M ${f(cx - s)} ${f(cy - s)} L ${f(cx + s)} ${f(cy - s)} L ${f(cx + s)} ${f(cy + s)} L ${f(cx - s)} ${f(cy + s)} Z`;
+    }
+    case 'triangle': return reg(3, -Math.PI / 2);
+    case 'diamond': return reg(4, -Math.PI / 2);
+    case 'pentagon': return reg(5, -Math.PI / 2);
+    case 'star': {
+      let d = '';
+      for (let k = 0; k < 10; k++) {
+        const a = -Math.PI / 2 + (Math.PI * k) / 5;
+        const rad = k % 2 === 0 ? r * 1.1 : r * 0.48;
+        d += `${k === 0 ? 'M' : 'L'} ${f(cx + Math.cos(a) * rad)} ${f(cy + Math.sin(a) * rad)} `;
+      }
+      return d + 'Z';
+    }
+    case 'circle':
+    default:
+      return `M ${f(cx - r)} ${f(cy)} a ${f(r)} ${f(r)} 0 1 0 ${f(r * 2)} 0 a ${f(r)} ${f(r)} 0 1 0 ${f(-r * 2)} 0 Z`;
+  }
+}
+
 /** Rakentaa staattisen kartan kerran (mantereet + viivat + napit). */
 export function buildMap(svg, onTap) {
   while (svg.firstChild) svg.removeChild(svg.firstChild);
@@ -666,6 +748,8 @@ export function buildMap(svg, onTap) {
   svg.appendChild(el('rect', { x: 0, y: 0, width: 1000, height: 700, fill: 'url(#sea-glow)', opacity: 0.5, 'pointer-events': 'none' }));
   svg.appendChild(el('rect', { x: 0, y: 0, width: 1000, height: 700, filter: 'url(#sea-noise)', opacity: 0.5, 'pointer-events': 'none' }));
   svg.appendChild(el('rect', { x: 0, y: 0, width: 1000, height: 700, fill: 'url(#sea-sheen)', 'pointer-events': 'none' }));
+  // Koko laudan valaistuskiilto (meren päällä, maan alla).
+  svg.appendChild(el('rect', { x: 0, y: 0, width: 1000, height: 700, fill: 'url(#board-sheen)', 'pointer-events': 'none' }));
 
   // Hienot leveys-/pituuspiiriviivat (hillitty mustetta).
   const gridCol = '#7fa6c8';
@@ -773,7 +857,7 @@ export function buildMap(svg, onTap) {
     for (const tid of ids) {
       const region = el('path', {
         d: closedPolyPath(cells[tid]), 'class': 'region', 'data-id': tid,
-        fill: REGION_FILL_NEUTRAL, 'fill-opacity': 0.85,
+        fill: 'url(#region-grad-neutral)', 'fill-opacity': 0.95,
         stroke: '#0c1826', 'stroke-width': 1.6, 'stroke-linejoin': 'round',
       });
       region.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); onTap(tid); });
@@ -958,17 +1042,34 @@ export function buildMap(svg, onTap) {
     // Pakkashehku jäätyneen napin taakse (näkyy vain .frozen-tilassa CSS:llä).
     const chill = el('circle', { cx: t.x, cy: t.y, r: 38, fill: 'url(#chill-glow)', 'class': 'chill', 'pointer-events': 'none', opacity: 0 });
     const halo = el('circle', { cx: t.x, cy: t.y, r: NODE_R + 5, fill: 'none', 'stroke-width': 4, 'class': 'halo', 'stroke-opacity': 0, filter: 'url(#halo-glow)' });
-    // Premium-token kerroksittain ILMAN uusia suodattimia: tumma pohjarengas
-    // (bezel), gradienttikiekko (filter vain tässä – katettu .interacting-
-    // eskaappirulella), omistajan katkoviivakuvioitu rengas, spekulaarikiilto.
-    const ringDark = el('circle', { cx: t.x, cy: t.y, r: NODE_R + 2.5, fill: 'none', stroke: '#081119', 'stroke-width': 3.5, 'stroke-opacity': 0.55, 'class': 'node-ring-dark', 'pointer-events': 'none' });
+    // Premium-token ("medaljonki") kerroksittain ILMAN uusia suodattimia:
+    // tumma pohjarengas (bezel) erottaa laudasta, gradienttikiekko (filter
+    // vain tässä – katettu .interacting-eskaappirulella), ohut vaalea
+    // yläkulman kohovalokaari (metallin heijaste), tiukka spekulaarikiilto.
+    const ringDark = el('circle', { cx: t.x, cy: t.y, r: NODE_R + 2, fill: 'none', stroke: '#081119', 'stroke-width': 3, 'stroke-opacity': 0.55, 'class': 'node-ring-dark', 'pointer-events': 'none' });
     const circle = el('circle', { cx: t.x, cy: t.y, r: NODE_R, 'stroke-width': 2.5, 'class': 'node', filter: 'url(#node-shadow)' });
-    const ring = el('circle', { cx: t.x, cy: t.y, r: NODE_R + 2.5, fill: 'none', 'stroke-width': 1.8, stroke: '#000', 'stroke-opacity': 0, 'class': 'node-rim', 'pointer-events': 'none' });
+    // Vaalea sisäkohovalokaari ylävasemmalle (ei koko rengasta): terävä
+    // metallin heijaste. Kaari 165°→300° (vasen → yli yläreunan). Väri per
+    // omistaja asetetaan updateMapissa.
+    const arcR = NODE_R - 1.5;
+    const aa = (deg) => (deg * Math.PI) / 180;
+    const ap = (deg) => `${(t.x + Math.cos(aa(deg)) * arcR).toFixed(2)} ${(t.y + Math.sin(aa(deg)) * arcR).toFixed(2)}`;
+    const ring = el('path', {
+      d: `M ${ap(165)} A ${arcR} ${arcR} 0 0 1 ${ap(300)}`,
+      fill: 'none', 'stroke-width': 1.5, stroke: '#eaf4ff', 'stroke-opacity': 0,
+      'stroke-linecap': 'round', 'class': 'node-rim', 'pointer-events': 'none',
+    });
     const glossCx = t.x - NODE_R * 0.3, glossCy = t.y - NODE_R * 0.4;
     const gloss = el('ellipse', {
-      cx: glossCx, cy: glossCy, rx: NODE_R * 0.48, ry: NODE_R * 0.28,
-      fill: '#ffffff', opacity: 0.22, 'class': 'node-gloss', 'pointer-events': 'none',
+      cx: glossCx, cy: glossCy, rx: NODE_R * 0.44, ry: NODE_R * 0.24,
+      fill: '#ffffff', opacity: 0.15, 'class': 'node-gloss', 'pointer-events': 'none',
       transform: `rotate(-24 ${glossCx} ${glossCy})`,
+    });
+    // Värisokeusvihjeen pip: pieni kiinteä muotomerkki oikeaan alakulmaan.
+    // Muoto/d, väri ja näkyvyys asetetaan updateMapissa (attribuutit).
+    const pip = el('path', {
+      d: '', fill: '#000', stroke: '#eaf4ff', 'stroke-width': 0.75,
+      'stroke-linejoin': 'round', 'class': 'node-pip', 'pointer-events': 'none', opacity: 0,
     });
     const count = el('text', { x: t.x, y: t.y, 'class': 'army-count', 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 18, 'font-weight': 800 });
     const name = el('text', { x: t.x, y: t.y + NODE_R + 13, 'class': 'terr-name', 'text-anchor': 'middle', 'font-size': 11 });
@@ -986,13 +1087,13 @@ export function buildMap(svg, onTap) {
     const frost = el('text', { x: t.x, y: t.y, 'class': 'frost', 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 22, opacity: 0 });
     frost.textContent = '❄';
     g.appendChild(chill); g.appendChild(halo); g.appendChild(ringDark); g.appendChild(circle);
-    g.appendChild(ring); g.appendChild(gloss);
+    g.appendChild(ring); g.appendChild(gloss); g.appendChild(pip);
     g.appendChild(count); g.appendChild(name); g.appendChild(snow); g.appendChild(frost);
     const handler = (ev) => { ev.preventDefault(); ev.stopPropagation(); onTap(id); };
     g.addEventListener('click', handler);
     g.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') handler(ev); });
     gNodes.appendChild(g);
-    nodeRefs[id] = { g, halo, circle, count, name, frost, chill, snow, flakes, ring, gloss, tokenShadow, region: regionEls[id] };
+    nodeRefs[id] = { g, halo, circle, count, name, frost, chill, snow, flakes, ring, gloss, pip, tokenShadow, region: regionEls[id] };
   }
   gMap.appendChild(gNodes);
 
@@ -1138,53 +1239,53 @@ export function updateMap(refs, state, ui = {}) {
     const blocked = blizzards.has(id);          // lumimyrskyn sulkema (pysyvä)
     const hidden = !blocked && fog && !fog.has(id); // sumun peittämä vihollisalue
 
-    // Omistajan reunusrengas: väri + katkoviivakuvio per pelaajaindeksi, jotta
-    // omistus erottuu myös ilman värinäköä (RIM_DASH). Vain attribuutteja.
+    // Tokenin ilme: kiekon täyttö + tumma metallireunus (circle.stroke) +
+    // vaalea kohovalokaari (rim) + värisokeuspip (r.pip). Pip näkyy VAIN
+    // omistetuilla alueilla; neutraali/sumu/lumimyrsky = ei pippiä.
+    // Vain attribuutteja (mobiilisuorituskyky).
     const rim = r.ring || null;
+    const pip = r.pip || null;
     if (blocked) {
       r.circle.setAttribute('fill', 'url(#node-grad-blizzard)');
       r.circle.setAttribute('stroke', '#6f9cb8');
-      if (rim) {
-        rim.setAttribute('stroke', '#d6f0ff');
-        rim.setAttribute('stroke-opacity', 0.6);
-        rim.setAttribute('stroke-dasharray', '2 3');
-      }
+      if (rim) { rim.setAttribute('stroke', '#eaf7ff'); rim.setAttribute('stroke-opacity', 0.55); }
+      if (pip) pip.setAttribute('opacity', 0);
     } else if (hidden) {
       r.circle.setAttribute('fill', 'url(#node-grad-fog)');
       r.circle.setAttribute('stroke', '#0c141d');
-      if (rim) {
-        rim.setAttribute('stroke', '#31445a');
-        rim.setAttribute('stroke-opacity', 0.25);
-        rim.setAttribute('stroke-dasharray', 'none');
-      }
+      if (rim) { rim.setAttribute('stroke', '#3b5068'); rim.setAttribute('stroke-opacity', 0.4); }
+      if (pip) pip.setAttribute('opacity', 0);
     } else if (owner == null) {
       r.circle.setAttribute('fill', 'url(#node-grad-neutral)');
       r.circle.setAttribute('stroke', NEUTRAL_DARK);
-      if (rim) {
-        rim.setAttribute('stroke', '#9aa6b0');
-        rim.setAttribute('stroke-opacity', 0.35);
-        rim.setAttribute('stroke-dasharray', RIM_DASH_NEUTRAL);
-      }
+      if (rim) { rim.setAttribute('stroke', '#d7dee4'); rim.setAttribute('stroke-opacity', 0.5); }
+      if (pip) pip.setAttribute('opacity', 0);
     } else {
       const idx = owner % PLAYER_COLORS.length;
       r.circle.setAttribute('fill', `url(#node-grad-${idx})`);
       r.circle.setAttribute('stroke', PLAYER_COLORS_DARK[idx]);
       if (rim) {
-        rim.setAttribute('stroke', PLAYER_COLORS_LIGHT[idx]);
-        rim.setAttribute('stroke-opacity', 0.9);
-        rim.setAttribute('stroke-dasharray', RIM_DASH[idx % RIM_DASH.length]);
+        rim.setAttribute('stroke', mix(PLAYER_COLORS_LIGHT[idx], '#ffffff', 0.4));
+        rim.setAttribute('stroke-opacity', 0.75);
+      }
+      if (pip) {
+        const t2 = TERRITORIES[id]; // kartan koordinaatit (ei pelitila)
+        const px = t2.x + NODE_R * 0.62, py = t2.y + NODE_R * 0.62;
+        pip.setAttribute('d', pipPath(PIP_SHAPES[idx % PIP_SHAPES.length], px, py, 4.2));
+        pip.setAttribute('fill', PLAYER_COLORS_DARK[idx]);
+        pip.setAttribute('opacity', 1);
       }
     }
 
-    // Alue-region: täyttö omistajan mukaan (sama blocked/hidden/omistaja-
-    // logiikka kuin tokenilla) + korostusluokat. Vain attribuutteja/luokkia;
-    // CSS:n fill-transition tekee valloituksesta väripyyhkäisyn.
+    // Alue-region: täyttö omistajan mukaan per-omistaja pystygradientilla
+    // (#region-grad-*), sama blocked/hidden/omistaja-logiikka kuin tokenilla,
+    // + korostusluokat. Vain attribuutteja/luokkia.
     if (r.region) {
       let rf;
-      if (blocked) rf = REGION_FILL_BLIZZARD;
-      else if (hidden) rf = REGION_FILL_FOG;
-      else if (owner == null) rf = REGION_FILL_NEUTRAL;
-      else rf = REGION_FILL[owner % REGION_FILL.length];
+      if (blocked) rf = 'url(#region-grad-blizzard)';
+      else if (hidden) rf = 'url(#region-grad-fog)';
+      else if (owner == null) rf = 'url(#region-grad-neutral)';
+      else rf = `url(#region-grad-${owner % PLAYER_COLORS.length})`;
       r.region.setAttribute('fill', rf);
       r.region.classList.toggle('region-selected', !blocked && id === selected);
       r.region.classList.toggle('region-target', !blocked && id === attackTarget);
