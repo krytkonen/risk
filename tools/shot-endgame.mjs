@@ -70,7 +70,7 @@ const clickT = (id) => page.click(`.territory[data-id="${id}"]`, { force: true, 
 
 let st = await S();
 let turns = 0;
-while (!st.winner && turns < 40) {
+while (!st.winner && turns < 60) {
   if (st.phase === 'gameover' || st.winner) break;
   if (st.isAI) { await wait(200); st = await S(); continue; }
   // Korttienvaihto-UI: kun ihmisellä on ≥3 korttia vahvistusvaiheessa, avaa

@@ -77,6 +77,10 @@ export function createGame({ players, seed, mapId, options, scenario }) {
       blizzard: !!options?.blizzard && !scenario,
       // Korttibonus: false = kasvava (klassinen), true = kiinteä tyypin mukaan.
       fixedCards: !!options?.fixedCards,
+      // Pehmeä vuororaja: jos kukaan ei ole voittanut tähän mennessä, voittaja
+      // ratkaistaan pisteillä (alueet, sitten armeijat) → peli päättyy aina
+      // siististi eikä juutu pattitilanteeseen. 0 = ei rajaa.
+      maxTurns: Number.isFinite(options?.maxTurns) ? options.maxTurns : 50,
     },
     scenarioId: scenario?.id ?? null,
     teamNames: scenario?.teamNames ?? null,
@@ -498,6 +502,33 @@ function declareWin(state, key, viaDomination) {
   }
 }
 
+/** Liittouman pisteet: alueet painavat ensin, armeijat ratkaisevat tasapelin. */
+function teamScore(state, key) {
+  let terr = 0, armies = 0;
+  for (const id of playableIds(state)) {
+    const o = state.territories[id].owner;
+    if (o !== null && teamKey(state, o) === key) { terr++; armies += state.territories[id].armies; }
+  }
+  return terr * 100000 + armies;
+}
+
+/** Pehmeän vuororajan täyttyessä: julistaa pisteiden johtajan voittajaksi. */
+function declarePointsWinner(state) {
+  const aliveKeys = [...new Set(state.players.filter((p) => p.alive).map((p) => teamKey(state, p.index)))];
+  if (!aliveKeys.length) return;
+  let best = aliveKeys[0], bestScore = -1;
+  for (const k of aliveKeys) { const sc = teamScore(state, k); if (sc > bestScore) { bestScore = sc; best = k; } }
+  const members = state.players.filter((p, i) => p.alive && teamKey(state, i) === best);
+  const lead = members.find((p) => !p.isAI) || members[0];
+  state.winner = lead.index;
+  state.winnerTeam = state.players[lead.index].team || null;
+  state.winByPoints = true;
+  state.phase = PHASES.GAMEOVER;
+  const teamName = state.teamNames?.[state.winnerTeam] || null;
+  const who = (teamName && members.length > 1) ? teamName : lead.name;
+  log(state, `Vuororaja saavutettu — ${who} johti pisteissä ja voitti!`, 'win');
+}
+
 function checkWin(state) {
   // Yksi liittouma (tai soolopelaaja) jäljellä → voitto.
   const aliveKeys = new Set(state.players.filter((p) => p.alive).map((p) => teamKey(state, p.index)));
@@ -586,6 +617,12 @@ export function endTurn(state) {
   }
   if (next <= state.current) state.turnCount++;
   state.current = next;
+  // Pehmeä vuororaja: uuden kierroksen alkaessa yli rajan → pistevoitto.
+  const cap = state.options?.maxTurns || 0;
+  if (cap > 0 && state.turnCount > cap && state.phase !== PHASES.GAMEOVER) {
+    declarePointsWinner(state);
+    return { ok: true };
+  }
   startReinforcement(state);
   if (state.phase !== PHASES.GAMEOVER) {
     log(state, `${playerVerb(state.players[state.current].name, 'aloittaa', 'vuoron')} (+${state.reinforcements} armeijaa).`, 'turn');
@@ -674,7 +711,8 @@ export function restoreGame(saved) {
   const state = {
     seed: data.seed,
     rng,
-    options: { fogOfWar: !!data.options?.fogOfWar, blizzard: !!data.options?.blizzard, fixedCards: !!data.options?.fixedCards },
+    options: { fogOfWar: !!data.options?.fogOfWar, blizzard: !!data.options?.blizzard, fixedCards: !!data.options?.fixedCards,
+      maxTurns: Number.isFinite(data.options?.maxTurns) ? data.options.maxTurns : 50 },
     scenarioId: data.scenarioId ?? null,
     teamNames: data.teamNames ?? null,
     winnerTeam: data.winnerTeam ?? null,

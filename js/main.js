@@ -1296,6 +1296,11 @@ function gameOver() {
     } else {
       text = `${teamName} voitti sodan. Hävisit.`;
     }
+  } else if (state.winByPoints) {
+    // Pehmeä vuororaja täyttyi → voitto pisteillä (eniten alueita).
+    text = (!w.isAI && humanCount === 1)
+      ? 'Vuororaja täynnä — johdit pisteissä ja voitit!'
+      : `Vuororaja täynnä — ${w.name} voitti pisteillä.`;
   } else {
     text = (!w.isAI && humanCount === 1)
       ? 'Sinä valloitit maailman!'

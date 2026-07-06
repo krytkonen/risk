@@ -184,3 +184,35 @@ test('snapshot palauttaa pelaajakohtaiset summat', () => {
   assert.equal(snap.length, 3);
   assert.ok(snap[0].territories > 0);
 });
+
+test('pehmeä vuororaja: pistevoitto kun maxTurns ylittyy', () => {
+  // Pieni raja → peli päättyy pisteillä eikä juutu.
+  const s = createGame({ players: PLAYERS, seed: 7, options: { maxTurns: 3 } });
+  assert.equal(s.options.maxTurns, 3);
+  // Aja vuoroja loppuun (sijoita vahvistukset, ohita hyökkäys) kunnes raja täyttyy.
+  let guard = 0;
+  while (s.phase !== PHASES.GAMEOVER && guard++ < 60) {
+    if (s.phase === PHASES.REINFORCE) { placeArmies(s, ownedBy(s, s.current)[0], s.reinforcements); endReinforcement(s); }
+    if (s.phase === PHASES.ATTACK) endAttack(s);
+    if (s.phase === PHASES.FORTIFY) endTurn(s);
+  }
+  assert.equal(s.phase, PHASES.GAMEOVER, 'pelin pitäisi päättyä vuororajaan');
+  assert.ok(s.winByPoints, 'voiton pitäisi tulla pisteillä');
+  assert.notEqual(s.winner, null);
+  // Voittajalla eniten alueita elossa olevista.
+  const counts = s.players.map((_, i) => Object.values(s.territories).filter((t) => t.owner === i).length);
+  const maxCount = Math.max(...s.players.map((p, i) => (p.alive ? counts[i] : 0)));
+  assert.equal(counts[s.winner], maxCount, 'voittajalla eniten alueita');
+});
+
+test('maxTurns 0 = ei rajaa (peli ei pääty pelkkään vuoromäärään)', () => {
+  const s = createGame({ players: PLAYERS, seed: 7, options: { maxTurns: 0 } });
+  let guard = 0;
+  while (s.phase !== PHASES.GAMEOVER && guard++ < 30) {
+    if (s.phase === PHASES.REINFORCE) { placeArmies(s, ownedBy(s, s.current)[0], s.reinforcements); endReinforcement(s); }
+    if (s.phase === PHASES.ATTACK) endAttack(s);
+    if (s.phase === PHASES.FORTIFY) endTurn(s);
+  }
+  assert.notEqual(s.phase, PHASES.GAMEOVER, 'ilman rajaa peli jatkuu');
+  assert.ok(s.turnCount > 3);
+});

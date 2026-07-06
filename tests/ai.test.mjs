@@ -29,9 +29,11 @@ test('tekoälypeli päättyy voittajaan kohtuullisessa ajassa', async () => {
     }
     assert.equal(s.phase, PHASES.GAMEOVER, `siemen ${seed} ei päättynyt (${guard} vuoroa)`);
     assert.notEqual(s.winner, null);
-    // voittaja omistaa kaikki 42 aluetta
+    // Voittaja joko hallitsee koko karttaa (herruus) tai johti pisteissä
+    // vuororajalla → kummassakin tapauksessa voittajalla on eniten alueita.
     const snap = snapshot(s);
-    assert.equal(snap[s.winner].territories, 42, `siemen ${seed}: voittaja ei omista koko karttaa`);
+    const maxTerr = Math.max(...s.players.map((p, i) => (p.alive ? snap[i].territories : 0)));
+    assert.equal(snap[s.winner].territories, maxTerr, `siemen ${seed}: voittajalla ei eniten alueita`);
   }
 });
 
