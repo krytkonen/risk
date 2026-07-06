@@ -133,6 +133,17 @@ function buildDefs(warmth = 0) {
   boardSheen.appendChild(el('stop', { offset: '100%', 'stop-color': '#02070d', 'stop-opacity': 0.12 }));
   defs.appendChild(boardSheen);
 
+  // --- Suunnattu maavalaistus (aurinko luoteesta): VINO gradientti pelkälle
+  // maalle → mantereet saavat suurmuotoista tilavuutta (valo NW → varjo SE).
+  // Muut kiillot ovat pystysuoria, joten tämä lisää eri akselin. Ei suodatinta,
+  // yksi gradientti + maskattu rect (halpa). Lämmin valo, viileä varjo.
+  const landLight = el('linearGradient', { id: 'land-light', x1: '0%', y1: '0%', x2: '100%', y2: '100%' });
+  landLight.appendChild(el('stop', { offset: '0%', 'stop-color': '#fdf4d6', 'stop-opacity': 0.13 }));
+  landLight.appendChild(el('stop', { offset: '42%', 'stop-color': '#fdf4d6', 'stop-opacity': 0 }));
+  landLight.appendChild(el('stop', { offset: '60%', 'stop-color': '#02060c', 'stop-opacity': 0 }));
+  landLight.appendChild(el('stop', { offset: '100%', 'stop-color': '#02060c', 'stop-opacity': 0.17 }));
+  defs.appendChild(landLight);
+
   // --- Reunusviiste alueille (fake-3D ilman suodattimia): pystysuora
   // lineaarigradientti reunusvedoksi. Ylhäältä vaalea (kohovalo), keskeltä
   // läpinäkyvä, alhaalta tumma (varjo) → reunat lukevat kohotettuina.
@@ -1033,6 +1044,11 @@ export function buildMap(svg, onTap) {
   gMap.appendChild(el('rect', {
     x: 0, y: 0, width: 1000, height: 700, 'class': 'land-relief',
     filter: 'url(#land-relief)', mask: 'url(#land-mask)', opacity: 0.42, 'pointer-events': 'none',
+  }));
+  // Suunnattu maavalaistus (aurinko NW): suurmuotoinen tilavuus, maskattu maahan.
+  gMap.appendChild(el('rect', {
+    x: 0, y: 0, width: 1000, height: 700, 'class': 'land-light',
+    fill: 'url(#land-light)', mask: 'url(#land-mask)', 'pointer-events': 'none',
   }));
   gMap.appendChild(gBevel);
   gMap.appendChild(gCoast);

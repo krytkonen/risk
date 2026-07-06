@@ -141,3 +141,16 @@ itsessään on kehityksen kohde — sen puutteet kirjataan ja korjataan.
   layout-muutoksissa.** Silmukan parannus: review-vaiheeseen vakiona 2 karttaa.
   (2) Pehmeät sakot (painotettu summa) > kova prioriteettijärjestys: sallii
   "vähiten huono" -valinnan kun täydellistä paikkaa ei ole.
+
+### Iter 7 — Suunnattu maavalaistus (aurinko luoteesta)
+- PLAN: mantereille suurmuotoista tilavuutta yhtenäisellä valonsuunnalla.
+  Reunaehto: muut kiillot ovat pystyakselilla → käytä VINOA akselia ettei
+  duplikoi. Ei suodatinta.
+- EXECUTE: #land-light vino linearGradient (lämmin valo NW → viileä varjo SE),
+  maskattu maahan (#land-mask), relief-kerroksen päälle. Yksi rect, halpa.
+- REVIEW (iter7.png): hienovarainen mutta yhtenäinen — lauta tuntuu valaistulta
+  yhdestä suunnasta, lämpöä ylävasemmalle. Ei luettavuushaittaa. 89 vihreää.
+- LESSONS: (1) Kun samansuuntaisia valokiiltoja on jo, uusi valo kannattaa
+  laittaa ERI akselille (vino vs pysty) → lisää muotoa duplikoimatta. (2)
+  #land-mask on nyt uudelleenkäytetty 2× (relief + valo) — maski kerran, monta
+  kerrosta = kannattava investointi.
