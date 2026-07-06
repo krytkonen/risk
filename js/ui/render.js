@@ -243,10 +243,13 @@ function buildDefs(warmth = 0) {
   ng.appendChild(el('stop', { offset: '100%', 'stop-color': NEUTRAL_DARK }));
   defs.appendChild(ng);
 
-  // Sumun peittämä (fog of war) alue: tumma, ei paljasta omistajaa.
-  const fg = el('radialGradient', { id: 'node-grad-fog', cx: '36%', cy: '30%', r: '66%' });
-  fg.appendChild(el('stop', { offset: '0%', 'stop-color': '#2b3a49' }));
-  fg.appendChild(el('stop', { offset: '100%', 'stop-color': '#161f29' }));
+  // Sumun peittämä (fog of war) alue: verhottu, sumuinen orbi — ei paljasta
+  // omistajaa. Viileä sumusävy, hieman läpikuultava (asetetaan updateMapissa)
+  // → tuntematon "häämöttää" sumussa eikä ole kiinteä musta pallo.
+  const fg = el('radialGradient', { id: 'node-grad-fog', cx: '38%', cy: '28%', r: '70%' });
+  fg.appendChild(el('stop', { offset: '0%', 'stop-color': '#46607a' }));
+  fg.appendChild(el('stop', { offset: '55%', 'stop-color': '#293747' }));
+  fg.appendChild(el('stop', { offset: '100%', 'stop-color': '#141d27' }));
   defs.appendChild(fg);
 
   // Lumimyrskyn sulkema alue: jäinen vaalea sini-valkoinen.
@@ -1376,8 +1379,8 @@ export function updateMap(refs, state, ui = {}) {
       if (pip) pip.setAttribute('opacity', 0);
     } else if (hidden) {
       r.circle.setAttribute('fill', 'url(#node-grad-fog)');
-      r.circle.setAttribute('stroke', '#0c141d');
-      if (rim) { rim.setAttribute('stroke', '#3b5068'); rim.setAttribute('stroke-opacity', 0.4); }
+      r.circle.setAttribute('stroke', '#243646');
+      if (rim) { rim.setAttribute('stroke', '#5b7590'); rim.setAttribute('stroke-opacity', 0.45); }
       if (pip) pip.setAttribute('opacity', 0);
     } else if (owner == null) {
       r.circle.setAttribute('fill', 'url(#node-grad-neutral)');
@@ -1400,6 +1403,9 @@ export function updateMap(refs, state, ui = {}) {
         pip.setAttribute('opacity', 1);
       }
     }
+    // Sumun peittämä nappula on hieman läpikuultava → häämöttää sumussa
+    // "verhottuna" eikä ole kiinteä pallo. Muut täydellä peitolla.
+    r.circle.setAttribute('fill-opacity', hidden ? 0.8 : 1);
 
     // Alue-region: täyttö omistajan mukaan per-omistaja pystygradientilla
     // (#region-grad-*), sama blocked/hidden/omistaja-logiikka kuin tokenilla,
