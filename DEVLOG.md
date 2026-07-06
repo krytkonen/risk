@@ -154,3 +154,28 @@ itsessään on kehityksen kohde — sen puutteet kirjataan ja korjataan.
   laittaa ERI akselille (vino vs pysty) → lisää muotoa duplikoimatta. (2)
   #land-mask on nyt uudelleenkäytetty 2× (relief + valo) — maski kerran, monta
   kerrosta = kannattava investointi.
+
+### Iter 8 — Silmukan parannus: PELITILANTEEN review-työkalu
+- PLAN: tähän asti review näki vain staattisen aloituslaudan. Halutaan nähdä
+  myös PELIN aikaiset visuaalit (valinta/kohdehighlightit, hyökkäyskameran
+  zoom) — juuri niitä osia joita käyttäjä pyysi ("more zoom in", ux). Silmukan
+  itsensä kehitys: uusi review-kyky.
+- EXECUTE: `tools/shot-play.mjs` ajaa pelin selaimessa `window.__risk`-API:n
+  kautta: sijoittaa vahvistukset, siirtyy hyökkäykseen, valitsee hyökkääjän
+  (→ highlightit), valitsee kohteen, painaa "Nopat" (→ cameraFocusIn zoom).
+  Kaappaa <prefix>-select.png ja <prefix>-zoom.png.
+- REVIEW (play-select/zoom.png): **in-play-visuaalit ovat vahvat.**
+  Hyökkääjä = kulta rengas, kohde = kirkkaan punainen rengas + katkoviivanuoli,
+  kelvolliset kohteet = koralli renkaat. Taistelubanneri (nopat + tulos) selkeä.
+  **Hyökkäyskameran zoom on iso ja toimiva** — täyttää ruudun taistelualueella,
+  grafiikat (relief, nappulat, rannikkovarjo) kestävät lähikuvassa. Ei PAGE ERR.
+  Varmistettu myös: halojen perus-stroke-opacity asetetaan inline (0.8–1.0),
+  animaatio vain pulssaa päälle → kohteet näkyvät myös reduced-motion/lite-
+  tilassa (ei näkymättömyysbugia).
+- LESSONS: (1) Legit iteraatio voi olla SILMUKAN kyvyn parannus, ei pelin
+  muutos — review ilman ajokelpoista työkalua on sokea. (2) `window.__risk`
+  (getState/adj/getUi) on kriittinen testattavuuden kannalta — pidä se auki.
+  (3) UI-vuorovaikutus muuttui e2e:n ajoista (nappaus VALITSEE, +N-nappi
+  sijoittaa) → työkalut on pidettävä ajan tasalla oikean flow'n kanssa.
+  (4) Silmukan review kattaa nyt: staattinen lauta (≥2 karttaa) + pelitilanne
+  (valinta + zoom). Seuraavat iteraatiot voivat kohdistua in-play-UX:ään.
