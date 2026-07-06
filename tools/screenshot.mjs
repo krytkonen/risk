@@ -61,6 +61,11 @@ if (mapName) {
   if (!ok) console.log('VAROITUS: karttaa ei löytynyt:', mapName);
 }
 
+// MODE=blizzard|fog → kytke pelimoodi päälle ennen aloitusta.
+if (process.env.MODE) {
+  const toggle = process.env.MODE === 'fog' ? 'fogOfWar' : process.env.MODE;
+  await page.evaluate((t) => { document.querySelector(`.mode-opt[data-toggle="${t}"]`)?.click(); }, toggle);
+}
 // NOSTART=1 → kaappaa aloitusruutu (modal-setup) ilman pelin aloitusta.
 if (process.env.NOSTART) {
   await page.waitForTimeout(500);

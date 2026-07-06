@@ -283,10 +283,12 @@ function buildDefs(warmth = 0) {
   rgF.appendChild(el('stop', { offset: '0%', 'stop-color': '#1a2530' }));
   rgF.appendChild(el('stop', { offset: '100%', 'stop-color': '#0d151d' }));
   defs.appendChild(rgF);
-  // Lumimyrsky: jäinen vaalea sini.
+  // Lumimyrsky: kirkas jää — kylmä sinivalkoinen huippu → syvä jäätikkösini
+  // pohja. Kylläisempi ja kylmempi kuin ennen (ei litteä harmaa) → lukee jäänä.
   const rgB = el('linearGradient', { id: 'region-grad-blizzard', x1: '0', y1: '0', x2: '0', y2: '1' });
-  rgB.appendChild(el('stop', { offset: '0%', 'stop-color': mix('#9fc2d6', '#ffffff', 0.22) }));
-  rgB.appendChild(el('stop', { offset: '100%', 'stop-color': mix('#9fc2d6', '#3d5f74', 0.30) }));
+  rgB.appendChild(el('stop', { offset: '0%', 'stop-color': mix('#c7e8f7', '#ffffff', 0.28) }));
+  rgB.appendChild(el('stop', { offset: '52%', 'stop-color': '#8ec6e4' }));
+  rgB.appendChild(el('stop', { offset: '100%', 'stop-color': mix('#3f7ba0', '#16303f', 0.28) }));
   defs.appendChild(rgB);
 
   return defs;

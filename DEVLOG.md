@@ -268,3 +268,19 @@ itsessään on kehityksen kohde — sen puutteet kirjataan ja korjataan.
   alkoi aina pelin aloituksesta — NOSTART-lippu paljasti sen. **Katso myös
   ne näkymät joita et normaalisti aja läpi.** (2) Tunnelma kannattaa viedä
   KAIKKIIN ruutuihin, ei vain pelilautaan — johdonmukaisuus tekee premiumin.
+
+### Iter 14 — Pelimoodien tarkistus + jäisemmät myrskyalueet
+- PLAN: kaappaa sumu- ja lumimyrskytila (ei nähty aiemmin); paranna mitä löytyy.
+- EXECUTE (työkalu): screenshot.mjs MODE=fog|blizzard → kytkee moodin ennen
+  aloitusta.
+- REVIEW: SUMU (fog.png) hyvä — ajautuva murk peittää näkymättömät, "?"-tokenit
+  tunnetuille mutta piilossa oleville, oma alue kirkkaana. LUMIMYRSKY
+  (blizzard.png) toimiva mutta jäätyneet alueet olivat litteän HARMAITA.
+- EXECUTE (korjaus): region-grad-blizzard kylmemmäksi/kylläisemmäksi — kirkas
+  sinivalkoinen huippu → syvä jäätikkösini pohja (3 stopia).
+- REVIEW (blizzard2.png): jäätyneet alueet lukevat nyt JÄÄNÄ (kirkas glacial-
+  sini) eikä kuolleena harmaana — teemallisempi, premium. 89 testiä vihreää.
+- LESSONS: (1) Pelimoodit/variantit on kaapattava erikseen — ne eivät näy
+  oletusreviewissä. Työkalulippu per moodi = halpa kattavuus. (2) "Neutraali/
+  inaktiivinen" ei tarkoita "harmaa" — teemaväri (jää=sini) viestii tilan
+  paremmin ja näyttää paremmalta.
