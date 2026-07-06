@@ -5,7 +5,7 @@
 import { TERRITORIES, TERRITORY_IDS, CONTINENTS, continentTerritories, setActiveMap, activeMapId } from '../data/territories.js';
 import { makeRng, randomSeed } from './rng.js';
 import { resolveAttack } from './combat.js';
-import { buildDeck, shuffle, setValue, isValidSet } from './cards.js';
+import { buildDeck, shuffle, setValue, setValueFixed, isValidSet } from './cards.js';
 
 export const PHASES = { REINFORCE: 'reinforce', ATTACK: 'attack', FORTIFY: 'fortify', GAMEOVER: 'gameover' };
 
@@ -72,7 +72,12 @@ export function createGame({ players, seed, mapId, options, scenario }) {
   const state = {
     seed: usedSeed,
     rng,
-    options: { fogOfWar: !!options?.fogOfWar, blizzard: !!options?.blizzard && !scenario },
+    options: {
+      fogOfWar: !!options?.fogOfWar,
+      blizzard: !!options?.blizzard && !scenario,
+      // Korttibonus: false = kasvava (klassinen), true = kiinteä tyypin mukaan.
+      fixedCards: !!options?.fixedCards,
+    },
     scenarioId: scenario?.id ?? null,
     teamNames: scenario?.teamNames ?? null,
     players: players.map((p, i) => ({
@@ -330,7 +335,7 @@ export function tradeCards(state, indices) {
   if (cards.some((c) => !c)) return { ok: false, reason: 'Virheellinen valinta' };
   if (!isValidSet(cards)) return { ok: false, reason: 'Ei kelvollinen sarja' };
 
-  const bonus = setValue(state.setsTraded);
+  const bonus = state.options?.fixedCards ? setValueFixed(cards) : setValue(state.setsTraded);
   state.setsTraded++;
   state.reinforcements += bonus;
   statsFor(state, state.current).setsTraded++;
@@ -669,7 +674,7 @@ export function restoreGame(saved) {
   const state = {
     seed: data.seed,
     rng,
-    options: { fogOfWar: !!data.options?.fogOfWar, blizzard: !!data.options?.blizzard },
+    options: { fogOfWar: !!data.options?.fogOfWar, blizzard: !!data.options?.blizzard, fixedCards: !!data.options?.fixedCards },
     scenarioId: data.scenarioId ?? null,
     teamNames: data.teamNames ?? null,
     winnerTeam: data.winnerTeam ?? null,

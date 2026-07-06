@@ -12,6 +12,24 @@ export function setValue(setsTradedSoFar) {
   return 15 + (setsTradedSoFar - seq.length + 1) * 5;
 }
 
+/**
+ * Kiinteä sarja-arvo korttityypin mukaan (kuten Risk: Global Dominationin
+ * "fixed"): 3× jalkaväki = 4, 3× ratsuväki = 6, 3× tykistö = 8,
+ * yksi kutakin = 10. Jokerin sisältävä sarja lasketaan parhaimman
+ * mukaan = 10. Ei kasva pelin edetessä.
+ */
+export function setValueFixed(cards) {
+  if (!cards || cards.length !== 3) return 0;
+  if (cards.some((c) => c.type === 'wild')) return 10;
+  const uniq = new Set(cards.map((c) => c.type));
+  if (uniq.size === 3) return 10;
+  if (uniq.size === 1) {
+    const t = cards[0].type;
+    return t === 'infantry' ? 4 : t === 'cavalry' ? 6 : 8;
+  }
+  return 0;
+}
+
 /** Onko kolmen kortin joukko kelvollinen vaihtosarja? */
 export function isValidSet(cards) {
   if (!cards || cards.length !== 3) return false;

@@ -53,3 +53,37 @@ test('sekoitus säilyttää kaikki kortit', () => {
   shuffle(deck, makeRng(7));
   assert.equal(deck.length, before);
 });
+
+test('setValueFixed: tyyppikohtaiset kiinteät arvot', async () => {
+  const { setValueFixed } = await import('../js/engine/cards.js');
+  const c = (type) => ({ type, territoryId: null });
+  assert.equal(setValueFixed([c('infantry'), c('infantry'), c('infantry')]), 4);
+  assert.equal(setValueFixed([c('cavalry'), c('cavalry'), c('cavalry')]), 6);
+  assert.equal(setValueFixed([c('artillery'), c('artillery'), c('artillery')]), 8);
+  assert.equal(setValueFixed([c('infantry'), c('cavalry'), c('artillery')]), 10);
+  assert.equal(setValueFixed([c('wild'), c('infantry'), c('infantry')]), 10);
+});
+
+test('fixedCards-optio: bonus ei kasva vaihtojen myötä', async () => {
+  const { createGame, tradeCards } = await import('../js/engine/game.js');
+  const mk = () => [
+    { name: 'A', color: '#fff', isAI: false },
+    { name: 'B', color: '#f00', isAI: true },
+  ];
+  const s = createGame({ players: mk(), seed: 1, mapId: 'classic', options: { fixedCards: true } });
+  const p = s.players[0];
+  s.current = 0;
+  // Kaksi jalkaväkisarjaa peräkkäin: molemmat +4 (ei eskalaatiota).
+  const inf = (tid) => ({ type: 'infantry', territoryId: null });
+  p.cards = [inf(), inf(), inf(), inf(), inf(), inf()];
+  const before = s.reinforcements;
+  assert.equal(tradeCards(s, [0, 1, 2]).bonus, 4);
+  assert.equal(tradeCards(s, [0, 1, 2]).bonus, 4);
+  assert.equal(s.reinforcements, before + 8);
+  // Ilman optiota sama tilanne eskaloituu 4 -> 6.
+  const s2 = createGame({ players: mk(), seed: 1, mapId: 'classic' });
+  s2.current = 0;
+  s2.players[0].cards = [inf(), inf(), inf(), inf(), inf(), inf()];
+  assert.equal(tradeCards(s2, [0, 1, 2]).bonus, 4);
+  assert.equal(tradeCards(s2, [0, 1, 2]).bonus, 6);
+});
