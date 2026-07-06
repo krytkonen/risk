@@ -25,11 +25,42 @@ const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 let _audioCtx = null;
 let _master = null;
 
-// Pysyvät asetukset (mykistys, tekoälyn nopeus) localStoragessa.
+// Pysyvät asetukset (mykistys, tekoälyn nopeus, grafiikkatila) localStoragessa.
 const settings = {
   muted: readSetting('risk-muted') === '1',
   fastAI: readSetting('risk-fast-ai') === '1',
+  liteGfx: detectLiteGfx(),
 };
+
+/**
+ * Kevyt grafiikka: käyttäjän tallentama valinta, tai automaattitunnistus
+ * ensimmäisellä kerralla — vähämuistinen tai -ytiminen laite saa kevyen
+ * tilan oletuksena (deviceMemory puuttuu iOS:lla, silloin ydinmäärä ratkaisee).
+ */
+function detectLiteGfx() {
+  const saved = readSetting('risk-lite-gfx');
+  if (saved !== null) return saved === '1';
+  const mem = navigator.deviceMemory || 0;
+  const cores = navigator.hardwareConcurrency || 0;
+  return (mem > 0 && mem <= 2) || (cores > 0 && cores <= 2);
+}
+
+/** Kytkee kevyen grafiikan päälle/pois: CSS hoitaa suodattimet ja animaatiot. */
+function applyGfxMode() {
+  document.body.classList.toggle('lite', settings.liteGfx);
+  const picker = $('gfx-picker');
+  if (picker) {
+    picker.querySelectorAll('.mode-opt').forEach((b) => {
+      b.classList.toggle('on', (b.dataset.gfx === 'lite') === settings.liteGfx);
+    });
+  }
+}
+
+function setLiteGfx(on) {
+  settings.liteGfx = on;
+  writeSetting('risk-lite-gfx', on ? '1' : '0');
+  applyGfxMode();
+}
 function readSetting(key) {
   try { return localStorage.getItem(key); } catch (_) { return null; }
 }
@@ -225,6 +256,11 @@ function setupHandlers() {
     if (!settings.muted) sfx('select');
   });
   $('menu-speed').addEventListener('click', () => { toggleAISpeed(); refreshMenu(); });
+  $('menu-gfx').addEventListener('click', () => { setLiteGfx(!settings.liteGfx); refreshMenu(); });
+  // Grafiikkavalitsin aloitusruudussa.
+  document.querySelectorAll('#gfx-picker .mode-opt').forEach((btn) => {
+    btn.addEventListener('click', () => setLiteGfx(btn.dataset.gfx === 'lite'));
+  });
   $('menu-rules').addEventListener('click', () => { show('modal-menu', false); show('modal-rules', true); });
   $('rules-close').addEventListener('click', () => show('modal-rules', false));
 
@@ -407,6 +443,7 @@ function refreshSetup() { $('cfg-players').textContent = cfg.players; $('cfg-hum
 function refreshMenu() {
   $('menu-sound').textContent = settings.muted ? 'Äänet: Pois' : 'Äänet: Päällä';
   $('menu-speed').textContent = settings.fastAI ? '🐢 Tekoäly: Nopea (palauta normaali)' : '⏩ Tekoäly: Normaali (nopeuta)';
+  $('menu-gfx').textContent = settings.liteGfx ? 'Grafiikka: ⚡ Kevyt' : 'Grafiikka: ✨ Täysi';
 }
 
 function toggleAISpeed() {
@@ -1283,6 +1320,7 @@ function setupZoom() {
 function boot() {
   refreshSetup();
   setupHandlers();
+  applyGfxMode(); // kevyt grafiikka päälle heti (tallennettu valinta tai autotunnistus)
   refreshContinueButton(); // näytä "Jatka peliä" jos tallennus on olemassa
   // Herätä audio ensimmäisellä käyttäjäeleellä (mobiilin autoplay-esto).
   const wake = () => { resumeAudio(); window.removeEventListener('pointerdown', wake); window.removeEventListener('keydown', wake); };

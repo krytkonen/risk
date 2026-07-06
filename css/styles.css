@@ -678,3 +678,41 @@ input[type=range] { width: 100%; margin: 16px 0 6px; accent-color: var(--accent)
 
 /* Skenaarion lukitsemat asetuskentät (pelaajat/kartta/lumimyrsky). */
 .locked { opacity: 0.4; pointer-events: none; }
+
+/* ---- ⚡ Kevyt grafiikka (vanhemmat laitteet) ----
+   body.lite poistaa kalleimmat tehosteet:
+   1) Kaikki SVG-suodattimet (varjot, hehkut) – suurin GPU-kustannus.
+   2) Jatkuvat animaatiot (merireittien virtaus, halopulssit, leijunta,
+      lumisade, sykkeet) – pitävät kompositointia hereillä joka framella.
+   3) Koristekerrokset (meren kohina, aallot, kompassi, kiillot, jalustat).
+   Lyhyet kertaluontoiset taisteluanimaatiot (transform) säilyvät. */
+body.lite #map .node,
+body.lite #map .halo,
+body.lite #map .cont-panel,
+body.lite #map .army-count,
+body.lite #map .frost { filter: none !important; }
+body.lite .territory:hover .node { filter: none !important; }
+
+body.lite .edge-sea,
+body.lite .edge-sea-glow,
+body.lite .halo.halo-target,
+body.lite .halo.halo-selected,
+body.lite .halo.halo-valid,
+body.lite .territory.selectable .node,
+body.lite .territory.frozen .frost,
+body.lite .territory.frozen .flake,
+body.lite #cp-dot,
+body.lite #reinforce-badge.badge.hl { animation: none !important; }
+
+/* Staattiset korvausarvot animaatioiden tilalle. */
+body.lite .edge-sea { stroke-opacity: 0.35; }
+body.lite .edge-sea-glow { stroke-opacity: 0.1; }
+
+/* Koristeet pois kompositoinnista kokonaan. */
+body.lite .sea-deco,
+body.lite .cont-shelf,
+body.lite .node-gloss,
+body.lite #map rect[filter="url(#sea-noise)"] { display: none; }
+/* Backdrop-sumennukset ovat raskaita vanhoilla GPU:illa. */
+body.lite #zoom-controls .icon-btn { backdrop-filter: none; }
+body.lite .overlay { backdrop-filter: none; }
