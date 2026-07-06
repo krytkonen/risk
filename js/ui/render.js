@@ -13,7 +13,6 @@ export const PLAYER_COLORS_DARK = ['#1d4f8a', '#8e2424', '#246b2f', '#946a12', '
 const PLAYER_COLORS_LIGHT = ['#7db4f0', '#f08585', '#7ed98e', '#f5cf6a', '#c79be0', '#5fd6c8'];
 const NEUTRAL_LIGHT = '#8a8a8a', NEUTRAL_MID = '#555', NEUTRAL_DARK = '#333';
 
-const FOG_HOLE_R = 70; // sumun läpi paljastuvan "portin" säde
 
 // Omistajakohtainen VÄRISOKEUSVIHJE ilman meluisaa rengasta: pieni kiinteä
 // muotomerkki (pip) tokenin oikeaan alakulmaan. Muoto vaihtuu pelaajaindeksin
@@ -210,6 +209,13 @@ function buildDefs(warmth = 0) {
   maskSoft.appendChild(el('stop', { offset: '55%', 'stop-color': '#fff' }));
   maskSoft.appendChild(el('stop', { offset: '100%', 'stop-color': '#000' }));
   defs.appendChild(maskSoft);
+
+  // --- Sumun paljastusreunan pehmennys: yksi blur sumumaskin muodoille, jotta
+  // reuna sumusta valoon myötäilee rannikkoa pehmeästi (ei kova leikkaus).
+  // Vain sumumoodissa (kerros piilossa muuten), gated panoroinnin ajaksi. ---
+  const fogFeather = el('filter', { id: 'fog-feather', x: '-6%', y: '-6%', width: '112%', height: '112%' });
+  fogFeather.appendChild(el('feGaussianBlur', { in: 'SourceGraphic', stdDeviation: 6 }));
+  defs.appendChild(fogFeather);
 
   // --- Pakkashehku jäätyneen napin taakse (valkoinen -> läpinäkyvä). ---
   const chill = el('radialGradient', { id: 'chill-glow', cx: '50%', cy: '50%', r: '50%' });
@@ -1118,13 +1124,20 @@ export function buildMap(svg, onTap) {
   const fogMask = el('mask', { id: 'fog-mask', maskUnits: 'userSpaceOnUse', x: 0, y: 0, width: 1000, height: 700 });
   fogMask.appendChild(el('rect', { x: 0, y: 0, width: 1000, height: 700, fill: '#fff' }));
   const fogHoles = {};
+  // Paljastus alueen OMALLA muodolla (ei kiinteä ympyrä) → sumu myötäilee
+  // rannikoita eikä näytä kuplilta. Leveä musta veto = pieni rannikkomarginaali
+  // (näet rannan). Yhteinen blur-suodatin pehmentää sumun ja valon rajan.
+  // Musta muoto = murk leikataan pois (paljastettu); opacity 0 = piilossa (sumu).
+  const fogReveal = el('g', { filter: 'url(#fog-feather)' });
   for (const id of TERRITORY_IDS) {
-    const t = TERRITORIES[id];
-    // Aloitusarvo r=0: sumu peittää kaiken, kunnes updateMap avaa portit.
-    const hole = el('circle', { cx: t.x, cy: t.y, r: 0, fill: 'url(#mask-soft)' });
-    fogMask.appendChild(hole);
+    const d = regionEls[id]?.getAttribute('d') || '';
+    const hole = el('path', {
+      d, fill: '#000', stroke: '#000', 'stroke-width': 16, 'stroke-linejoin': 'round', opacity: 0,
+    });
+    fogReveal.appendChild(hole);
     fogHoles[id] = hole;
   }
+  fogMask.appendChild(fogReveal);
   const fogDefs = el('defs');
   fogDefs.appendChild(fogMask);
   gMap.appendChild(fogDefs);
@@ -1334,7 +1347,7 @@ export function updateMap(refs, state, ui = {}) {
       gFog.style.opacity = '1';
       for (const id of TERRITORY_IDS) {
         const hole = fogHoles[id];
-        if (hole) hole.setAttribute('r', fog.has(id) ? FOG_HOLE_R : 0);
+        if (hole) hole.setAttribute('opacity', fog.has(id) ? 1 : 0);
       }
     } else {
       // Sumu pois: piilota koko kerros, älä tee muuta.

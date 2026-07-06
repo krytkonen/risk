@@ -396,3 +396,17 @@ tasapaino), ei avoimessa graafisessa silmukassa.
   normaalia peliä. Seat-voitto% klusteroituu ~33% tuntumaan (klassisella lievä
   ensipaikan etu 43%); ei vakavaa vinoumaa (±7% otantakohina 40 pelillä).
   → Kartat tasapainossa, TÄ pelaa päättäväisesti. Ei kiireellistä säätötarvetta.
+
+## Sumun (fog-of-war) visuaalinen uudistus (käyttäjän tarkastuspyyntö)
+- Tarkastus (kuvakaappaus, fog): 2 heikkoutta — (1) paljastus oli KUPLAMAINEN
+  (kiinteä 70px ympyrä per alue, ei myötäillyt rajoja), (2) yleishäive tummensi
+  näkyviäkin alueita → hiotut värit hukkuivat.
+- Korjaus: sumumaski paljastaa nyt alueen OMALLA muodolla (regionEls[id] 'd')
+  leveällä mustalla vedolla (rannikkomarginaali) + yhteinen #fog-feather-blur
+  reunan pehmennykseen. updateMap togglaa paljastuksen opacityllä (ei säteellä).
+- REVIEW (fog_new + fog_new_full, 2 karttaa): iso parannus — sumu myötäilee
+  rannikoita orgaanisesti, näkyvät alueet TÄYSVÄRISIÄ (ei häivettä), piilossa
+  olevat siistissä tummassa sumussa "?"-merkein. 91 testiä vihreää, ei PAGE ERR.
+  Panorointi-gate (#g-fog hidden) säilyy → suorituskyky ok.
+- LESSON: paljastus KOHTEEN OMALLA MUODOLLA (ei kiinteä primitiivi) on avain
+  orgaaniseen fog-of-wariin; yksi jaettu blur riittää reunan pehmennykseen.
