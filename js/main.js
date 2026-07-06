@@ -896,8 +896,12 @@ let fortifyCtx = null;
 function openFortify(fromId, toId) {
   fortifyCtx = { fromId, toId };
   const max = state.territories[fromId].armies - 1;
-  $('fortify-text').textContent =
-    `Siirrä joukkoja ${TERRITORIES[fromId].name} → ${TERRITORIES[toId].name}.`;
+  // Pakotettu määrä (max === 1) → piilota kuollut liukusäädin, kuten valloituksessa.
+  const forced = max <= 1;
+  $('modal-fortify').classList.toggle('forced', forced);
+  $('fortify-text').textContent = forced
+    ? `Siirrä 1 armeija: ${TERRITORIES[fromId].name} → ${TERRITORIES[toId].name}.`
+    : `Siirrä joukkoja ${TERRITORIES[fromId].name} → ${TERRITORIES[toId].name}.`;
   const r = $('fortify-range');
   r.min = 1; r.max = max; r.value = max;
   $('fortify-val').textContent = max;

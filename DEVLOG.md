@@ -218,3 +218,18 @@ itsessään on kehityksen kohde — sen puutteet kirjataan ja korjataan.
 - LESSONS: (1) "Kuollut kontrolli" (säädin jonka rajat ovat samat) on helppo
   jättää huomaamatta koodissa — näkyy vain kun sen oikeasti näkee. (2) Työkalun
   determinismi: ohjaa vahvistus rajaruutuun → luotettava valloitus reviewiin.
+
+### Iter 11 — Sama korjaus linnoitusdialogiin
+- PLAN: laajenna työkalu kaappaamaan linnoitusdialogi; sama kuollut säädin
+  todennäköisesti myös siellä (2-armeijan alueesta siirto pakottaa 1).
+- EXECUTE (työkalu): shot-play.mjs päättää hyökkäyksen, siirtyy linnoitukseen,
+  valitsee oma alue ≥2 armeijaa → viereinen oma → kaappaa `-fortify.png`.
+- REVIEW-LÖYTÖ: kyllä, openFortify asetti min=1, max=armeijat−1; kun armeijoita
+  on 2, max=1 → sama kuollut säädin. Korjattu samalla `.forced`-kuviolla
+  (piilota #fortify-range + .range-val, teksti "Siirrä 1 armeija: A → B").
+- REVIEW (p11-fortify.png): ei-pakotettu tapaus (max 4) näyttää säätimen
+  oikein, ei regressiota; dialogi yhtenäinen valloitusdialogin kanssa.
+  89 testiä vihreää.
+- LESSONS: (1) Sama bugikuvio toistui rinnakkaisessa dialogissa — kun korjaat
+  yhden, ETSI sisarukset (grep `range` / `.min =`). (2) Työkalu kattaa nyt koko
+  ihmisvuoron kaaren: vahvistus → hyökkäys (valinta/zoom) → valloitus → linnoitus.

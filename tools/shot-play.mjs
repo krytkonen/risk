@@ -153,6 +153,36 @@ if (atk && st.phase === 'attack') {
       } catch { await wait(400); /* ei valloitusta tällä; kokeile seuraavaa */ }
     }
   } catch (e) { console.log('Valloitusdialogin kaappaus ei onnistunut:', e.message); }
+
+  // --- Linnoitusdialogi: sulje mahdollinen valloitus, päätä hyökkäys, avaa
+  //     linnoitus (oma alue ≥2 armeijaa → viereinen oma alue). ---
+  try {
+    if (await page.locator('#modal-conquest:not([hidden])').count()) {
+      await page.click('#conquest-confirm'); await wait(300);
+    }
+    let ph = (await getState()).phase;
+    for (let i = 0; i < 4 && ph === 'attack'; i++) { await clickPrimary(); ph = (await getState()).phase; }
+    if (ph === 'fortify') {
+      const mv = await page.evaluate(() => {
+        const s = window.__risk.getState();
+        for (const id of Object.keys(s.territories)) {
+          if (s.territories[id].owner !== s.current || s.territories[id].armies < 2) continue;
+          const own = window.__risk.adj(id).find((n) => s.territories[n].owner === s.current);
+          if (own) return { from: id, to: own };
+        }
+        return null;
+      });
+      if (mv) {
+        await page.click(`.territory[data-id="${mv.from}"]`, { force: true });
+        await wait(150);
+        await page.click(`.territory[data-id="${mv.to}"]`, { force: true });
+        await page.waitForSelector('#modal-fortify:not([hidden])', { timeout: 2500 });
+        await wait(200);
+        await page.screenshot({ path: `${prefix}-fortify.png` });
+        console.log('Kuva:', `${prefix}-fortify.png`, `(linnoitusdialogi ${mv.from}→${mv.to})`);
+      } else console.log('Ei linnoitussiirtoa saatavilla');
+    }
+  } catch (e) { console.log('Linnoitusdialogin kaappaus ei onnistunut:', e.message); }
 } else {
   await (map || page).screenshot({ path: `${prefix}-select.png` });
   console.log('Ei hyökkäysmahdollisuutta; kaappasin laudan:', `${prefix}-select.png`, 'phase=', st.phase);
