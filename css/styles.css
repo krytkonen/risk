@@ -350,21 +350,48 @@ body {
    SMIL-animaatioita ei voi luotettavasti gatata CSS:llä, joten ne pidetään
    tarkoituksella hyvin hitaina (sea 36s, fog 20s) ja kevyinä. */
 
-/* Improved dice display – jokainen noppa pomppaa esiin uudelleenrenderöinnissä */
-.dice { font-size: 26px; letter-spacing: 3px; margin: 4px 0; }
-.dice .att { color: #ffd34d; text-shadow: 0 0 8px rgba(255,211,77,0.6); }
-.dice .def { color: #8fd0ff; text-shadow: 0 0 8px rgba(143,208,255,0.6); }
-/* Animaatio soi automaattisesti kun span luodaan (innerHTML uusitaan joka kierros). */
-.dice span { display: inline-block; animation: dice-pop 0.4s cubic-bezier(0.34,1.56,0.64,1); }
-.dice .att:nth-child(2) { animation-delay: 0.04s; }
-.dice .att:nth-child(3) { animation-delay: 0.08s; }
-.dice .def:nth-child(2) { animation-delay: 0.04s; }
-.dice .def:nth-child(3) { animation-delay: 0.08s; }
-@keyframes dice-pop {
-  0% { transform: scale(0.2) rotate(-120deg); opacity: 0; }
-  55% { transform: scale(1.25) rotate(12deg); opacity: 1; }
-  75% { transform: scale(0.95) rotate(-4deg); }
-  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+/* 3D-nopat: pieni 22×22 px CSS-noppa 3×3-pistegridillä (die-1..die-6).
+   Hyökkääjän nopalla kultainen, puolustajan sinertävä reunus. */
+.dice { margin: 5px 0; display: flex; align-items: center; justify-content: center; gap: 4px; }
+.die {
+  display: inline-grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  width: 22px; height: 22px;
+  padding: 3px;
+  border-radius: 4px;
+  background: linear-gradient(145deg, #ffffff, #d9dee4);
+  border: 1.5px solid #9aa6b0;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.85);
+}
+.die.att { border-color: #d8a41f; }
+.die.def { border-color: #4a90d0; }
+.die .p {
+  visibility: hidden;
+  width: 3.5px; height: 3.5px;
+  border-radius: 50%;
+  background: #1d2733;
+  place-self: center;
+}
+/* Pippien näkyvyys arvon mukaan (3×3-ruudukon paikat 1–9). */
+.die-1 .p5,
+.die-2 .p3, .die-2 .p7,
+.die-3 .p3, .die-3 .p5, .die-3 .p7,
+.die-4 .p1, .die-4 .p3, .die-4 .p7, .die-4 .p9,
+.die-5 .p1, .die-5 .p3, .die-5 .p5, .die-5 .p7, .die-5 .p9,
+.die-6 .p1, .die-6 .p3, .die-6 .p4, .die-6 .p6, .die-6 .p7, .die-6 .p9 { visibility: visible; }
+/* Kertaluontoinen "heitto" kun noppa ilmestyy (korvaa vanhan dice-popin). */
+@media (prefers-reduced-motion: no-preference) {
+  .dice .die { animation: die-tumble 0.35s cubic-bezier(0.34,1.56,0.64,1) backwards; }
+  .dice .die:nth-child(2) { animation-delay: 0.04s; }
+  .dice .die:nth-child(3) { animation-delay: 0.08s; }
+  .dice .die:nth-child(5) { animation-delay: 0.04s; }
+  .dice .die:nth-child(6) { animation-delay: 0.08s; }
+  .dice .die:nth-child(7) { animation-delay: 0.12s; }
+  @keyframes die-tumble {
+    0%   { transform: rotate(-360deg) scale(0.4); opacity: 0; }
+    100% { transform: rotate(0deg) scale(1); opacity: 1; }
+  }
 }
 
 /* Battle banner improvement */
@@ -384,6 +411,44 @@ body {
   0%   { transform: translateX(-50%) scale(0.7); opacity: 0; }
   60%  { transform: translateX(-50%) scale(1.06); opacity: 1; }
   100% { transform: translateX(-50%) scale(1); opacity: 1; }
+}
+
+/* ---- Vaihebanneri: iso teksti pyyhkäisee kartan yli vaiheen vaihtuessa ---- */
+#phase-banner {
+  position: absolute;
+  top: 34%;
+  left: 0; right: 0;
+  z-index: 15;
+  text-align: center;
+  pointer-events: none;
+  font-size: clamp(26px, 7vw, 44px);
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text);
+  padding: 10px 0 10px 0.22em; /* kompensoi letter-spacingin viimeisen välin */
+  background: rgba(8,21,35,0.72);
+  border-top: 2px solid var(--pb-accent, var(--accent));
+  border-bottom: 2px solid var(--pb-accent, var(--accent));
+  text-shadow: 0 2px 12px rgba(0,0,0,0.65);
+  opacity: 0;
+}
+/* Kertaluontoinen pyyhkäisy (~1.1 s): sisään vasemmalta, pito, ulos oikealle. */
+#phase-banner.sweep { animation: phase-sweep 1.1s cubic-bezier(0.25, 0.9, 0.35, 1) forwards; }
+@keyframes phase-sweep {
+  0%   { transform: translateX(-55%); opacity: 0; }
+  22%  { transform: translateX(0);    opacity: 1; }
+  74%  { transform: translateX(0);    opacity: 1; }
+  100% { transform: translateX(55%);  opacity: 0; }
+}
+/* Reduced motion: pelkkä häivytys sisään/ulos ilman liikettä. */
+@media (prefers-reduced-motion: reduce) {
+  #phase-banner.sweep { animation: phase-fade 1.1s ease forwards; }
+  @keyframes phase-fade {
+    0%        { opacity: 0; }
+    22%, 74%  { opacity: 1; }
+    100%      { opacity: 0; }
+  }
 }
 
 /* Notify button */
@@ -520,6 +585,76 @@ button.big { padding: 16px; font-size: 17px; }
 .dialog h2 { margin: 0 0 10px; }
 .logo { font-size: 46px; letter-spacing: 8px; margin: 0; color: var(--accent); font-weight: 900; }
 .subtitle { color: var(--muted); margin: 2px 0 18px; }
+
+/* ---- Aloitusruudun viimeistely (vain #modal-setup, ei muiden dialogien logo) */
+/* Hienovarainen kultainen vinjetti dialogin yläreunaan RISK-logon taakse. */
+#modal-setup .dialog {
+  background:
+    radial-gradient(130% 90px at 50% 0%, rgba(255,211,77,0.12), transparent 72%),
+    var(--panel);
+}
+/* Gradienttiteksti background-clipillä + aksenttialleviivaus. */
+#modal-setup .logo {
+  position: relative;
+  padding-bottom: 12px;
+  background: linear-gradient(115deg, #ffe07a 15%, var(--accent) 40%, #ff9d3d 65%, #ffe07a 90%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+#modal-setup .logo::after {
+  content: '';
+  position: absolute;
+  left: 50%; bottom: 4px;
+  transform: translateX(-50%);
+  width: 96px; height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+}
+/* Hidas kimallus liu'uttaa gradienttia – jatkuva animaatio, joten gatettu
+   (lite-kytkin alempana body.lite-blokissa). */
+@media (prefers-reduced-motion: no-preference) {
+  #modal-setup .logo { animation: logo-shimmer 7s linear infinite; }
+  @keyframes logo-shimmer {
+    0%   { background-position: 0% 0; }
+    100% { background-position: 220% 0; }
+  }
+}
+/* Tiiviimpi pystyrytmi pienillä näytöillä (dialogi rullaa silti). */
+#modal-setup .subtitle { margin: 0 0 12px; }
+#modal-setup .field, #modal-setup .field-col { margin: 10px 0; }
+#modal-setup .hint { margin: 6px 0; }
+/* Skenaarionapin lippuemoji isompana. */
+.map-picker .scn-flag { font-size: 22px; margin-right: 7px; vertical-align: -3px; }
+
+/* ---- Voittoruutu: pokaalin pop + konfettisade ----------------------------- */
+@media (prefers-reduced-motion: no-preference) {
+  #modal-gameover .logo { animation: trophy-pop 0.55s cubic-bezier(0.34,1.56,0.64,1); }
+  @keyframes trophy-pop {
+    0%   { transform: scale(0.2) rotate(-14deg); opacity: 0; }
+    60%  { transform: scale(1.18) rotate(6deg); opacity: 1; }
+    100% { transform: scale(1) rotate(0deg); opacity: 1; }
+  }
+}
+/* Konfetit lisätään JS:llä vain kun ihmisen puoli voittaa; kertaluontoinen
+   putoaminen + kierto, poisto ajastimella. Ohitetaan litessä/reduced-motionissa. */
+.confetti {
+  position: absolute;
+  top: -16px;
+  width: 8px; height: 13px;
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 60;
+  opacity: 0;
+  animation: confetti-fall 1.6s ease-in forwards;
+}
+@keyframes confetti-fall {
+  0%   { opacity: 1; transform: translate(0, 0) rotate(0deg); }
+  80%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--cf-drift, 0px), 86vh) rotate(var(--cf-spin, 480deg)); }
+}
 .field { display: flex; align-items: center; justify-content: space-between; margin: 14px 0; font-weight: 600; }
 .stepper { display: flex; align-items: center; gap: 14px; }
 .stepper button { width: 44px; flex: 0 0 auto; padding: 10px; background: var(--panel2); }
@@ -544,7 +679,8 @@ button.big { padding: 16px; font-size: 17px; }
 .map-picker .map-opt.sel { border-color: var(--accent); color: var(--accent); background: #244b70; }
 
 /* Pelimoodikytkimet */
-.mode-picker { display: flex; gap: 8px; }
+.mode-picker { display: flex; gap: 8px; flex-wrap: wrap; }
+.mode-picker .mode-opt { flex: 1 1 45%; }
 .mode-picker .mode-opt {
   flex: 1 1 0;
   display: flex;
@@ -702,6 +838,8 @@ body.lite .territory.selectable .node,
 body.lite .territory.frozen .frost,
 body.lite .territory.frozen .flake,
 body.lite #cp-dot,
+body.lite .attack-arrow-line,
+body.lite #modal-setup .logo,
 body.lite #reinforce-badge.badge.hl { animation: none !important; }
 
 /* Staattiset korvausarvot animaatioiden tilalle. */

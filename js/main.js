@@ -13,7 +13,7 @@ import { runAITurn } from './engine/ai.js';
 import { resolveBalancedBlitz } from './engine/combat.js';
 import { TERRITORIES, CONTINENTS, MAP_LIST, DEFAULT_MAP } from './data/territories.js';
 import { SCENARIOS, SCENARIO_LIST } from './data/scenarios.js';
-import { buildMap, updateMap, fireTracer, PLAYER_COLORS } from './ui/render.js';
+import { buildMap, updateMap, fireTracer, showAttackArrow, hideAttackArrow, PLAYER_COLORS } from './ui/render.js';
 
 const $ = (id) => document.getElementById(id);
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -217,7 +217,7 @@ function refreshContinueButton() {
 // Pelin aloitus
 // ---------------------------------------------------------------------------
 
-const cfg = { players: 3, humans: 1, mapId: DEFAULT_MAP, fogOfWar: false, blizzard: false, scenario: null };
+const cfg = { players: 3, humans: 1, mapId: DEFAULT_MAP, fogOfWar: false, blizzard: false, fixedCards: false, scenario: null };
 
 function setupHandlers() {
   document.querySelectorAll('[data-step]').forEach((btn) => {
@@ -410,7 +410,17 @@ function buildScenarioPicker() {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'map-opt' + ((s.id ?? null) === cfg.scenario ? ' sel' : '');
-    b.textContent = s.name;
+    // Nimen alussa oleva lippu-/kuvaemoji omaan spaniin → CSS näyttää sen isompana.
+    const em = /^((?:[\u{1F1E6}-\u{1F1FF}]{2})|\p{Extended_Pictographic})\s*/u.exec(s.name);
+    if (em) {
+      const flag = document.createElement('span');
+      flag.className = 'scn-flag';
+      flag.textContent = em[1];
+      b.appendChild(flag);
+      b.appendChild(document.createTextNode(s.name.slice(em[0].length)));
+    } else {
+      b.textContent = s.name;
+    }
     b.addEventListener('click', () => {
       cfg.scenario = s.id;
       wrap.querySelectorAll('.map-opt').forEach((el, i) => el.classList.toggle('sel', options[i].id === s.id));
@@ -459,7 +469,7 @@ function startGame() {
     const sc = SCENARIOS[cfg.scenario];
     state = createGame({
       scenario: sc,
-      options: { fogOfWar: cfg.fogOfWar, blizzard: false },
+      options: { fogOfWar: cfg.fogOfWar, blizzard: false, fixedCards: cfg.fixedCards },
     });
     enterGame();
     if (sc.intro) toast(sc.intro);
@@ -478,7 +488,7 @@ function startGame() {
   state = createGame({
     players,
     mapId: cfg.mapId,
-    options: { fogOfWar: cfg.fogOfWar, blizzard: cfg.blizzard },
+    options: { fogOfWar: cfg.fogOfWar, blizzard: cfg.blizzard, fixedCards: cfg.fixedCards },
   });
   enterGame();
 }
@@ -660,6 +670,93 @@ function animateAttack(fromId, toId, blitz = false) {
   }
 }
 
+/** Lyhyt värinäpalaute (haptiikka) – riippumaton äänimykistyksestä. */
+function haptic(ms) {
+  try { if (navigator.vibrate) navigator.vibrate(ms); } catch (_) {}
+}
+
+// --- Leijuvat vahinkoluvut ("−N" nappien yllä) ------------------------------
+// Cap: max 2 elävää per alue, ettei blitz (kierros ~180 ms välein) kasaa
+// elementtejä. Kirjanpito Mapissa – ei DOM-kyselyjä.
+const dmgLive = new Map(); // alueId -> elävien lukumäärä
+
+function spawnDamage(terrId, n, color, delayMs = 0) {
+  if (!mapG || !n || n <= 0) return;
+  const t = TERRITORIES[terrId];
+  if (!t) return;
+  if ((dmgLive.get(terrId) || 0) >= 2) return;
+  dmgLive.set(terrId, (dmgLive.get(terrId) || 0) + 1);
+  const release = () => dmgLive.set(terrId, Math.max(0, (dmgLive.get(terrId) || 1) - 1));
+  setTimeout(() => {
+    try {
+      const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      txt.setAttribute('x', t.x);
+      txt.setAttribute('y', t.y - 28);
+      txt.setAttribute('class', 'dmg-float');
+      txt.setAttribute('text-anchor', 'middle');
+      txt.setAttribute('fill', color);
+      txt.setAttribute('pointer-events', 'none');
+      txt.textContent = `−${n}`;
+      mapG.appendChild(txt);
+      // Kertaluontoinen CSS-animaatio (0.8 s) → poisto ajastimella.
+      setTimeout(() => {
+        if (txt.parentNode) txt.parentNode.removeChild(txt);
+        release();
+      }, 820);
+    } catch (_) { release(); }
+  }, delayMs);
+}
+
+// --- Vaihebanneri (vain ihmispelaajan vaiheen vaihtuessa) --------------------
+const PHASE_BANNER_TEXTS = { reinforce: 'VAHVISTUS', attack: 'HYÖKKÄYS', fortify: 'LINNOITUS' };
+let phaseBannerKey = null;
+let phaseBannerTimer = null;
+
+function maybePhaseBanner() {
+  // Avain sisältää vuoron + pelaajan + vaiheen: banneri näytetään kerran
+  // per vaiheenvaihto, myös vuoron alussa.
+  const key = `${state.turnCount}:${state.current}:${state.phase}`;
+  if (key === phaseBannerKey) return;
+  const p = state.players[state.current];
+  if (!p || p.isAI) { phaseBannerKey = key; return; } // ei tekoälyvuoroilla
+  // Verhon takana: älä kuluta avainta – banneri näytetään kun pelaaja on valmis.
+  if (ui.curtain) return;
+  phaseBannerKey = key;
+  const text = PHASE_BANNER_TEXTS[state.phase];
+  if (!text) return;
+  const b = $('phase-banner');
+  if (!b) return;
+  b.textContent = text;
+  b.style.setProperty('--pb-accent', p.color);
+  b.hidden = false;
+  // Käynnistä pyyhkäisyanimaatio uudelleen (reflow-pakotus).
+  b.classList.remove('sweep');
+  void b.offsetWidth;
+  b.classList.add('sweep');
+  clearTimeout(phaseBannerTimer);
+  phaseBannerTimer = setTimeout(() => { b.hidden = true; b.classList.remove('sweep'); }, 1150);
+}
+
+// --- Voittokonfetti (vain kun ihmisen puoli voittaa) -------------------------
+function burstConfetti() {
+  if (document.body.classList.contains('lite')) return;
+  try { if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return; } catch (_) {}
+  const host = $('modal-gameover');
+  if (!host) return;
+  for (let i = 0; i < 24; i++) {
+    const c = document.createElement('div');
+    c.className = 'confetti';
+    // Deterministinen "satunnaisuus" indeksistä: sijainti, väri, viive, ajelehdinta.
+    c.style.left = `${(i * 41 + 7) % 100}%`;
+    c.style.background = PLAYER_COLORS[i % PLAYER_COLORS.length];
+    c.style.animationDelay = `${(i % 8) * 0.07}s`;
+    c.style.setProperty('--cf-drift', `${((i * 29) % 60) - 30}px`);
+    c.style.setProperty('--cf-spin', `${360 + (i * 53) % 360}deg`);
+    host.appendChild(c);
+    setTimeout(() => { if (c.parentNode) c.parentNode.removeChild(c); }, 2400);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Hyökkäyskomennot
 // ---------------------------------------------------------------------------
@@ -671,6 +768,7 @@ function doSingleAttack() {
   const res = attack(state, fromId, toId);
   if (!res.ok) { toast(res.reason || 'Hyökkäys ei onnistunut.'); return; }
   sfx('attack');
+  haptic(15);
   showBattle(fromId, toId, res);
   saveGame();
   if (state.pendingConquest) { openConquest(); return; }
@@ -772,6 +870,7 @@ function confirmConquest() {
   show('modal-conquest', false);
   hideBattle();
   sfx('conquer');
+  haptic(30);
   flashConquest(conqueredId);
   saveGame();
   if (state.phase === PHASES.GAMEOVER) { render(); return gameOver(); }
@@ -826,7 +925,9 @@ function renderTrade() {
     });
     wrap.appendChild(d);
   });
-  const nextBonus = `Seuraava sarja: +${setValue(state.setsTraded)} armeijaa.`;
+  const nextBonus = state.options?.fixedCards
+    ? 'Kiinteät arvot: jalkaväki 4 · ratsuväki 6 · tykistö 8 · sekasarja/jokeri 10.'
+    : `Seuraava sarja: +${setValue(state.setsTraded)} armeijaa.`;
   $('trade-hint').textContent = (mustTradeCards(state)
     ? 'Sinulla on 5+ korttia – vaihto on pakollinen ennen hyökkäystä. '
     : 'Valitse 3 korttia: kolme samaa tyyppiä, yksi kutakin tai jokeri sarjassa. ') + nextBonus;
@@ -893,6 +994,15 @@ function render() {
     visible: state.options?.fogOfWar ? (ui.curtain ? new Set() : visibleTerritories(state, fogViewer())) : null,
   };
   updateMap(mapRefs, state, view);
+  // Hyökkäysnuoli: näkyy kun hyökkääjä JA kohde on valittu (halpa: yksi elementti).
+  if (mapG) {
+    if (state.phase === PHASES.ATTACK && ui.selected && ui.attackTarget && !ui.curtain) {
+      showAttackArrow(mapG, TERRITORIES[ui.selected], TERRITORIES[ui.attackTarget]);
+    } else {
+      hideAttackArrow(mapG);
+    }
+  }
+  maybePhaseBanner();
   renderHUD();
   renderPlayers();
   renderLog();
@@ -983,7 +1093,9 @@ function renderControls() {
 
     const row2 = addRow(c);
     const cardLabel = tradeable
-      ? `Kortit ★ (${me.cards.length}) · +${setValue(state.setsTraded)}`
+      ? (state.options?.fixedCards
+          ? `Kortit ★ (${me.cards.length})`
+          : `Kortit ★ (${me.cards.length}) · +${setValue(state.setsTraded)}`)
       : `Kortit (${me.cards.length})`;
     addBtn(row2, cardLabel, tradeable ? 'ghost notify' : 'ghost', openTrade, me.cards.length < 3);
     if (placeStack.length > 0) addBtn(row2, 'Kumoa', 'ghost', undoReinforcement);
@@ -1054,10 +1166,17 @@ function addBtn(parent, label, cls, onClick, disabled = false) {
 // Bannerit & toastit
 // ---------------------------------------------------------------------------
 
+/** Pieni CSS-noppa: 3×3-pistegridi, arvo luokalla die-1..die-6. */
+function dieHtml(v, side) {
+  let pips = '';
+  for (let i = 1; i <= 9; i++) pips += `<i class="p p${i}"></i>`;
+  return `<span class="die ${side} die-${clamp(v, 1, 6)}">${pips}</span>`;
+}
+
 function showBattle(fromId, toId, res) {
   const b = $('battle-banner');
-  const att = res.attackerDice.map((d) => `<span class="att">${'⚀⚁⚂⚃⚄⚅'[d - 1]}</span>`).join(' ');
-  const def = res.defenderDice.map((d) => `<span class="def">${'⚀⚁⚂⚃⚄⚅'[d - 1]}</span>`).join(' ');
+  const att = res.attackerDice.map((d) => dieHtml(d, 'att')).join('');
+  const def = res.defenderDice.map((d) => dieHtml(d, 'def')).join('');
   const fromA = state.territories[fromId]?.armies ?? '?';
   const toA = state.territories[toId]?.armies ?? '?';
   const attLost = res.attackerLosses > 0 ? ' lost' : '';
@@ -1075,6 +1194,10 @@ function showBattle(fromId, toId, res) {
   b.classList.remove('pop-in');
   void b.offsetWidth;
   b.classList.add('pop-in');
+  // Leijuvat vahinkoluvut nappien ylle: punainen puolustajalle, kullanhohtoinen
+  // hyökkääjälle (porrastus 80 ms, vain kun tappioita tuli).
+  spawnDamage(toId, res.defenderLosses, '#ff6b6b', 0);
+  spawnDamage(fromId, res.attackerLosses, '#ffd34d', 80);
 }
 function hideBattle() { $('battle-banner').hidden = true; }
 
@@ -1129,10 +1252,12 @@ function gameOver() {
   const w = state.players[state.winner];
   const humanCount = state.players.filter((p) => !p.isAI).length;
   let text;
+  let humanWin = !w.isAI;
   if (state.winnerTeam && state.teamNames) {
     // Liittoumapeli (skenaario): kerro voitto pelaajan näkökulmasta.
     const teamName = state.teamNames[state.winnerTeam] || state.winnerTeam;
     const human = state.players.find((p) => !p.isAI);
+    humanWin = !!(human && human.team === state.winnerTeam);
     if (human && human.team === state.winnerTeam) {
       text = human.alive
         ? `Voitto! ${teamName} torjui hyökkäyksen.`
@@ -1148,6 +1273,7 @@ function gameOver() {
   $('gameover-text').textContent = text;
   renderGameOverStats();
   show('modal-gameover', true);
+  if (humanWin) burstConfetti();
 }
 
 /** Loppuruudun tilastotaulukko: rivit pelaajat, sarakkeet tilastot. */

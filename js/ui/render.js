@@ -849,6 +849,70 @@ export function fireTracer(gMap, from, to, opts = {}) {
   setTimeout(() => { if (c.parentNode) c.parentNode.removeChild(c); }, dur * 1000 + 60);
 }
 
+// --- Hyökkäysnuoli: kaareva nuoli hyökkääjältä kohteelle -------------------
+// Yksi nuoli kerrallaan: elementti luodaan kerran ja sitä käytetään uudelleen
+// (vain attribuutteja päivitetään). pointer-events: none, ei suodattimia.
+let _arrowEl = null;
+
+/**
+ * Näyttää kaarevan hyökkäysnuolen (kvadraattinen polku + nuolenkärki)
+ * hyökkääjältä kohteelle. Nuoli päättyy ~10 px ennen kumpaakin nappia
+ * (r=21), jottei se peitä armeijalukuja. Kutsutaan renderissä – halpa:
+ * koskee vain yhtä elementtiä.
+ * @param {SVGGElement} gMap buildMapin palauttama kartan ryhmä
+ * @param {{x:number,y:number}} from hyökkääjä (TERRITORIES[id])
+ * @param {{x:number,y:number}} to kohde (TERRITORIES[id])
+ */
+export function showAttackArrow(gMap, from, to) {
+  if (!gMap || !from || !to) return;
+  // Jos kartta rakennettiin uudelleen, vanha nuoli jäi vanhaan puuhun.
+  if (_arrowEl && _arrowEl.parentNode !== gMap) {
+    _arrowEl.parentNode?.removeChild?.(_arrowEl);
+    _arrowEl = null;
+  }
+  if (!_arrowEl) {
+    _arrowEl = el('g', { id: 'attack-arrow', 'class': 'attack-arrow', 'pointer-events': 'none' });
+    const line = el('path', {
+      d: '', fill: 'none', stroke: '#ff5757', 'stroke-width': 3.5,
+      'stroke-linecap': 'round', 'stroke-dasharray': '8 6', 'class': 'attack-arrow-line',
+    });
+    const head = el('polygon', { points: '', fill: '#ff5757', 'class': 'attack-arrow-head' });
+    _arrowEl.appendChild(line);
+    _arrowEl.appendChild(head);
+    _arrowEl._line = line;
+    _arrowEl._head = head;
+    gMap.appendChild(_arrowEl);
+  }
+  const dx = to.x - from.x, dy = to.y - from.y;
+  const dist = Math.hypot(dx, dy) || 1;
+  const margin = NODE_R + 10; // ~10 px ennen nappia (r=21)
+  if (dist <= margin * 2 + 6) { hideAttackArrow(gMap); return; }
+  const ux = dx / dist, uy = dy / dist;
+  const ax = from.x + ux * margin, ay = from.y + uy * margin;
+  const bx = to.x - ux * margin, by = to.y - uy * margin;
+  // Kohtisuora "jousi" ~25 px (lyhyillä väleillä loivempi).
+  const bow = Math.min(25, dist * 0.2);
+  const px = -uy, py = ux;
+  const mx = (ax + bx) / 2 + px * bow, my = (ay + by) / 2 + py * bow;
+  const f = (v) => v.toFixed(1);
+  _arrowEl._line?.setAttribute?.('d', `M ${f(ax)} ${f(ay)} Q ${f(mx)} ${f(my)} ${f(bx)} ${f(by)}`);
+  // Nuolenkärki: tangentti loppupisteessä = suunta ohjauspisteestä loppuun.
+  let tx = bx - mx, ty = by - my;
+  const tl = Math.hypot(tx, ty) || 1;
+  tx /= tl; ty /= tl;
+  const hx = -ty, hy = tx;
+  const hl = 11, hw = 5.5;
+  _arrowEl._head?.setAttribute?.('points',
+    `${f(bx)},${f(by)} ${f(bx - tx * hl + hx * hw)},${f(by - ty * hl + hy * hw)} ` +
+    `${f(bx - tx * hl - hx * hw)},${f(by - ty * hl - hy * hw)}`);
+  if (_arrowEl.style) _arrowEl.style.display = '';
+}
+
+/** Piilottaa hyökkäysnuolen (elementti säilyy uudelleenkäyttöä varten). */
+export function hideAttackArrow(_gMap) {
+  if (_arrowEl && _arrowEl.style) _arrowEl.style.display = 'none';
+}
+
 /**
  * Päivittää napit pelitilan mukaan.
  * HUOM: ei lisää/poista filttereitä eikä rakenna defs-elementtejä uudelleen –

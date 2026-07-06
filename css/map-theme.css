@@ -59,3 +59,45 @@
   animation: none;
   transform: scale(0.94);
 }
+
+/* ---- Hyökkäysnuoli: kaareva nuoli hyökkääjältä kohteelle ------------------ */
+/* Elementti luodaan kerran (showAttackArrow) ja piilotetaan display:nonella.
+   Katkoviivan "virtaus" on jatkuva animaatio → reduced-motion-gate + lite-
+   kytkin styles.css:n body.lite-blokissa; muuten staattinen katkoviiva. */
+.attack-arrow { pointer-events: none; }
+.attack-arrow-line { stroke-dasharray: 8 6; }
+@media (prefers-reduced-motion: no-preference) {
+  .attack-arrow-line { animation: arrow-dash-flow 0.7s linear infinite; }
+  @keyframes arrow-dash-flow {
+    to { stroke-dashoffset: -14; }
+  }
+}
+
+/* ---- Leijuvat vahinkoluvut ("−N" taistelussa) ----------------------------- */
+/* Kertaluontoinen nousu + häivytys (0.8 s); elementti poistetaan JS-ajastimella. */
+.dmg-float {
+  font-size: 16px;
+  font-weight: 800;
+  paint-order: stroke;
+  stroke: rgba(0, 8, 16, 0.8);
+  stroke-width: 3px;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+  /* scale/translate SVG-tekstille: origo tekstin omaan laatikkoon. */
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: dmg-rise 0.8s ease-out forwards;
+}
+@keyframes dmg-rise {
+  0%   { opacity: 0; transform: translateY(4px)   scale(0.8); }
+  18%  { opacity: 1; transform: translateY(-2px)  scale(1.18); }
+  100% { opacity: 0; transform: translateY(-26px) scale(1); }
+}
+/* Reduced motion: ei nousua, pelkkä ilmestyminen ja häivytys. */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes dmg-rise {
+    0%   { opacity: 1; transform: none; }
+    70%  { opacity: 1; }
+    100% { opacity: 0; transform: none; }
+  }
+}
