@@ -728,3 +728,27 @@ käyttäjän playtest-palautteen mukaan asiantuntijamaiseksi (kapeikot, ei ilmai
 läpimurtoja, mannerbonuksen kielto, korttisaalis, lumimyrsky-tietoisuus).
 117 testiä vihreää; kaikki AI-muutokset todennettu FFA- + puolustus­mittari­
 simulaatioilla, UI kuvakaappauksilla.
+
+## Moniagenttipaneeli → 3 kehitysiteraatiota (käyttäjä: roolit + vastaväitteet, ei äänestystä)
+Paneeli (24 agenttia, monirooli: aloittelija/UX/saavutettavuus/retentio/skeptikko).
+Ideat käsiteltiin VASTAVÄITTEIDEN kautta — isot piirteet (uudet moodit, moninpeli-
+verkko, tekoälyn selitykset) kaatuivat rebuttaliin (skooppi/ylläpito); pienet,
+korkean tuoton parannukset selvisivät. Kolme kärkeä toteutettu:
+- IT1 ONBOARDING: maybePhaseBanner näyttää KERTALUONTOISEN MITÄ+MIKSI-valmennus-
+  vihjeen kun ihminen astuu vaiheeseen 1. kertaa (localStorage-portitus
+  risk-coach-*), + "Aloittelijan opas" sääntömodaaliin (tavoite, vaiheet,
+  mannerbonukset, kortit, voitto-%). Ei erillistä opastusmoottoria.
+- IT2 VÄRISOKEUSTURVALLINEN PALETTI: vanha puna/vihreä-pari oli klassinen
+  sekaannus. Okabe-Ito-johdannainen paletti (PLAYER_COLORS + dark/light +
+  gradientit). VERIFY tools/cvd-sim.mjs: pienin pareittainen ΔE (normaali +
+  protan/deuteran/tritanopia) nousi ~5.9 → ~16.1 (yli JND:n joka tilassa).
+  Muotopipit hoitavat silti pahimman tapauksen.
+- IT3 NIMETYT TALLENNUSPAIKAT: 3 paikallista slottia (autosaven lisäksi),
+  korvaussuoja (täysi paikka → "Korvaa?"-toinen napautus), lataus/tyhjennys.
+  Hiljainen kiintiövirhe → näkyvä toast (ei enää hiljaista datahävikkiä).
+  VERIFY: tallenna→korvaussuoja→lataa-kierros headless-selaimessa, 0 konsolivirhettä.
+- LESSON: (1) Vastaväite-ensin-paneeli suodattaa "kiiltävät" isot piirteet ja
+  nostaa halvat korkean tuoton korjaukset (onboarding, saavutettavuus) — sama
+  kuin adversariaalinen VERIFY, mutta suunnitteluvaiheessa. (2) Saavutettavuutta
+  EI arvata: CVD-simulaatio antoi määrällisen ΔE-mittarin paletin valintaan.
+  117 testiä vihreää; UI todennettu kuvakaappauksin + headless-round-trip.
