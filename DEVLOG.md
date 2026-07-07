@@ -674,3 +674,26 @@ kuvakaappauksilla. 103 testiä vihreää.
   playtest löysi sen minkä 1000 sim-peliä eivät. (2) KOVA portti (valtaa vain
   kohdemanner) teki AI:sta liian passiivisen (FFA romahti 22 %) — "joskus pysähdy"
   = PEHMEÄ preferenssi, ei absoluutti. Pisteytys+kynnys yhdessä → oikea tasapaino.
+
+### Iter G — Uusi kartta: Afrikka
+- PLAN: uusi sisältökartta selkein kapeikoin (näyttää Kenraalin puolustuspelin).
+- EXECUTE: js/data/maps/africa.js — 20 aluetta, 5 alueryhmää (Pohjois/Länsi/Keski/
+  Itä/Etelä-Afrikka), yhtenäinen maamassa → kaikki vierekkäisparit maasiltoja.
+  Rekisteröity territories.js:ään (picker + kaikki testit kattavat auto­maattisesti).
+- REVIEW (kuva africa.png): tunnistettava Afrikan muoto (länsipullistuma,
+  Somalian sarvi, kapeneva etelä), 5 väritettyä ryhmää, selkeät kapeikot
+  (Sudan pohjoinen↔itä, Kongo keskushubi), ei solu­glitchejä, yksi maamassa
+  (ei virhemeriä). 117 testiä vihreää (eheystesti hyväksyy uuden kartan).
+- VERIFY (balance.mjs, 40 peliä): kaikki pelit päättyvät herruuteen, ka. 9 vuoroa;
+  seat-voitto% [25 30 45] — lievä viimeisen paikan etu (~1.5σ, klassisen luokkaa),
+  ei vakavaa vinoumaa. Kartta pelattava ja tasapainossa.
+- LESSON: yhtenäisen maamassan kartalla landBridges = KAIKKI vierekkäisparit
+  (ei merirajoja) → siluetit sulautuvat yhdeksi mantereeksi kuten pitääkin.
+
+## Yhteenveto: laaja kohdennettu kehityskierros
+Session lisäsi: 4 AI-tasoa (Helppo/Normaali/Vaikea/Kenraali), taistelun voitto-
+osuus, salaiset tavoitteet -moodi, ja uuden Afrikka-kartan. Kenraali kehittyi
+käyttäjän playtest-palautteen mukaan asiantuntijamaiseksi (kapeikot, ei ilmaisia
+läpimurtoja, mannerbonuksen kielto, korttisaalis, lumimyrsky-tietoisuus).
+117 testiä vihreää; kaikki AI-muutokset todennettu FFA- + puolustus­mittari­
+simulaatioilla, UI kuvakaappauksilla.

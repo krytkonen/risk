@@ -13,6 +13,7 @@ import antiquity from './maps/antiquity.js';
 import nato from './maps/nato.js';
 import suurmaailma from './maps/suurmaailma.js';
 import taruvaltakunnat from './maps/taruvaltakunnat.js';
+import africa from './maps/africa.js';
 
 /** Kaikki saatavilla olevat kartat id:n mukaan. */
 export const MAPS = {
@@ -22,6 +23,7 @@ export const MAPS = {
   [nato.id]: nato,
   [suurmaailma.id]: suurmaailma,
   [taruvaltakunnat.id]: taruvaltakunnat,
+  [africa.id]: africa,
 };
 
 /** Karttavalikko UI:lle: [{ id, name }]. */
