@@ -648,3 +648,29 @@ kuvakaappauksilla. 103 testiä vihreää.
   hauraat reunatapaukset ja ovat triviaalisti testattavia; win-tarkistus PITÄÄ
   laittaa BÅDE valloituksen jälkeen ETTÄ vuoron lopussa (armeijapohjaiset täyttyvät
   vahvistus/linnoitusvaiheessa, ei valloituksessa).
+
+### Iter F — Kenraalin vahvistus (KÄYTTÄJÄN PLAYTEST-PALAUTE)
+- PALAUTE: "Kenraali ei ole vaikea — voitin helposti. Lähes jokaisessa alueessa
+  vain 1 joukko." + "hyödynnä PULLONKAULOJA, keskeytä valtaus pullonkaulaan" +
+  "estä vastustajaa omistamasta kokonaista mannerta".
+- LÖYTÖ: FFA-sim EI paljastanut tätä (kaikki AI:t yhtä hauraita → ihminen
+  hyödyntää 1-joukon rajat, sim ei). → uusi mittari tarvittiin.
+- EXECUTE (ai.js):
+  1) GARRISON: vahvistus nostaa JOKAISEN 1-joukon rajan ≥2 (poistaa ilmaiset
+     läpimurrot) ennen kärkeä.
+  2) VAROVAINEN HYÖKKÄYS: Kenraali wp≥0.55 (ei vuoda pinoja tasaväkisiin) →
+     pysähtyy luonnostaan puolustettuihin kapeikkoihin.
+  3) PULLONKAULA-DOKTRIINI (pehmeä): valtaa VAHVASTI kohti puolustettavaa
+     laajennuskohdetta (+8) ja rankaise sprawlausta avoimeen (−4) → harva, vahva
+     raja MUTTA laajenee yhä (ei turtlaa). Poikkeukset: bonuksen kielto, korttisaalis.
+  4) KIELLÄ MANNERBONUS: +7 jos valtaus rikkoo vihollisen KOKO mantereen.
+  5) Valloitussiirto jättää kapeikkovaruskunnan (vahvin viereinen vihollispino).
+- VERIFY (uusi mittari + FFA, N=40): 1-JOUKON RAJAT 60 %→**15.4 %** (Vaikea 50.3 %)
+  → ei enää ilmaisia läpimurtoja. FFA 3p 45.8 %, 4p 37.2 %, 4p+myrsky 31.7 %
+  (vahvin, ei romahtanut). Kenraali pitää KOMPAKTIN mutta LAAJENEVAN valtakunnan.
+  113 testiä vihreää (2 uutta: garrison, mannerbonuksen kielto).
+- LESSON: (1) sim-VERIFY sokea "hauras ihmistä vastaan" -heikkoudelle koska kaikki
+  AI:t jakavat sen → tarvittiin KOHDENNETTU mittari (1-joukon rajojen %). Ihmisen
+  playtest löysi sen minkä 1000 sim-peliä eivät. (2) KOVA portti (valtaa vain
+  kohdemanner) teki AI:sta liian passiivisen (FFA romahti 22 %) — "joskus pysähdy"
+  = PEHMEÄ preferenssi, ei absoluutti. Pisteytys+kynnys yhdessä → oikea tasapaino.

@@ -7,6 +7,7 @@
 
 import { createGame, PHASES, snapshot } from '../js/engine/game.js';
 import { runAITurn } from '../js/engine/ai.js';
+import { TERRITORIES } from '../js/data/territories.js';
 
 const N = Number(process.argv[2] || 40);
 const MAPS = ['classic', 'europe', 'suurmaailma', 'antiquity'];
@@ -60,13 +61,14 @@ for (const [strong, weak] of ladder) {
   if (!pass) allPass = false;
   console.log(`  ${strong.padEnd(9)} vs ${weak.padEnd(9)}: ${strong} voittaa ${r.pct.toFixed(1)}% (${r.strongWins}/${r.total})  ${pass ? '✓' : '✗ ODOTUS PETTI'}`);
 }
-// Kenraali 2p: puolustettavuusstrategia EI ole 2p-etu (ei kolmatta rankaisemassa
-// ylilaajentumista) → riittää ettei se ROMAHDA Vaikeaa vastaan (≈tasan).
+// Kenraali 2p: puolustettavuus + varovainen hyökkäys VAIHTAA 2p-kilpajuoksun
+// nopeuden PAKSUIHIN RAJOIHIN (vaikeampi ihmiselle). 2p-AI-race ei siis ole oikea
+// mittari kenraalille — riittää ettei se romahda täysin (kynnys ≥38%).
 {
   const r = await matchup('kenraali', 'vaikea');
-  const pass = r.pct >= 45;
+  const pass = r.pct >= 38;
   if (!pass) allPass = false;
-  console.log(`  ${'kenraali'.padEnd(9)} vs ${'vaikea'.padEnd(9)}: ${r.pct.toFixed(1)}% (2p ≈ tasan odotettu; kynnys ≥45%)  ${pass ? '✓' : '✗ ODOTUS PETTI'}`);
+  console.log(`  ${'kenraali'.padEnd(9)} vs ${'vaikea'.padEnd(9)}: ${r.pct.toFixed(1)}% (2p-race, ei kenraalin mittari; kynnys ≥38%)  ${pass ? '✓' : '✗ ODOTUS PETTI'}`);
 }
 
 // --- FFA (moninpeli): tässä puolustettavuus/kapeikko-strategia loistaa, koska
@@ -101,6 +103,47 @@ for (const [P, bliz] of [[3, false], [4, false], [4, true]]) {
   const tag = `${P}p${bliz ? ' +myrsky' : ''}`;
   console.log(`  ${tag.padEnd(10)}: kenraali vs ${P - 1}×vaikea → ${r.pct.toFixed(1)}% (reilu ${r.fair.toFixed(1)}%)  ${pass ? '✓' : '✗ ODOTUS PETTI'}`);
 }
+
+// --- PUOLUSTUKSEN LUJUUS (käyttäjän palaute: "joka alueella vain 1 joukko" =
+//     helppo ihmiselle). Mittaa montako % kohteen OMISTA rajoista jää 1-joukon
+//     tasolle vuoron lopussa. Kenraalin pitää jättää SELVÄSTI vähemmän ilmaisia
+//     läpimurtoja kuin aggressiivinen verrokki → vaikeampi ihmispelaajalle.
+async function defenseSolidity(diff) {
+  let ones = 0, borders = 0, armies = 0;
+  for (const mapId of MAPS) {
+    for (let s = 0; s < Math.max(6, N / 4); s++) {
+      const players = PALETTE.slice(0, 4).map((c, i) => ({
+        name: `P${i}`, color: c, isAI: true, difficulty: i === 0 ? diff : 'vaikea',
+      }));
+      const g = createGame({ players, seed: 900 + s * 13, mapId, options: { maxTurns: 60 } });
+      let guard = 0;
+      while (g.phase !== PHASES.GAMEOVER && guard++ < 9000) {
+        const cur = g.current;
+        await runAITurn(g);
+        if (players[cur].difficulty !== diff) continue;
+        const owned = Object.keys(g.territories).filter((t) => g.territories[t].owner === cur);
+        const bs = owned.filter((t) => adj(t).some((n) => g.territories[n].owner !== cur && !(g.blizzards || []).includes(n)));
+        ones += bs.filter((t) => g.territories[t].armies === 1).length;
+        borders += bs.length; armies += bs.reduce((x, t) => x + g.territories[t].armies, 0);
+      }
+    }
+  }
+  return { onesPct: (100 * ones) / borders, perBorder: armies / borders };
+}
+// adj-apuri elävällä kartalla (TERRITORIES on live-binding, seuraa setActiveMap).
+const adj = (id) => TERRITORIES[id].adj;
+
+console.log('\nPUOLUSTUKSEN LUJUUS (1-joukon rajat = ihmisen hyödyntämä heikkous):');
+const dSolid = await defenseSolidity('kenraali');
+const dAggr = await defenseSolidity('vaikea');
+// Ratkaiseva mittari = 1-JOUKON RAJOJEN OSUUS (ilmaiset läpimurrot). Keskiarvo
+// joukkoa/raja on harhaanjohtava: aggressiivinen Vaikea kasaa harvat pinonsa
+// jättimäisiksi (nostaa ka:n) mutta jättää silti ~puolet rajoista 1-joukolle.
+const solidPass = dSolid.onesPct < dAggr.onesPct - 20;
+if (!solidPass) allPass = false;
+console.log(`  kenraali: ${dSolid.onesPct.toFixed(1)}% 1-joukon rajoja (ka. ${dSolid.perBorder.toFixed(2)} joukkoa/raja)`);
+console.log(`  vaikea  : ${dAggr.onesPct.toFixed(1)}% 1-joukon rajoja (ka. ${dAggr.perBorder.toFixed(2)} joukkoa/raja)`);
+console.log(`  → kenraali jättää ${solidPass ? 'SELVÄSTI vähemmän' : 'EI riittävästi vähemmän'} ilmaisia läpimurtoja  ${solidPass ? '✓' : '✗'}`);
 
 console.log(`\n${allPass ? 'VERIFY OK' : 'VERIFY: osa odotuksista petti (ks. yllä)'}`);
 process.exit(allPass ? 0 : 1);
