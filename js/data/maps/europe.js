@@ -72,4 +72,9 @@ const edges = [
 
 export const territories = fromEdges(base, edges);
 
-export default { id: 'europe', name: 'Eurooppa', continents, territories };
+// Maayhteydessä olevat mannerparit → rannikot koskettavat. Manner-Eurooppa
+// (Länsi/Keski/Itä-Eurooppa + Pohjola) on yhtä maamassaa; Brittein saaret =
+// saaret (meri, jää auki). Avaimet aakkosjärjestyksessä "a|b".
+export const landBridges = ['central|nordic', 'central|west', 'central|east', 'east|nordic'];
+
+export default { id: 'europe', name: 'Eurooppa', continents, territories, landBridges };

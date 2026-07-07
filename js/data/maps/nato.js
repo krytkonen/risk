@@ -114,4 +114,12 @@ const edges = [
 
 export const territories = fromEdges(base, edges);
 
-export default { id: 'eurooppa2025', name: 'Eurooppa 2025', continents, territories };
+// Maayhteydessä olevat mannerparit (manner-Eurooppa/Baltia/Venäjä yhtenäisiä).
+// MERI jää auki: Suomenlahti (Itämeren rannikko–Suomi), avoin Itämeri
+// (Itämeri–Pohjola/Länsi), Pohjola/Etelä–Venäjä (pitkät). Avaimet "a|b" aakkosin.
+export const landBridges = [
+  'pohjola|suomi', 'suomi|venaja', 'itameri|venaja', 'itameri|ukraina',
+  'etela|ukraina', 'ukraina|venaja', 'lansi|pohjola', 'etela|lansi',
+];
+
+export default { id: 'eurooppa2025', name: 'Eurooppa 2025', continents, territories, landBridges };

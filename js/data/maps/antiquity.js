@@ -69,4 +69,9 @@ const edges = [
 
 export const territories = fromEdges(base, edges);
 
-export default { id: 'antiquity', name: 'Antiikin maailma', continents, territories };
+// Maayhteydessä: Iberia–Gallia (Pyreneet) ja Gallia–Italia (Alpit) = yhtä
+// mannerta. Muut (Iberia–Italia, Balkan–Italia Adrianmeri, Italia/Balkan–
+// Itämaat, Balkan–Gallia) ovat Välimeren ylityksiä → jäävät auki.
+export const landBridges = ['gallia|iberia', 'gallia|italia'];
+
+export default { id: 'antiquity', name: 'Antiikin maailma', continents, territories, landBridges };
