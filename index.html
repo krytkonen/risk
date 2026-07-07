@@ -280,12 +280,13 @@
         d.appendChild(p);
       }
       window.addEventListener('error', function (e) {
-        // Aliresurssin latausvirhe (target on <script>/<link>, ei window):
-        // iOS-PWA:ssa nämä ovat usein VÄÄRIÄ hälytyksiä — moduuli latautuu
-        // silti palvelutyöntekijän välimuistista tai heikko 4G kompastuu
-        // taustapäivitykseen. Näytä palkki VAIN jos sovellus ei oikeasti
-        // käynnistynyt (armonaika käynnistykselle).
         var tgt = e.target;
+        // Sovelluksen latain (alla) hoitaa main.js:n uudelleenyritykset itse
+        // → älä näytä palkkia sen väliaikaisista latausvirheistä.
+        if (tgt && tgt !== window && tgt.dataset && tgt.dataset.appLoader) return;
+        // Muu aliresurssin latausvirhe (esim. CSS): iOS-PWA:ssa usein VÄÄRÄ
+        // hälytys — moduuli latautuu silti välimuistista. Näytä palkki VAIN jos
+        // sovellus ei oikeasti käynnistynyt (armonaika käynnistykselle).
         if (tgt && tgt !== window && (tgt.src || tgt.href)) {
           if (window.__riskBooted) return; // jo käynnissä → väärä hälytys
           var src = tgt.src || tgt.href;
@@ -301,8 +302,47 @@
       window.addEventListener('unhandledrejection', function (e) {
         show('Promise-virhe: ' + ((e.reason && e.reason.message) || e.reason));
       });
+
+      // --- Sovelluksen latain: automaattinen uudelleenyritys -----------------
+      // main.js on ES-moduuli; jos sen lataus epäonnistuu (katkeava 4G ennen
+      // kuin palvelutyöntekijä ehtii palvella välimuistista), moduulikartta
+      // muistaa virheen eikä sama URL yritä uudelleen. Siksi uudelleen­yritys
+      // käyttää cache-busting-parametria (?retry=N) → tuore verkkohaku.
+      // Ensimmäinen yritys menee ILMAN parametria, jotta se voi tulla suoraan
+      // palvelutyöntekijän välimuistista (offline-tuki säilyy).
+      var MAX_RETRIES = 3, attempt = 0, watchdog = null, settled = false;
+      function injectApp() {
+        settled = false;
+        var s = document.createElement('script');
+        s.type = 'module';
+        s.dataset.appLoader = '1';
+        s.src = attempt === 0 ? 'js/main.js' : 'js/main.js?retry=' + attempt;
+        s.onerror = function () { settleAttempt('lataus epäonnistui'); };
+        s.onload = function () {
+          // boot() ajetaan synkronisesti moduulin evaluoinnissa ennen onloadia,
+          // joten onnistuessa lippu on jo pystyssä → lopeta vahti.
+          if (window.__riskBooted) { settled = true; clearTimeout(watchdog); }
+        };
+        document.body.appendChild(s);
+        clearTimeout(watchdog);
+        // Vahti hiljaisen jumin varalta (onerror ei aina laukea heikolla verkolla).
+        watchdog = setTimeout(function () { settleAttempt('aikakatkaisu'); }, 8000);
+      }
+      function settleAttempt(reason) {
+        if (settled) return;      // tämä yritys jo ratkaistu (onerror + vahti)
+        settled = true;
+        clearTimeout(watchdog);
+        if (window.__riskBooted) return; // ehti käynnistyä
+        if (attempt >= MAX_RETRIES) {
+          show('Latausvirhe: sovellusta ei saatu ladattua (' + reason
+            + '). Tarkista verkkoyhteys ja päivitä sivu.');
+          return;
+        }
+        attempt++;
+        setTimeout(injectApp, Math.min(4000, 800 * attempt)); // 0.8s, 1.6s, 2.4s
+      }
+      injectApp();
     })();
   </script>
-  <script type="module" src="js/main.js"></script>
 </body>
 </html>
