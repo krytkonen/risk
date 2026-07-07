@@ -748,6 +748,29 @@ const PHASE_BANNER_TEXTS = { reinforce: 'VAHVISTUS', attack: 'HYÖKKÄYS', forti
 let phaseBannerKey = null;
 let phaseBannerTimer = null;
 
+// Ensikerran valmentajaviestit: näytetään KERRAN per vaihe kun ihmispelaaja
+// astuu siihen ensi kertaa. MITÄ + MIKSI, ohitus tallennetaan localStorageen,
+// jottei kokenutta pelaajaa häiritä. (Ei erillistä opastusmoottoria — käytetään
+// samaa toast-komponenttia.)
+const COACH_TEXTS = {
+  reinforce: '💡 Vahvistus: napauta omia alueitasi ja sijoita kaikki armeijat. '
+    + 'Keskitä ne rajoille ja mantereisiin — koko mantereen hallinnasta saat bonusarmeijoita joka vuoro.',
+  attack: '💡 Hyökkäys: napauta omaa aluetta (2+ joukkoa), sitten viereistä vihollisaluetta. '
+    + '🎯 voitto-osuus kertoo onnistumistodennäköisyyden — vihreä on turvallinen, punainen riskialtis.',
+  fortify: '💡 Linnoitus: siirrä lopuksi joukkoja yhdellä siirrolla sisämaasta rajalle. '
+    + 'Vahvat rajat kestävät vihollisen hyökkäykset — tai ohita jos kaikki on jo hyvin.',
+};
+
+function maybeCoach(phase) {
+  const text = COACH_TEXTS[phase];
+  if (!text) return;
+  const skey = `risk-coach-${phase}`;
+  if (readSetting(skey) === '1') return; // jo nähty
+  writeSetting(skey, '1');
+  // Anna vaihebannerin pyyhkäistä ensin, sitten näytä pidempi valmennusvinkki.
+  setTimeout(() => toast(text, 6000), 900);
+}
+
 function maybePhaseBanner() {
   // Avain sisältää vuoron + pelaajan + vaiheen: banneri näytetään kerran
   // per vaiheenvaihto, myös vuoron alussa.
@@ -771,6 +794,7 @@ function maybePhaseBanner() {
   b.classList.add('sweep');
   clearTimeout(phaseBannerTimer);
   phaseBannerTimer = setTimeout(() => { b.hidden = true; b.classList.remove('sweep'); }, 1150);
+  maybeCoach(state.phase); // ensikerran valmennus (kertaluontoinen)
 }
 
 // --- Voittokonfetti (vain kun ihmisen puoli voittaa) -------------------------
