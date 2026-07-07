@@ -42,24 +42,6 @@ function continentDefensibility(state, contId) {
   return CONTINENTS[contId].bonus / Math.max(1, continentChokes(state, contId).length);
 }
 
-// Valitse KOHDEMANNER jota rakentaa/pitää: puolustettavin manner johon minulla on
-// jalansija (omistan siitä osan tai rajoitun siihen). Painotus: puolustettavuus ×
-// (edistyminen), lievä suosinta pienemmälle mantereelle (vähemmän valloitettavaa).
-function pickTargetContinent(state, me) {
-  let best = null, bestScore = -Infinity;
-  for (const c of Object.keys(CONTINENTS)) {
-    const terrs = continentTerritories(c);
-    const ownedCount = terrs.filter((id) => state.territories[id].owner === me).length;
-    const foothold = ownedCount > 0
-      || terrs.some((id) => TERRITORIES[id].adj.some((n) => state.territories[n].owner === me));
-    if (!foothold) continue;
-    const prog = ownedCount / terrs.length;
-    const score = continentDefensibility(state, c) * (0.4 + prog) - terrs.length * 0.05;
-    if (score > bestScore) { bestScore = score; best = c; }
-  }
-  return best;
-}
-
 // LAAJENNUSKOHDE: manner jota kohti vallata seuraavaksi. Karttaa ANALYSOIDEN
 // (ei kartta­kohtaisia sääntöjä): suosii mannerta jonka voin VIIMEISTELLÄ
 // HALVIMMALLA JA PIAN (bonustulo lumipalloa varten) ja joka on PUOLUSTETTAVA
@@ -77,9 +59,14 @@ function pickExpansionTarget(state, me) {
     if (!foothold) continue;
     const prog = (terrs.length - remaining.length) / terrs.length;
     const remArmies = remaining.reduce((s, id) => s + state.territories[id].armies, 0);
-    // Halpa & pian valmis + puolustettava = paras lumipallon moottori.
+    // LUMIMYRSKY: suljettuja jäljellä olevia alueita EI voi vallata nyt → manner
+    // ei ole viimeisteltävissä ennen kuin myrsky siirtyy. Rankaise → suosi
+    // mannerta jonka voi VIEDÄ LOPPUUN heti (karttaa analysoiden).
+    const blocked = remaining.filter((id) => isBlizzard(state, id)).length;
+    const fullyBlocked = blocked === remaining.length; // ei yhtään vallattavaa nyt
+    // Halpa & pian valmis & AVOIN + puolustettava = paras lumipallon moottori.
     const score = continentDefensibility(state, c) * (1 + prog * 2)
-      - remaining.length * 0.6 - remArmies * 0.12;
+      - remaining.length * 0.6 - remArmies * 0.12 - (fullyBlocked ? 5 : 0);
     if (score > bestScore) { bestScore = score; best = c; }
   }
   return best;
@@ -92,19 +79,20 @@ function pickKillTarget(state, me) {
   let best = null, bestScore = 0;
   for (const p of state.players) {
     if (!p.alive || p.index === me || sameTeam(state, me, p.index)) continue;
-    if (!p.cards || p.cards.length === 0) continue; // vain kortilliset houkuttavat
     const terrs = ownedBy(state, p.index);
-    if (!terrs.length || terrs.length > 5) continue; // liian iso = ei tapeta yhdessä vuorossa
+    if (!terrs.length || terrs.length > 6) continue; // liian iso = ei tapeta yhdessä vuorossa
     const pset = new Set(terrs);
     let myForce = 0;
     for (const id of ownedBy(state, me)) {
       if (TERRITORIES[id].adj.some((n) => pset.has(n))) myForce += Math.max(0, state.territories[id].armies - 1);
     }
     const pArmies = terrs.reduce((s, id) => s + state.territories[id].armies, 0);
-    // Karkea toteutettavuus: hyökkäysvoimani riittää murtamaan kaikki + jättämään
-    // miehityksen. Marginaali 1.15 kattaa noppatappiot.
+    // Toteutettavuus: hyökkäysvoimani riittää murtamaan kaikki + miehitykseen.
     if (myForce < (pArmies + terrs.length) * 1.15) continue;
-    const score = p.cards.length * 10 + (myForce - pArmies);
+    // Eliminointi kannattaa AINA (poistaa kilpailijan + valtaa alueita); kortit ja
+    // helppo murto ovat lisäbonus. Vain toteutettavat kohteet hyväksytään.
+    const cards = (p.cards || []).length;
+    const score = cards * 10 + (myForce - pArmies) + (6 - terrs.length) * 2;
     if (score > bestScore) { bestScore = score; best = p.index; }
   }
   return best;
@@ -263,7 +251,7 @@ function aiReinforceKenraali(state, me, owned, targets) {
   // (2) GARRISON ENSIN: puolusta koko perimeter niin ettei jää ilmaisia
   // läpimurtoja. Enintään puolet vahvistuksista → loput hyökkäyskärkeen.
   const borders = owned.filter((id) => isBorder(state, id, me));
-  garrisonBorders(state, me, borders, state._kenraaliEstablished ? 0.35 : 0.2);
+  garrisonBorders(state, me, borders, 0.2);
   if (state.reinforcements <= 0) return;
 
   // (3) Loput yhteen hyökkäyskärkeen joka parhaiten TUNKEUTUU LAAJENNUSKOHTEESEEN
@@ -351,8 +339,13 @@ export function bestAttack(state) {
         // valtaus), hyökkää herkemmin (≥0.45) → varmista kortti joka vuoro
         // (kasvava sarjabonus on Riskin suurin voimavara). Kortin jälkeen tiukka
         // (≥0.55) → säilytä pinot paksuina rajoina.
+        // KENRAALI kynnys: LAAJENNUSKOHTEESEEN (kohdemanner) tunkeudutaan
+        // ROHKEASTI (0.4) — bonustulon vuoksi riskin arvoinen ja avaa pääsyn
+        // seuraaviin mantereisiin. Muualle vasta KORTIN JÄLKEEN kuria­llisemmin
+        // (0.46) → korttitalous joka vuoro ilman turhaa pinojen tuhlausta.
+        const intoTgt = tgt && TERRITORIES[toId].continent === tgt;
         const wpFloor = diff === 'kenraali'
-          ? (!state._kenraaliEstablished ? 0.4 : (state.conqueredThisTurn ? 0.48 : 0.4))
+          ? (intoTgt ? 0.4 : (state.conqueredThisTurn ? 0.46 : 0.4))
           : 0.4;
         if (wp < wpFloor) continue;
         const defenderLast = to.owner != null && ownedBy(state, to.owner).length === 1;
@@ -362,14 +355,16 @@ export function bestAttack(state) {
       const denies = diff === 'kenraali' && to.owner != null
         && aiOwnsContinent(state, to.owner, TERRITORIES[toId].continent);
       if (isKill) score += 6;      // korttisaalis
-      if (denies) score += 7;      // vie viholliselta mannerbonus
+      if (denies) score += 9;      // vie viholliselta mannerbonus
       // PULLONKAULA-DOKTRIINI (pehmeä): suosi VAHVASTI laajennuskohteen alueita ja
       // rankaise sprawlausta avoimeen rajaan. Yhdessä varovaisen kynnyksen (wp≥0.55)
       // kanssa valtaus pysähtyy luonnostaan kohdemantereen kapeikoihin — mutta ei
       // turtlaa, koska hyvät valtaukset kohdemantereeseen etenevät yhä.
+      // LUMIMYRSKYSSÄ mannerfokus on volatiili (kapeikot muuttuvat kun myrsky
+      // siirtyy) → kevennä sprawl-sakkoa, nappaa AVOINTA aluetta joustavammin.
       if (tgt) {
-        if (TERRITORIES[toId].continent === tgt) score += 8;
-        else if (!denies && !isKill) score -= (state._kenraaliEstablished ? 2 : 0);
+        if (TERRITORIES[toId].continent === tgt) score += 10;
+        else if (!denies && !isKill) score -= (state.options?.blizzard ? 1 : 2);
       }
       if (!best || score > best.score) best = { fromId, toId, score };
     }
@@ -436,15 +431,17 @@ function aiFortify(state) {
   return null;
 }
 
-// KENRAALI: keskitä puolustus. Kohde = uhatuin raja-alue (suurin vajaus).
-// Lähde = mikä tahansa yhdistetty oma alue jolla suurin "vapaa" ylijäämä (myös
-// matalapaineinen raja käy → hylätään turvattomat reunat ja pinotaan kapeikko).
+// KENRAALI: kasaa voima sinne missä siitä on eniten hyötyä ensi vuorolla.
+// Kohde = mieluiten LAAJENNUSFRONTTI (oma raja joka rajoittuu kohdemantereen
+// viholliseen) → seuraavan vuoron läpimurto; muuten uhatuin raja (puolustus).
+// Lähde = yhdistetty oma alue jolla suurin "vapaa" ylijäämä (myös matala­paineinen
+// raja käy → hylätään turvattomat reunat, keskitetään voima).
 function aiFortifyKenraali(state, me, owned) {
   const borders = owned.filter((id) => isBorder(state, id, me));
   if (!borders.length) return null;
   const dest = borders
-    .map((id) => ({ id, deficit: enemyPressure(state, id, me) - state.territories[id].armies }))
-    .sort((a, b) => b.deficit - a.deficit)[0].id;
+    .map((id) => ({ id, need: enemyPressure(state, id, me) - state.territories[id].armies }))
+    .sort((a, b) => b.need - a.need)[0].id;
   const surplus = (id) => state.territories[id].armies - 1 - enemyPressure(state, id, me) * 0.5;
   const sources = owned
     .filter((id) => id !== dest && state.territories[id].armies > 1 && areConnected(state, id, dest, me))
@@ -471,14 +468,9 @@ export async function runAITurn(state, hooks = {}) {
   // Transientteja (ei serialisoida) — vahvistus ja hyökkäys lukevat nämä.
   const isKenraali = difficultyOf(state) === 'kenraali';
   state._kenraaliKill = isKenraali ? pickKillTarget(state, state.current) : null;
-  // Laajennuskohde: seuraava puolustettava manner jota kohti vallata. Kenraali
-  // pysähtyy sen kapeikkoihin eikä sprawlaa avoimeen rajaan.
+  // Laajennuskohde: manner jota kohti vallata (halvin viimeisteltävä + puolustettava,
+  // karttaa analysoiden). Vahvistus JA hyökkäys keskittyvät samaan → lumipallo.
   state._kenraaliTarget = isKenraali ? pickExpansionTarget(state, state.current) : null;
-  // VAIHEISTETTU DOKTRIINI (karttaa analysoiden): kunnes ensimmäinen KOKONAINEN
-  // manner on hallussa, pelaa AGGRESSIIVISESTI (nappaa jalansija­manner ASAP →
-  // pysy lumipallossa mukana); sen jälkeen PUOLUSTAVA kapeikkopeli.
-  state._kenraaliEstablished = isKenraali
-    && Object.keys(CONTINENTS).some((c) => aiOwnsContinent(state, state.current, c));
 
   aiReinforce(state);
   await h.afterReinforce();

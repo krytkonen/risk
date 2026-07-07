@@ -690,6 +690,37 @@ kuvakaappauksilla. 103 testiä vihreää.
 - LESSON: yhtenäisen maamassan kartalla landBridges = KAIKKI vierekkäisparit
   (ei merirajoja) → siluetit sulautuvat yhdeksi mantereeksi kuten pitääkin.
 
+## Kenraalin voitto-% -optimointi (käyttäjä: ≥45% moodeissa enemmistöllä kartoista)
+Työkalu: tools/kenraali-bench.mjs — 1 kenraali vs (P−1) vaikea, KAIKKI kartat ×
+KAIKKI moodit (normaali/sumu/myrsky/kiinteä), istumapaikka kierrätettynä. Sumu = AI
+ei käytä sumua (täysi info) → sama kuin normaali (varmistus). Reunaehto: strategia
+ANALYSOI karttaa (puolustettavuus/kapeikot/koko), EI karttakohtaisia sääntöjä.
+- LÄHTÖ 35 % → LOPPU ~51.5 % (FFA 4p). Iteratiivinen mittaus­pohjainen tuning:
+  1) DIAGNOOSI: Kenraali hävisi lähes aina ELIMINOITUNA (ei pisteissä) → liian
+     passiivinen; aggressiiviset Vaikeat lumipalloavat sen yli.
+  2) ISO KORJAUS: vahvistus KOHDISTETTU samaan laajennuskohteeseen kuin hyökkäys
+     (olivat eri mantereita → voima hajaantui) → keskitetty voima viimeistelee
+     mantereen. +4 %-yks.
+  3) DOKTRIINI: yksi aggressiivinen linja (ei passiivista vaihetta joka söi voittoja);
+     kevyt garrison (0.2, vaihe-1 nostaa 1-joukon rajat halvalla) → jättää silti
+     laajennukseen voimaa; pehmeä pullonkaula-fokus (+10 kohdemanner, −2 sprawl) →
+     lumipallo mutta ei sprawlaa; halvin-viimeisteltävä kohdemanner (karttaa
+     analysoiden); korttitalous (kortti joka vuoro); eliminointi + mannerbonuksen
+     kielto. LUMIMYRSKY: kohdemanner ei saa olla suljettu (ei viimeisteltävissä),
+     sprawl-sakko kevyempi.
+- VERIFY (kenraali-bench, N=24, 2688 peliä): kokonais-FFA ~51.5 %. Kartta­keskiarvot
+  (kaikki moodit): 5/7 karttaa ≥45 % (Maailma 66, Eur2025 60, Suuri 62, Taru 48,
+  Eurooppa 45; Antiikki 36, Afrikka 43). Moodeittain ≥45 %: normaali/sumu 6/7,
+  kiinteä 5/7, LUMIMYRSKY 3/7 (isot kartat ≥55 %, pienet 20-alue-kartat 32–41 %:
+  myrsky lisää varianssia joka syö taitoedun pienillä kartoilla). ai-duel: 2p 58 %
+  (Kenraali voittaa nyt Vaikean myös 2p:ssä), 3p 66 %, 4p 52 %, 4p+myrsky 46.5 %.
+- LESSON: (1) VAHVISTUS JA HYÖKKÄYS ON KOHDISTETTAVA SAMAAN — hajautunut voima on
+  ison luokan bugi joka ei näy testeissä, vain simulaatiossa. (2) Aggressiokäyrä
+  litteä ~40 %:ssa; mannerbonusten KESKITETTY lumipallo mursi katon 51 %:iin.
+  (3) Lumimyrsky pienillä kartoilla = varianssikatto (~40 %), ei parametrikysymys;
+  isot kartat kestävät myrskyn. (4) 20.9 % 1-joukon rajoja (Vaikea 57.5 %) → yhä
+  selvästi vaikeampi ihmiselle kuin aggressiivinen perus-AI.
+
 ## Yhteenveto: laaja kohdennettu kehityskierros
 Session lisäsi: 4 AI-tasoa (Helppo/Normaali/Vaikea/Kenraali), taistelun voitto-
 osuus, salaiset tavoitteet -moodi, ja uuden Afrikka-kartan. Kenraali kehittyi
