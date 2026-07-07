@@ -476,3 +476,23 @@ tasapaino), ei avoimessa graafisessa silmukassa.
   Mannerpari-taso (ei per-yhteys) riittää ja on vähän dataa.
 - HUOM: kuvakaappaus-review ei onnistunut (32MB pyyntöraja kertyneistä kuvista)
   → varmistettu ohjelmallisesti + testeillä; pyydä käyttäjää katsomaan live.
+
+## 3 kierrosta (kuva-review estynyt: kertyneet kuvat > 32MB pyyntöraja → verifiointi testeillä + ohjelmallisesti + käyttäjä livenä)
+### Loop 1 — landBridges kaikille aluekartoille
+- Laajennettu maasilta-korjaus (Eurooppa/Eurooppa 2025/Antiikki). Manner-Eurooppa,
+  Baltia, Venäjä yhtenäisiä; Brittein saaret & Välimeren/Itämeren ylitykset auki.
+  Luokittelu tulostettu ja tarkistettu; käyttäjä vahvistaa livenä.
+### Loop 2 — landBridges-eheystesti
+- Uusi testi: jokainen landBridge-avain viittaa OLEMASSA OLEVIIN, VIEREKKÄISIIN
+  mannerpareihin, aakkosjärjestyksessä, ei duplikaatteja. Suojaa "sokkona"
+  kirjoitettua dataa (ei kuva-reviewiä). 92 testiä vihreää.
+### Loop 3 — AI:n mannerbonustietoisuus
+- bestAttack suosii nyt valtausta joka VIIMEISTELEE mantereen (+4 pisteytys) →
+  AI nappaa mannerbonukset = fiksumpi vastustaja. Paino maltillinen (4, ei 6)
+  ettei liikaa lumipalloa. VERIFIOINTI: (a) yksikkötesti todistaa että AI
+  valitsee viimeistelevän valtauksen isommankin raa'an ylivoiman ohi; (b)
+  balance-simulaatio — pelit yhä ratkeavat päättäväisesti (10–22 vuoroa, ei
+  kaatumisia). 93 testiä vihreää.
+- LESSON: ilman kuva-reviewiä paras verifiointi on OBJEKTIIVINEN yksikkötesti
+  (ei "tuntuu paremmalta"). Testin rakentaminen paljasti oman virheen (kaikki
+  omalle → joka valtaus "viimeistelee") → testi pakotti oikean setupin.

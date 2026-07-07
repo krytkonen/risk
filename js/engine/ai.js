@@ -6,7 +6,7 @@
 // niitä animointia varten. Ilman hookeja se suorittaa vuoron synkronisesti
 // (käytetään testeissä yhden mikrotaskin sisällä).
 
-import { TERRITORIES } from '../data/territories.js';
+import { TERRITORIES, continentTerritories } from '../data/territories.js';
 import {
   PHASES, ownedBy, placeArmies, endReinforcement, attack, resolveConquest,
   endAttack, fortify, endTurn, tradeCards, mustTradeCards, areConnected, controlledContinents,
@@ -72,7 +72,7 @@ function aiReinforce(state) {
 
 // --- Hyökkäys -------------------------------------------------------------
 
-function bestAttack(state) {
+export function bestAttack(state) {
   const me = state.current;
   let best = null;
   for (const fromId of ownedBy(state, me)) {
@@ -86,7 +86,12 @@ function bestAttack(state) {
       const advantage = from.armies - to.armies;
       // Hyökkää aina kun on ylivoima (myös pieni): keskitetty kärki etenee.
       if (advantage >= 1) {
-        const score = advantage + (to.armies <= 2 ? 1 : 0);
+        // Manner-bonus: jos tämä valtaus VIIMEISTELISI mantereen (kaikki muut
+        // sen alueet jo omia), suosi vahvasti — bonusarmeijat ovat iso etu.
+        const cont = TERRITORIES[toId].continent;
+        const completes = continentTerritories(cont)
+          .every((c) => c === toId || state.territories[c].owner === me);
+        const score = advantage + (to.armies <= 2 ? 1 : 0) + (completes ? 4 : 0);
         if (!best || score > best.score) best = { fromId, toId, score };
       }
     }

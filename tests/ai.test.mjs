@@ -64,3 +64,50 @@ test('6 pelaajan peli toimii ja päättyy', async () => {
   while (s.phase !== PHASES.GAMEOVER && guard++ < 4000) await runAITurn(s);
   assert.equal(s.phase, PHASES.GAMEOVER);
 });
+
+// --- Manner-bonustietoisuus: AI suosii valtausta joka viimeistelee mantereen ---
+import { bestAttack } from '../js/engine/ai.js';
+import { TERRITORIES, TERRITORY_IDS, continentTerritories, setActiveMap } from '../js/data/territories.js';
+
+test('bestAttack suosii mantereen viimeistelevää valtausta isommankin ylivoiman ohi', () => {
+  setActiveMap('classic');
+  const players = [
+    { name: 'A', color: '#46f', isAI: true },
+    { name: 'B', color: '#f44', isAI: true },
+    { name: 'C', color: '#4a4', isAI: true },
+  ];
+  const s = createGame({ players, seed: 5 });
+  // Nollaa lauta: kaikki pelaajalle 0, 1 armeija → ei muita hyökkäyksiä.
+  for (const id of TERRITORY_IDS) { s.territories[id].owner = 0; s.territories[id].armies = 1; }
+  s.current = 0; s.phase = PHASES.ATTACK;
+
+  // Australia lähes valmis: yksi alue vihollisella, viereinen oma vahva.
+  const aus = continentTerritories('australia');
+  const target = aus[0];                          // viimeinen valloitettava
+  s.territories[target].owner = 1; s.territories[target].armies = 1;
+  const attacker = aus.find((id) => id !== target && TERRITORIES[target].adj.includes(id));
+  assert.ok(attacker, 'testikartalla pitää olla viereinen oma Australia-alue');
+  s.territories[attacker].armies = 5;             // ylivoima 4, viimeistelee mantereen
+
+  // KILPAILEVA hyökkäys muualla: isompi RAAKA ylivoima mutta ei viimeistele.
+  let enemy2 = null, att2 = null;
+  for (const id of TERRITORY_IDS) {
+    if (aus.includes(id)) continue;
+    const own = id;
+    const foe = TERRITORIES[id].adj.find((n) => !aus.includes(n) && n !== target);
+    if (foe) { att2 = own; enemy2 = foe; break; }
+  }
+  s.territories[att2].owner = 0; s.territories[att2].armies = 8;
+  s.territories[enemy2].owner = 2; s.territories[enemy2].armies = 2; // ylivoima 6 (isompi!)
+  // Kilpailevan kohteen manner EI saa olla viimeisteltävissä (muuten sekin saa
+  // bonuksen) → merkitse toinenkin sen mantereen alue viholliselle.
+  const c2 = TERRITORIES[enemy2].continent;
+  const other = continentTerritories(c2).find((id) => id !== enemy2 && id !== att2);
+  assert.ok(other, 'kilpailevalla mantereella pitää olla toinen alue');
+  s.territories[other].owner = 2; s.territories[other].armies = 1;
+
+  const a = bestAttack(s);
+  assert.ok(a, 'hyökkäys pitäisi löytyä');
+  // Ilman manner-bonusta AI valitsisi kilpailevan (ylivoima 6 > 4). Bonus kääntää.
+  assert.equal(a.toId, target, `AI:n pitäisi viimeistellä manner (valitsi ${a.fromId}→${a.toId})`);
+});
