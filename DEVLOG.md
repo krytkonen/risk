@@ -496,3 +496,39 @@ tasapaino), ei avoimessa graafisessa silmukassa.
 - LESSON: ilman kuva-reviewiä paras verifiointi on OBJEKTIIVINEN yksikkötesti
   (ei "tuntuu paremmalta"). Testin rakentaminen paljasti oman virheen (kaikki
   omalle → joka valtaus "viimeistelee") → testi pakotti oikean setupin.
+
+## Maasiltojen KUVA-verifiointi (kuva-review palautui: pieni DSF=1 alle 32MB)
+- PLAN: verifioida SILMÄLLÄ edellisen session sokkona kirjoittama landBridges-
+  data kolmella aluekartalla (Eurooppa / Eurooppa 2025 / Antiikin maailma).
+  Aiemmin review oli estynyt 32MB-pyyntörajalla; nyt DSF=1 + ~1500px kuvat
+  mahtuvat → oikea silmävarmennus onnistuu.
+- TYÖKALU: screenshot.mjs sai WAIT=ms-lipun (ohittaa ohimenevän "VAHVISTUS"-
+  vaihebannerin ennen kaappausta) → puhtaat lautakuvat.
+- MENETELMÄ: enumeroitiin jokaisen kartan MANNERTENVÄLISET särmät (skripti) ja
+  luokiteltiin jokainen pari maa/meri-semantiikan mukaan (todelliset rajat),
+  sitten VERRATTIIN landBridges-dataan + tarkistettiin kuvasta.
+- LÖYTÖ 1 (Eurooppa): `east|nordic` merkitty maasillaksi, mutta sen AINOAT
+  särmät ovat baltics–sweden (Itämeri) ja baltics–finland (Suomenlahti) — molemmat
+  MERIYLITYKSIÄ, ei yhtään maasärmää. Sulki Suomenlahden jonka tehtävä listaa
+  nimenomaan AUKI pidettäväksi. Manner-Eurooppa pysyy yhtenäisenä ilman sitä
+  (Pohjola kiinni Tanska–Saksa-kannaksella, Itä-Eurooppa Puola–Baltia-rajalla).
+  KORJAUS: poistettu `east|nordic`. KUVA: Itämeri/Suomenlahti aukeaa siististi
+  Skandinavian ja Baltian väliin; Skandinavia pysyy niemenä kiinni Tanskasta.
+- LÖYTÖ 2 (Eurooppa 2025): `itameri|lansi` merkitty MEREKSI (kommentti jopa
+  "avoin Itämeri"), mutta sen ainoa särmä on puola–saksa = Puola–Saksa, ISO
+  MAARAJA. KORJAUS: lisätty `itameri|lansi`. KUVA: Puola ja Saksa koskettavat;
+  Suomenlahti (Suomi–Viro) ja avoin Itämeri (Ruotsi–Puola) pysyvät auki,
+  Britannia pysyy saarena.
+- ANTIIKIN MAAILMA: `gallia|iberia` (Pyreneet) + `gallia|italia` (Alpit) täsmää
+  aiottuun; muut parit (Adrianmeri, Egeanmeri, Pohjois-Afrikan hajautus) ovat
+  Välimeri-suunnittelua → EI muutosta. KUVA vahvisti: Iberia kiinni Galliaan,
+  Gallia kiinni Italiaan, merirajat auki.
+- REVIEW: 93 testiä vihreää (eheystesti hyväksyy uudet avaimet); molemmat
+  korjaukset todennettu kuvakaappauksella ennen/jälkeen. Ei PAGE ERR.
+- LESSON: (1) maa/meri-luokittelu kannattaa johtaa MANNERTENVÄLISISTÄ SÄRMISTÄ,
+  ei kommenteista — kaksi bugia oli juuri siellä, missä kommentti sanoi yhtä ja
+  särmä (puola–saksa / baltics–finland) toista. (2) Kun pari-avaimessa on VAIN
+  meriylityksiä eikä yhtään maasärmää, se ei kuulu maasiltoihin — toisin kuin
+  parit joissa on edes yksi maasärmä (esim. central|east: poland–ukraine oikeuttaa
+  sillan Italia–Balkan-merisärmästä huolimatta). (3) DSF=1 + ~1500px pitää kuvat
+  alle 32MB → kuva-review toimii taas; se löysi datan jonka testit hyväksyivät.

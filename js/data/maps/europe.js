@@ -72,9 +72,11 @@ const edges = [
 
 export const territories = fromEdges(base, edges);
 
-// Maayhteydessä olevat mannerparit → rannikot koskettavat. Manner-Eurooppa
-// (Länsi/Keski/Itä-Eurooppa + Pohjola) on yhtä maamassaa; Brittein saaret =
-// saaret (meri, jää auki). Avaimet aakkosjärjestyksessä "a|b".
-export const landBridges = ['central|nordic', 'central|west', 'central|east', 'east|nordic'];
+// Maayhteydessä olevat mannerparit → rannikot koskettavat. Manner-Eurooppa on
+// yhtä maamassaa: Pohjola kiinnittyy mantereeseen Tanska–Saksa-kannaksella
+// (central|nordic) ja Itä-Eurooppa Puola–Baltia-maarajalla (central|east).
+// Pohjola↔Itä-Eurooppa (Ruotsi/Suomi–Baltia) on sen sijaan Itämeri/Suomenlahti
+// → EI siltaa, meri jää auki. Brittein saaret = saaret (meri auki). "a|b" aakkosin.
+export const landBridges = ['central|east', 'central|nordic', 'central|west'];
 
 export default { id: 'europe', name: 'Eurooppa', continents, territories, landBridges };

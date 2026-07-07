@@ -115,11 +115,13 @@ const edges = [
 export const territories = fromEdges(base, edges);
 
 // Maayhteydessä olevat mannerparit (manner-Eurooppa/Baltia/Venäjä yhtenäisiä).
+// Itämeren rannikko kiinnittyy Länteen Puola–Saksa-maarajalla (itameri|lansi).
 // MERI jää auki: Suomenlahti (Itämeren rannikko–Suomi), avoin Itämeri
-// (Itämeri–Pohjola/Länsi), Pohjola/Etelä–Venäjä (pitkät). Avaimet "a|b" aakkosin.
+// (Itämeri–Pohjola: Ruotsi–Puola), Pohjola/Etelä–Venäjä (pitkät). "a|b" aakkosin.
 export const landBridges = [
-  'pohjola|suomi', 'suomi|venaja', 'itameri|venaja', 'itameri|ukraina',
-  'etela|ukraina', 'ukraina|venaja', 'lansi|pohjola', 'etela|lansi',
+  'pohjola|suomi', 'suomi|venaja', 'itameri|lansi', 'itameri|venaja',
+  'itameri|ukraina', 'etela|ukraina', 'ukraina|venaja', 'lansi|pohjola',
+  'etela|lansi',
 ];
 
 export default { id: 'eurooppa2025', name: 'Eurooppa 2025', continents, territories, landBridges };

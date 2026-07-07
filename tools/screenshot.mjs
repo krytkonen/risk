@@ -78,7 +78,8 @@ await page.click('#btn-start');
 await page.waitForFunction(() => document.querySelectorAll('#g-regions .region, .region').length > 5, { timeout: 8000 }).catch(() => {});
 // LITE=1 → pakota kevyt grafiikkatila (verifioi että uudet kerrokset gataantuvat).
 if (process.env.LITE) { await page.evaluate(() => document.body.classList.add('lite')); }
-await page.waitForTimeout(600);
+// WAIT=ms → lisäodotus (esim. ohimenevän vaihebannerin "VAHVISTUS" häviämiseen).
+await page.waitForTimeout(600 + (+process.env.WAIT || 0));
 
 // OPEN="#sel1,#sel2" → klikkaa valitsimet järjestyksessä (avaa esim. valikko/säännöt).
 if (process.env.OPEN) {
