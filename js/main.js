@@ -1290,7 +1290,6 @@ function renderControls() {
           : `Kortit ★ (${me.cards.length}) · +${setValue(state.setsTraded)}`)
       : `Kortit (${me.cards.length})`;
     addBtn(row2, cardLabel, tradeable ? 'ghost notify' : 'ghost', openTrade, me.cards.length < 3);
-    if (placeStack.length > 0) addBtn(row2, 'Kumoa', 'ghost', undoReinforcement);
     if (sel && rem > 0) {
       addBtn(row2, '+1', '', () => addReinforcement(1));
       addBtn(row2, '+5', '', () => addReinforcement(5), rem < 5);
@@ -1303,6 +1302,10 @@ function renderControls() {
         clearSelection(); saveGame(); render();
       });
     }
+    // "Kumoa" pidetään AINA samassa paikassa (rivin lopussa) ja disabloidaan
+    // kun ei ole kumottavaa. Näin +1/+5-napit eivät siirry sormen alta
+    // sijoituksen jälkeen — nappi ei koskaan vaihda toimintoaan paikallaan.
+    addBtn(row2, 'Kumoa', 'ghost', undoReinforcement, placeStack.length === 0);
   } else if (state.phase === PHASES.ATTACK) {
     const row = addRow(c);
     if (!ui.selected) {
