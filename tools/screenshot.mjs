@@ -44,7 +44,7 @@ function findChrome() {
 }
 
 const browser = await chromium.launch({ executablePath: findChrome(), args: ['--no-sandbox'] });
-const page = await browser.newPage({ viewport: { width: +w, height: +h }, deviceScaleFactor: 2 });
+const page = await browser.newPage({ viewport: { width: +w, height: +h }, deviceScaleFactor: +(process.env.DSF || 2) });
 page.on('console', (m) => { if (m.type() === 'error') console.log('PAGE ERR:', m.text()); });
 page.on('pageerror', (e) => console.log('PAGE EXC:', e.message));
 

@@ -2,7 +2,7 @@
 // naapuruusviivat, aluenapit (armeijamäärä) ja korostukset valinnoille.
 // Ei pelilogiikkaa – vain visualisointi + napautusten välitys.
 
-import { TERRITORIES, TERRITORY_IDS, CONTINENTS, continentTerritories } from '../data/territories.js';
+import { TERRITORIES, TERRITORY_IDS, CONTINENTS, continentTerritories, activeMap } from '../data/territories.js';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 const NODE_R = 21;
@@ -548,6 +548,29 @@ function continentOutline(contId, seed, pad = 50) {
       const b1 = (bi + 1) % N, b2 = (bi - 1 + N) % N;
       rad[b1] = Math.max(rad[b1], d * 0.95);
       rad[b2] = Math.max(rad[b2], d * 0.95);
+    }
+    // MAASILLAT: mannerparit jotka ovat MAAYHTEYDESSÄ (kartan landBridges-data,
+    // esim. Euraasia, Panama, Siinai) → ulota rannikko naapurialuetta kohti
+    // (56 % → pieni limitys) niin että mantereet KOSKETTAVAT, ei merisaukkoa.
+    // Merirajat (Atlantti, Välimeri, saaristot) EIVÄT ole listalla → jäävät auki.
+    const landSet = new Set(activeMap()?.landBridges || []);
+    if (landSet.size) {
+      for (const id of ids) {
+        const pt = TERRITORIES[id];
+        for (const n of (pt.adj || [])) {
+          const nb = TERRITORIES[n];
+          if (!nb || nb.continent === contId) continue;
+          const key = [contId, nb.continent].sort().join('|');
+          if (!landSet.has(key)) continue; // vain aidot maayhteydet
+          const mx = pt.x + (nb.x - pt.x) * 0.56, my = pt.y + (nb.y - pt.y) * 0.56;
+          const a = Math.atan2(my - cy, mx - cx);
+          const d = Math.hypot(mx - cx, my - cy);
+          const bi = binOf(a);
+          rad[bi] = Math.max(rad[bi], d);
+          rad[(bi + 1) % N] = Math.max(rad[(bi + 1) % N], d * 0.96);
+          rad[(bi - 1 + N) % N] = Math.max(rad[(bi - 1 + N) % N], d * 0.96);
+        }
+      }
     }
     const filledCount = rad.filter((v) => v >= 0).length;
     if (filledCount >= 2) {

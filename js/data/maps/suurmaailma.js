@@ -158,4 +158,17 @@ const edges = [
 
 export const territories = fromEdges(base, edges);
 
-export default { id: 'suurmaailma', name: 'Suuri maailma', continents, territories };
+// Maayhteydessä olevat mannerparit (yhtä maamassaa) → rannikot koskettavat.
+// Euraasia (Eurooppa + Pohjois-/Itä-/Etelä-Aasia yhtenäisiä) + Afro-Aasia
+// (Siinai) + Amerikat (Panama). Oseania & Atlantin/Välimeren ylitykset = meri.
+export const landBridges = [
+  'etela-amerikka|pohjois-amerikka',
+  'eurooppa|pohjois-aasia',
+  'etela-aasia|eurooppa',
+  'etela-aasia|pohjois-aasia',
+  'etela-aasia|ita-aasia',
+  'ita-aasia|pohjois-aasia',
+  'afrikka|etela-aasia',
+];
+
+export default { id: 'suurmaailma', name: 'Suuri maailma', continents, territories, landBridges };

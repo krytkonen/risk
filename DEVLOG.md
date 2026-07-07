@@ -456,3 +456,23 @@ tasapaino), ei avoimessa graafisessa silmukassa.
 - LESSON: lineaari-interp rannikkoalueiden VÄLILLÄ (ei radiuksen vaimennus) +
   lahti vain isoon rakoon = coast myötäilee alueita luonnollisesti. Radiaalinen
   r(θ) takaa pinch-vapaan polygonin → syväkin konkaavius on solu-turvallinen.
+
+## Maasillat — Eurooppa–Aasia ei enää merisaukkoa (käyttäjän havainto)
+- Ongelma: tiukat siluetit avasivat merisaukon Euroopan ja Aasian väliin —
+  mutta ne ovat yhtä maamassaa (Euraasia), maaraja ei saa näyttää mereltä.
+- LÖYTÖ: etäisyys EI erottele maata merestä (Australian saarihypyt 116 ja
+  Välimeri 127 menevät päällekkäin aitojen maarajojen 90–121 kanssa) → ei
+  luotettavaa kynnystä. Tarvitaan semanttinen data.
+- Ratkaisu: `landBridges` per kartta (classic + suurmaailma) — lista MAAYHTEYS-
+  mannerpareista (Euraasia, Panama, Siinai). continentOutline ulottaa rannikon
+  naapuria kohti (56 % → limitys) VAIN näille pareille → mantereet koskettavat.
+  Merirajat (Atlantti/Välimeri/Bering/saaristot) eivät ole listalla → jäävät auki.
+- VARMISTUS (ohjelmallinen, ei kuvaa — kertyneet kuvat ylittävät 32MB-pyyntörajan):
+  luokittelu oikein — africa|asia, asia|europe, north-america|south-america =
+  SILTA; africa|europe, *|australia, *bering*, atlantit = meri. Geometria:
+  molemmat mantereet ulottuvat 56 % → 12 % limitys → koskettavat varmasti.
+  91 testiä vihreää (render-savutesti rakentaa kaikki kartat ilman kaatumista).
+- LESSON: maa/meri-semantiikkaa ei voi päätellä etäisyydestä; se on dataa.
+  Mannerpari-taso (ei per-yhteys) riittää ja on vähän dataa.
+- HUOM: kuvakaappaus-review ei onnistunut (32MB pyyntöraja kertyneistä kuvista)
+  → varmistettu ohjelmallisesti + testeillä; pyydä käyttäjää katsomaan live.

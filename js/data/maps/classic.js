@@ -69,4 +69,10 @@ export const territories = {
   'eastern-australia': { id: 'eastern-australia', name: 'Itä-Australia', gen: 'Itä-Australian', continent: 'australia', x: 950, y: 585, adj: ['new-guinea', 'western-australia'] },
 };
 
-export default { id: 'classic', name: 'Maailma (klassinen)', continents, territories };
+// Mannerparit jotka ovat MAAYHTEYDESSÄ (yhtä maamassaa) → niiden rannikot
+// piirretään koskettamaan (ei merisaukkoa). Muut mannerrajat = merireittejä,
+// jäävät auki. Avain: mannerid:t aakkosjärjestyksessä "a|b".
+// Euraasia (Eurooppa–Aasia), Amerikat (Panama), Afro-Aasia (Siinai).
+export const landBridges = ['asia|europe', 'africa|asia', 'north-america|south-america'];
+
+export default { id: 'classic', name: 'Maailma (klassinen)', continents, territories, landBridges };
