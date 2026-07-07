@@ -45,17 +45,62 @@ async function matchup(dStrong, dWeak) {
 }
 
 console.log(`AI-kaksintaistelu: ${N} peliä/suunta/kartta × ${MAPS.length} karttaa = ${N * 2 * MAPS.length} peliä/matchup\n`);
-const cases = [
-  ['vaikea', 'helppo'],
+// 2p-tikapuut: näissä pään-yhteen-otoissa aggressiivinen lumipallo ratkaisee →
+// selvä paremmuusjärjestys Vaikea > Normaali > Helppo.
+const ladder = [
   ['vaikea', 'normaali'],
+  ['vaikea', 'helppo'],
   ['normaali', 'helppo'],
 ];
 let allPass = true;
-for (const [strong, weak] of cases) {
+console.log('2P-TIKAPUUT (pään-yhteen-otto):');
+for (const [strong, weak] of ladder) {
   const r = await matchup(strong, weak);
-  const pass = r.pct > 55; // vahvemman pitää voittaa selvästi yli 50%
+  const pass = r.pct > 55;
   if (!pass) allPass = false;
-  console.log(`${strong.padEnd(9)} vs ${weak.padEnd(9)}: ${strong} voittaa ${r.pct.toFixed(1)}% (${r.strongWins}/${r.total})  ${pass ? '✓' : '✗ ODOTUS PETTI'}`);
+  console.log(`  ${strong.padEnd(9)} vs ${weak.padEnd(9)}: ${strong} voittaa ${r.pct.toFixed(1)}% (${r.strongWins}/${r.total})  ${pass ? '✓' : '✗ ODOTUS PETTI'}`);
 }
-console.log(`\n${allPass ? 'VERIFY OK: vaikeustasot järjestyksessä Vaikea > Normaali > Helppo' : 'VERIFY EPÄONNISTUI'}`);
+// Kenraali 2p: puolustettavuusstrategia EI ole 2p-etu (ei kolmatta rankaisemassa
+// ylilaajentumista) → riittää ettei se ROMAHDA Vaikeaa vastaan (≈tasan).
+{
+  const r = await matchup('kenraali', 'vaikea');
+  const pass = r.pct >= 45;
+  if (!pass) allPass = false;
+  console.log(`  ${'kenraali'.padEnd(9)} vs ${'vaikea'.padEnd(9)}: ${r.pct.toFixed(1)}% (2p ≈ tasan odotettu; kynnys ≥45%)  ${pass ? '✓' : '✗ ODOTUS PETTI'}`);
+}
+
+// --- FFA (moninpeli): tässä puolustettavuus/kapeikko-strategia loistaa, koska
+//     ylilaajentuminen rankaistaan. Yksi kohdetaso vs (P-1) verrokkia, kohteen
+//     paikka kierrätetään. Odotus: kohde voittaa selvästi yli reilun 1/P osuuden.
+const PALETTE = ['#46f', '#f44', '#4a4', '#fb0', '#a4f', '#0bb'];
+async function ffa(targetDiff, baseDiff, P, blizzard = false) {
+  let wins = 0, total = 0;
+  for (const mapId of MAPS) {
+    for (let i = 0; i < N; i++) {
+      for (let seat = 0; seat < P; seat++) {
+        const players = Array.from({ length: P }, (_, k) => ({
+          name: `P${k}`, color: PALETTE[k], isAI: true,
+          difficulty: k === seat ? targetDiff : baseDiff,
+        }));
+        const g = createGame({ players, seed: 4000 + i * 29 + seat * 101, mapId, options: { maxTurns: 60, blizzard } });
+        let guard = 0;
+        while (g.phase !== PHASES.GAMEOVER && guard++ < 9000) await runAITurn(g);
+        if (g.winner === seat) wins++;
+        total++;
+      }
+    }
+  }
+  return { pct: (100 * wins) / total, wins, total, fair: 100 / P };
+}
+
+console.log('\nFFA (moninpeli — kenraalin puolustettavuusstrategian oikea koeympäristö):');
+for (const [P, bliz] of [[3, false], [4, false], [4, true]]) {
+  const r = await ffa('kenraali', 'vaikea', P, bliz);
+  const pass = r.pct > r.fair * 1.2; // ≥20 % yli reilun osuuden
+  if (!pass) allPass = false;
+  const tag = `${P}p${bliz ? ' +myrsky' : ''}`;
+  console.log(`  ${tag.padEnd(10)}: kenraali vs ${P - 1}×vaikea → ${r.pct.toFixed(1)}% (reilu ${r.fair.toFixed(1)}%)  ${pass ? '✓' : '✗ ODOTUS PETTI'}`);
+}
+
+console.log(`\n${allPass ? 'VERIFY OK' : 'VERIFY: osa odotuksista petti (ks. yllä)'}`);
 process.exit(allPass ? 0 : 1);

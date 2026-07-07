@@ -9,6 +9,10 @@ import { buildDeck, shuffle, setValue, setValueFixed, isValidSet } from './cards
 
 export const PHASES = { REINFORCE: 'reinforce', ATTACK: 'attack', FORTIFY: 'fortify', GAMEOVER: 'gameover' };
 
+// Tekoälyn vaikeustasot heikoimmasta vahvimpaan.
+export const DIFFICULTIES = ['helppo', 'normaali', 'vaikea', 'kenraali'];
+const normDiff = (d, fallback = 'normaali') => (DIFFICULTIES.includes(d) ? d : fallback);
+
 // Aloitusarmeijat pelaajamäärän mukaan (klassinen Risk).
 const STARTING_ARMIES = { 2: 40, 3: 35, 4: 30, 5: 25, 6: 20 };
 
@@ -84,8 +88,7 @@ export function createGame({ players, seed, mapId, options, scenario }) {
       // Tekoälyn vaikeustaso: 'helppo' | 'normaali' | 'vaikea'. Vaikuttaa vain
       // AI-pelaajien pelityyliin (vahvistuksen keskitys, hyökkäyskynnys,
       // kertoimet). Ihmispelaajiin ei vaikutusta.
-      difficulty: ['helppo', 'normaali', 'vaikea'].includes(options?.difficulty)
-        ? options.difficulty : 'normaali',
+      difficulty: normDiff(options?.difficulty),
     },
     scenarioId: scenario?.id ?? null,
     teamNames: scenario?.teamNames ?? null,
@@ -98,9 +101,7 @@ export function createGame({ players, seed, mapId, options, scenario }) {
       reinforcementBonus: p.reinforcementBonus || 0,
       // Per-pelaaja vaikeus (oletus pelin optiosta). Sallii sekavaikeat pelit
       // (esim. tasapainosimulaatio) ilman että UI paljastaa sitä.
-      difficulty: ['helppo', 'normaali', 'vaikea'].includes(p.difficulty)
-        ? p.difficulty
-        : (['helppo', 'normaali', 'vaikea'].includes(options?.difficulty) ? options.difficulty : 'normaali'),
+      difficulty: normDiff(p.difficulty, normDiff(options?.difficulty)),
       cards: [],
       alive: true,
     })),
@@ -723,7 +724,7 @@ export function restoreGame(saved) {
     rng,
     options: { fogOfWar: !!data.options?.fogOfWar, blizzard: !!data.options?.blizzard, fixedCards: !!data.options?.fixedCards,
       maxTurns: Number.isFinite(data.options?.maxTurns) ? data.options.maxTurns : 50,
-      difficulty: ['helppo', 'normaali', 'vaikea'].includes(data.options?.difficulty) ? data.options.difficulty : 'normaali' },
+      difficulty: normDiff(data.options?.difficulty) },
     scenarioId: data.scenarioId ?? null,
     teamNames: data.teamNames ?? null,
     winnerTeam: data.winnerTeam ?? null,

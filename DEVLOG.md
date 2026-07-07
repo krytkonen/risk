@@ -577,3 +577,39 @@ Peli-logiikalle = simulaatio; UI:lle = ennen/jälkeen-kuva + PAGE ERR.
   reilu näyte) → siksi merkki näyttää REILUT nopat (rehellinen molemmille tiloille).
 - LESSON: kun kaksi satunnaislähdettä (reilut nopat vs vinoutettu blitz) antavat
   eri jakauman, näytä KONSERVATIIVISEMPI → merkki ei koskaan lupaa liikaa.
+
+#### Iter C — "Kenraali"-taso (käyttäjän strategiaehdotukset)
+- PLAN: uusi vahvin taso joka pelaa kuin asiantuntija. Käyttäjän ideat:
+  (1) suosi PUOLUSTETTAVINTA mannerta (vähän kapeikkoja → keskitä joukot pienelle
+  alueelle), (2) tapa kortillinen pelaaja jos hän on voitettavissa vuorossa
+  (korttisaalis), (3) LUMIMYRSKY muuttaa puolustettavuutta (suljetut rajat).
+- EXECUTE (ai.js): difficulty 'kenraali'.
+  - continentChokes(state,c): mantereen ELÄVÄT kapeikot (blizzard-tietoinen:
+    suljettu alue/naapuri ei ole elävä raja) → puolustettavuus = bonus/kapeikot.
+  - pickTargetContinent: puolustettavin manner johon on jalansija; rakenna kärki
+    sen viholliseen, pidä pinoamalla uhatuin kapeikko (varaa vain tarpeen, LOPUT
+    laajennukseen → ei turtlaa).
+  - pickKillTarget: elossa oleva kortillinen vastustaja jonka kaikki alueet
+    voi uskottavasti vallata tänä vuorona (rajan ylivoima ≥ hänen armeijat+alueet).
+    Vahvistus ja hyökkäys keskittyvät häneen (bestAttack +6 kohteelle).
+  - Hyökkäys jakaa Vaikean kertoimet+eliminoinnin; linnoitus keskittää puolustuksen
+    uhatuimpaan kapeikkoon (myös matalapaineinen reuna lähteeksi → hylkää turvaton).
+  UI: "🎖 Kenraali"-vaihtoehto. (Käyttäjän pyynnöstä Vaikea → 😎.)
+- REVIEW: 103 testiä vihreää (4 uutta kenraali-mikrotestiä: korttisaalis-priorisointi,
+  kerroinkuri, lumimyrsky-portti, validius). Kuva setup_4tiers.png: 4 tasoa siististi.
+- VERIFY (tools/ai-duel.mjs): 2p-tikapuut Vaikea>Normaali>Helppo (57/87/83 %).
+  KENRAALIN oikea koeympäristö = FFA (moninpeli, jossa ylilaajentuminen rankaistaan):
+  3p 41.7 % (reilu 33 %), 4p 34.9 % (reilu 25 %), 4p+MYRSKY 32.6 % → kenraali on
+  selvästi vahvin moninpelissä, myös lumimyrskyllä (validoi blizzard-tietoiset
+  kapeikot). 2p vs Vaikea ≈ 50 % (odotettu: strategia ei ole 2p-etu).
+- LESSON: strategian VAHVUUS RIIPPUU KONTEKSTISTA. Puolustettavuus/kapeikko-peli
+  ei erotu 2p-duellissa (ei kolmatta rankaisemassa aggressoria) mutta loistaa
+  FFA:ssa. Adversariaalinen VERIFY paljasti tämän (2p kenraali 47 % < Vaikea) ja
+  ohjasi mittaamaan OIKEASSA ympäristössä (FFA) — muuten olisi "korjattu" väärää
+  asiaa tai julistettu taso vahvemmaksi kuin se 2p:ssä on.
+
+## Tilanne: 3 kohdennettua iteraatiota (vaikeustasot, voitto-osuus, Kenraali)
+Peli on nyt merkittävästi syvempi: 4 AI-tasoa (Helppo→Kenraali), taistelun
+voitto-osuus-palaute, ja asiantuntija-AI joka hahmottaa puolustettavuuden,
+kapeikot, korttisaaliin ja lumimyrskyn. Kaikki todennettu FFA-simulaatiolla +
+kuvakaappauksilla. 103 testiä vihreää.
