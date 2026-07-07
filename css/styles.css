@@ -888,6 +888,27 @@ button.small { min-height: 40px; padding: 6px 12px; font-size: 0.85rem; }
   .terr-name { font-size: 9px; }
 }
 
+/* ---- Vaakanäyttö matalalla puhelimella: kartalle maksimikorkeus ----
+   Pystysuunnassa tila on niukkaa (~330–430 px). Tiivistetään yläpalkki,
+   pelaajarivi ja ohjaimet ja piilotetaan tapahtumaloki (näkyy pystyssä),
+   jotta kartta-alue (#map-wrap, flex:1) saa lähes koko korkeuden. */
+@media (orientation: landscape) and (max-height: 500px) {
+  #hud { padding: 2px 10px; border-bottom-width: 1px; }
+  .badge { padding: 3px 8px; font-size: 12px; }
+  #current-player { font-size: 14px; gap: 6px; }
+  .icon-btn { width: 38px; height: 38px; }
+  #players-panel { padding: 3px 8px; gap: 5px; }
+  .player-chip { padding: 3px 8px; font-size: 11px; }
+  .player-chip.active { transform: none; } /* ei skaalausta joka söisi korkeutta */
+  #log { display: none; }               /* loki näkyy pystynäytöllä */
+  #controls { padding: 4px 10px calc(4px + var(--safe-bottom)); gap: 4px; }
+  #controls .controls-row { gap: 5px; }
+  #controls button { min-height: 42px; padding: 8px 12px; font-size: 14px; }
+  #controls .hint-text { font-size: 12px; }
+  /* Zoom-napit hieman ylemmäs, pois turva-alueelta / peukalon tieltä. */
+  #zoom-controls { gap: 6px; }
+}
+
 /* ---- Kuumatuoliverho (sumu + useita ihmispelaajia) ---- */
 /* Täysin peittävä tausta: edellisen pelaajan näkymä ei saa vuotaa läpi. */
 #modal-curtain { background: var(--bg); backdrop-filter: none; }

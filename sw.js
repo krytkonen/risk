@@ -11,7 +11,7 @@
 // asennetaan, esiväli­muisti haetaan tuoreena ja vanha välimuisti poistetaan,
 // jotta myös asennettu PWA (esim. iOS) saa muutokset heti eikä vasta seuraavalla
 // avauksella. Pidä ASSETS ajan tasalla (kaikki kartat mukana → offline-tuki).
-const CACHE = 'risk-v11';
+const CACHE = 'risk-v12';
 const ASSETS = [
   './',
   './index.html',
