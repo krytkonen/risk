@@ -7,10 +7,13 @@ import { TERRITORIES, TERRITORY_IDS, CONTINENTS, continentTerritories, activeMap
 const SVGNS = 'http://www.w3.org/2000/svg';
 const NODE_R = 21;
 
-export const PLAYER_COLORS = ['#2f7bd6', '#d63b3b', '#3aa84a', '#e0a020', '#9b59c6', '#16a89a'];
-export const PLAYER_COLORS_DARK = ['#1d4f8a', '#8e2424', '#246b2f', '#946a12', '#653a82', '#0d6b62'];
+// Värisokeusturvallinen paletti (Okabe-Ito-johdannainen): pienin pareittainen
+// ΔE kaikissa CVD-tiloissa ~16 vs. vanhan puna/vihreä-paletin ~6 (todennettu
+// tools/cvd-sim.mjs:llä). Pipit (PIP_SHAPES) hoitavat silti pahimman tapauksen.
+export const PLAYER_COLORS = ['#0072b2', '#d55e00', '#029e73', '#e6a000', '#cc79a7', '#56b4e9'];
+export const PLAYER_COLORS_DARK = ['#00446b', '#803800', '#015f45', '#8a6000', '#7a4964', '#346c8c'];
 // Vaaleammat keskisävyt napin radiaaligradientin keskelle (syvyysvaikutelma).
-const PLAYER_COLORS_LIGHT = ['#7db4f0', '#f08585', '#7ed98e', '#f5cf6a', '#c79be0', '#5fd6c8'];
+const PLAYER_COLORS_LIGHT = ['#80b9d9', '#eaaf80', '#81cfb9', '#f3d080', '#e6bcd3', '#abdaf4'];
 const NEUTRAL_LIGHT = '#8a8a8a', NEUTRAL_MID = '#555', NEUTRAL_DARK = '#333';
 
 
