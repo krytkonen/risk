@@ -280,8 +280,23 @@
         d.appendChild(p);
       }
       window.addEventListener('error', function (e) {
+        // Aliresurssin latausvirhe (target on <script>/<link>, ei window):
+        // iOS-PWA:ssa nämä ovat usein VÄÄRIÄ hälytyksiä — moduuli latautuu
+        // silti palvelutyöntekijän välimuistista tai heikko 4G kompastuu
+        // taustapäivitykseen. Näytä palkki VAIN jos sovellus ei oikeasti
+        // käynnistynyt (armonaika käynnistykselle).
+        var tgt = e.target;
+        if (tgt && tgt !== window && (tgt.src || tgt.href)) {
+          if (window.__riskBooted) return; // jo käynnissä → väärä hälytys
+          var src = tgt.src || tgt.href;
+          setTimeout(function () {
+            if (!window.__riskBooted) show('Latausvirhe: ' + src);
+          }, 4000);
+          return;
+        }
+        // Aito ajonaikainen JS-virhe: näytä aina.
         var f = e.filename ? ' @ ' + e.filename.split('/').pop() + ':' + e.lineno : '';
-        show((e.message || 'Latausvirhe: ' + (e.target && (e.target.src || e.target.href) || '?')) + f);
+        show((e.message || 'Virhe') + f);
       }, true);
       window.addEventListener('unhandledrejection', function (e) {
         show('Promise-virhe: ' + ((e.reason && e.reason.message) || e.reason));

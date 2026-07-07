@@ -1758,6 +1758,10 @@ function setupZoom() {
 // ---------------------------------------------------------------------------
 
 function boot() {
+  // Merkitse että sovelluslogiikka on latautunut ja käynnistynyt: index.html:n
+  // virhepalkki käyttää tätä erottamaan aidon latausvirheen ohimenevästä
+  // väärästä hälytyksestä (SW:n taustapäivitys / iOS-moduulikummajainen).
+  window.__riskBooted = true;
   refreshSetup();
   setupHandlers();
   applyGfxMode(); // kevyt grafiikka päälle heti (tallennettu valinta tai autotunnistus)
