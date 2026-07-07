@@ -88,7 +88,10 @@ test('Kenraali ei jätä 1-joukon rajoja kun vahvistuksia riittää (garrison)',
     if (foe && s.territories[id].owner === 0) { s.territories[foe].owner = 1; borders.push(id); }
   }
   assert.ok(borders.length >= 2);
-  s.reinforcements = 60; // reilusti budjettia (0.6 → 36) kaikkien rajojen nostoon
+  // Vakiintunut (hallitsee mannerta) → puolustava garrison-budjetti; reilusti
+  // vahvistuksia niin että vaihe 1 nostaa kaikki 1-joukon rajat.
+  s._kenraaliEstablished = true;
+  s.reinforcements = 120;
   aiReinforce(s);
   const myBorderOnes = TERRITORY_IDS.filter((id) => s.territories[id].owner === 0
     && s.territories[id].armies === 1
