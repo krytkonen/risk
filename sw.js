@@ -7,7 +7,11 @@
 //   päivitys taustalla (stale-while-revalidate). Jos haku epäonnistuu eikä
 //   välimuistissa ole mitään, palautetaan virhe — EI KOSKAAN index.html:ää
 //   aliresurssina (HTML JavaScriptinä kaataisi koko sovelluksen).
-const CACHE = 'risk-v3';
+// HUOM: kasvata versiota (risk-vN) aina kun sovelluslogiikka muuttuu → uusi SW
+// asennetaan, esiväli­muisti haetaan tuoreena ja vanha välimuisti poistetaan,
+// jotta myös asennettu PWA (esim. iOS) saa muutokset heti eikä vasta seuraavalla
+// avauksella. Pidä ASSETS ajan tasalla (kaikki kartat mukana → offline-tuki).
+const CACHE = 'risk-v4';
 const ASSETS = [
   './',
   './index.html',
@@ -25,6 +29,9 @@ const ASSETS = [
   './js/data/maps/europe.js',
   './js/data/maps/antiquity.js',
   './js/data/maps/nato.js',
+  './js/data/maps/suurmaailma.js',
+  './js/data/maps/taruvaltakunnat.js',
+  './js/data/maps/africa.js',
   './js/engine/rng.js',
   './js/engine/combat.js',
   './js/engine/cards.js',
