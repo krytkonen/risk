@@ -89,6 +89,9 @@ export function createGame({ players, seed, mapId, options, scenario }) {
       // AI-pelaajien pelityyliin (vahvistuksen keskitys, hyökkäyskynnys,
       // kertoimet). Ihmispelaajiin ei vaikutusta.
       difficulty: normDiff(options?.difficulty),
+      // Salaiset tavoitteet: jokainen pelaaja saa oman voittotavoitteen. Voitto
+      // joko tavoitteen täyttämällä TAI herruudella. Ei skenaarioissa (liittoumat).
+      missions: !!options?.missions && !scenario,
     },
     scenarioId: scenario?.id ?? null,
     teamNames: scenario?.teamNames ?? null,
@@ -147,7 +150,86 @@ export function createGame({ players, seed, mapId, options, scenario }) {
   if (state.options.blizzard && state.blizzards.length) {
     log(state, `❄ Lumimyrsky sulkee: ${state.blizzards.map((id) => TERRITORIES[id].name).join(', ')}.`, 'info');
   }
+  if (state.options.missions) assignMissions(state);
   return state;
+}
+
+// ---------------------------------------------------------------------------
+// Salaiset tavoitteet (missiot)
+// ---------------------------------------------------------------------------
+
+// Arpoo jokaiselle pelaajalle voittotavoitteen kartan koon mukaan (siemennetysti).
+// Tyypit ovat kaikki LAUDASTA JOHDETTAVISSA (ei erillistä seurantaa):
+//  - continents: valtaa 2 nimettyä mannerta
+//  - anyContinents: valtaa mitkä tahansa N mannerta
+//  - territories: hallitse K aluetta
+//  - territoriesArmed: hallitse K aluetta, joissa kussakin ≥2 armeijaa
+function assignMissions(state) {
+  const rng = state.rng;
+  const pick = (arr) => arr[Math.floor(rng() * arr.length)];
+  const conts = Object.keys(CONTINENTS);
+  const nTerr = Object.keys(state.territories).length;
+  const nCont = conts.length;
+  const sized = conts.map((c) => ({ c, n: continentTerritories(c).length })).sort((a, b) => a.n - b.n);
+
+  function continentPair() {
+    // c1 pienemmästä puoliskosta, c2 mikä tahansa muu, yhteiskoko ≤ 60 % kartasta.
+    const smaller = sized.slice(0, Math.max(1, Math.ceil(sized.length / 2))).map((x) => x.c);
+    const c1 = pick(smaller);
+    const options = conts.filter((c) => c !== c1
+      && continentTerritories(c1).length + continentTerritories(c).length <= nTerr * 0.6);
+    if (!options.length) return null;
+    return [c1, pick(options)].sort();
+  }
+
+  for (const p of state.players) {
+    const roll = rng();
+    let m = null;
+    if (roll < 0.35) { const pair = continentPair(); if (pair) m = { type: 'continents', ids: pair }; }
+    else if (roll < 0.55) m = { type: 'anyContinents', count: Math.max(2, Math.ceil(nCont / 2)) };
+    else if (roll < 0.8) m = { type: 'territories', count: Math.round(nTerr * 0.55) };
+    else m = { type: 'territoriesArmed', count: Math.round(nTerr * 0.42), armies: 2 };
+    // Varmuus: jos mannerpari epäonnistui, käytä aluetavoitetta.
+    p.mission = m || { type: 'territories', count: Math.round(nTerr * 0.55) };
+  }
+}
+
+/** Omistaako pelaaja koko mantereen (kaikki sen alueet)? */
+function ownsContinent(state, pi, contId) {
+  return continentTerritories(contId).every((id) => state.territories[id].owner === pi);
+}
+
+/** Onko pelaajan tavoite täyttynyt (johdetaan pelkästään laudasta)? */
+export function missionComplete(state, pi) {
+  const m = state.players[pi]?.mission;
+  if (!m) return false;
+  const owned = ownedBy(state, pi);
+  switch (m.type) {
+    case 'territories': return owned.length >= m.count;
+    case 'territoriesArmed':
+      return owned.filter((id) => state.territories[id].armies >= m.armies).length >= m.count;
+    case 'anyContinents':
+      return Object.keys(CONTINENTS).filter((c) => ownsContinent(state, pi, c)).length >= m.count;
+    case 'continents':
+      return m.ids.every((c) => ownsContinent(state, pi, c));
+    default: return false;
+  }
+}
+
+/** Ihmisluettava tavoitekuvaus (suomeksi). */
+export function missionText(mission) {
+  if (!mission) return '';
+  switch (mission.type) {
+    case 'continents':
+      return `Valtaa kokonaan: ${mission.ids.map((c) => CONTINENTS[c].name).join(' ja ')}.`;
+    case 'anyContinents':
+      return `Valtaa kokonaan mitkä tahansa ${mission.count} mannerta.`;
+    case 'territories':
+      return `Hallitse vähintään ${mission.count} aluetta.`;
+    case 'territoriesArmed':
+      return `Hallitse vähintään ${mission.count} aluetta, joissa kussakin ≥ ${mission.armies} armeijaa.`;
+    default: return '';
+  }
 }
 
 /** Asettaa skenaarion kiinteän aloitusasetelman (omistukset + armeijat). */
@@ -540,7 +622,21 @@ function declarePointsWinner(state) {
   log(state, `Vuororaja saavutettu — ${who} johti pisteissä ja voitti!`, 'win');
 }
 
+/** Julistaa pelaajan voittajaksi tavoitteen täyttymisestä. */
+function declareMissionWin(state, pi) {
+  state.winner = pi;
+  state.winnerTeam = state.players[pi].team || null;
+  state.winByMission = true;
+  state.phase = PHASES.GAMEOVER;
+  log(state, `${playerVerb(state.players[pi].name, 'täytti', 'salaisen tavoitteensa ja voitti!')}`, 'win');
+}
+
 function checkWin(state) {
+  // Missiovoitto: juuri toiminut pelaaja täytti salaisen tavoitteensa.
+  if (state.options?.missions) {
+    const cur = state.current;
+    if (state.players[cur]?.alive && missionComplete(state, cur)) { declareMissionWin(state, cur); return; }
+  }
   // Yksi liittouma (tai soolopelaaja) jäljellä → voitto.
   const aliveKeys = new Set(state.players.filter((p) => p.alive).map((p) => teamKey(state, p.index)));
   if (aliveKeys.size === 1) {
@@ -610,6 +706,10 @@ function drawCard(state) {
 
 export function endTurn(state) {
   if (state.phase === PHASES.GAMEOVER) return { ok: false };
+  // Missiovoitto voi täyttyä myös armeijoiden sijoituksesta/siirrosta (esim.
+  // "K aluetta ≥2 armeijaa") → tarkista vuoron lopussa ennen vaihtoa.
+  if (state.options?.missions && state.players[state.current]?.alive
+    && missionComplete(state, state.current)) { declareMissionWin(state, state.current); return { ok: true }; }
   // Kortti, jos valloitti vähintään yhden alueen.
   if (state.conqueredThisTurn) {
     const c = drawCard(state);
@@ -724,7 +824,7 @@ export function restoreGame(saved) {
     rng,
     options: { fogOfWar: !!data.options?.fogOfWar, blizzard: !!data.options?.blizzard, fixedCards: !!data.options?.fixedCards,
       maxTurns: Number.isFinite(data.options?.maxTurns) ? data.options.maxTurns : 50,
-      difficulty: normDiff(data.options?.difficulty) },
+      difficulty: normDiff(data.options?.difficulty), missions: !!data.options?.missions },
     scenarioId: data.scenarioId ?? null,
     teamNames: data.teamNames ?? null,
     winnerTeam: data.winnerTeam ?? null,

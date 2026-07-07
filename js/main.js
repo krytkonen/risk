@@ -7,6 +7,7 @@ import {
   mustTradeCards, canAttack, attack, resolveConquest, endAttack, fortify,
   areConnected, endTurn, calcReinforcements, snapshot, applyBlitzResult,
   isBlizzard, visibleTerritories, serializeGame, restoreGame, emptyStats,
+  missionText, missionComplete,
 } from './engine/game.js';
 import { isValidSet, setValue } from './engine/cards.js';
 import { runAITurn } from './engine/ai.js';
@@ -217,7 +218,7 @@ function refreshContinueButton() {
 // Pelin aloitus
 // ---------------------------------------------------------------------------
 
-const cfg = { players: 3, humans: 1, mapId: DEFAULT_MAP, fogOfWar: false, blizzard: false, fixedCards: false, scenario: null, maxTurns: 50, difficulty: 'normaali' };
+const cfg = { players: 3, humans: 1, mapId: DEFAULT_MAP, fogOfWar: false, blizzard: false, fixedCards: false, missions: false, scenario: null, maxTurns: 50, difficulty: 'normaali' };
 
 function setupHandlers() {
   document.querySelectorAll('[data-step]').forEach((btn) => {
@@ -257,6 +258,10 @@ function setupHandlers() {
   });
   $('menu-speed').addEventListener('click', () => { toggleAISpeed(); refreshMenu(); });
   $('menu-gfx').addEventListener('click', () => { setLiteGfx(!settings.liteGfx); refreshMenu(); });
+  $('menu-mission').addEventListener('click', () => {
+    const m = humanMission();
+    if (m) toast(`🎯 Tavoitteesi: ${m.text}`, 5000);
+  });
   // Grafiikkavalitsin aloitusruudussa.
   document.querySelectorAll('#gfx-picker .mode-opt').forEach((btn) => {
     btn.addEventListener('click', () => setLiteGfx(btn.dataset.gfx === 'lite'));
@@ -470,6 +475,16 @@ function refreshMenu() {
   $('menu-sound').textContent = settings.muted ? 'Äänet: Pois' : 'Äänet: Päällä';
   $('menu-speed').textContent = settings.fastAI ? '🐢 Tekoäly: Nopea (palauta normaali)' : '⏩ Tekoäly: Normaali (nopeuta)';
   $('menu-gfx').textContent = settings.liteGfx ? 'Grafiikka: ⚡ Kevyt' : 'Grafiikka: ✨ Täysi';
+  // Missiopelissä: näytä "Oma tavoite" -nappi (paljastaa aktiivisen ihmisen tavoitteen).
+  $('menu-mission').hidden = !(state && state.options?.missions);
+}
+
+/** Aktiivisen (tai ensimmäisen) ihmispelaajan tavoiteteksti. */
+function humanMission() {
+  if (!state?.options?.missions) return null;
+  const p = state.players[state.current];
+  const who = (p && !p.isAI) ? p : state.players.find((x) => !x.isAI);
+  return who ? { name: who.name, text: missionText(who.mission) } : null;
 }
 
 function toggleAISpeed() {
@@ -504,7 +519,7 @@ function startGame() {
   state = createGame({
     players,
     mapId: cfg.mapId,
-    options: { fogOfWar: cfg.fogOfWar, blizzard: cfg.blizzard, fixedCards: cfg.fixedCards, maxTurns: cfg.maxTurns, difficulty: cfg.difficulty },
+    options: { fogOfWar: cfg.fogOfWar, blizzard: cfg.blizzard, fixedCards: cfg.fixedCards, missions: cfg.missions, maxTurns: cfg.maxTurns, difficulty: cfg.difficulty },
   });
   enterGame();
 }
@@ -535,6 +550,9 @@ function enterGame() {
   show('modal-setup', false);
   resetView();
   render();
+  // Missiopeli: kerro ihmiselle oma salainen tavoite heti alussa.
+  const mission = humanMission();
+  if (mission) toast(`🎯 Salainen tavoitteesi: ${mission.text}`, 5500);
   beginTurn();
 }
 
@@ -1270,14 +1288,14 @@ function showBattle(fromId, toId, res) {
 function hideBattle() { $('battle-banner').hidden = true; }
 
 let toastTimer = null;
-function toast(msg) {
+function toast(msg, ms = 2200) {
   const t = $('toast');
   t.textContent = msg; t.hidden = false;
   t.classList.remove('pop-in');
   void t.offsetWidth;
   t.classList.add('pop-in');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { t.hidden = true; }, 2200);
+  toastTimer = setTimeout(() => { t.hidden = true; }, ms);
 }
 
 function flashNode(id) {
@@ -1333,6 +1351,11 @@ function gameOver() {
     } else {
       text = `${teamName} voitti sodan. Hävisit.`;
     }
+  } else if (state.winByMission) {
+    // Salainen tavoite täyttyi.
+    text = (!w.isAI && humanCount === 1)
+      ? 'Täytit salaisen tavoitteesi ja voitit!'
+      : `${w.name} täytti salaisen tavoitteensa ja voitti!`;
   } else if (state.winByPoints) {
     // Pehmeä vuororaja täyttyi → voitto pisteillä (eniten alueita).
     text = (!w.isAI && humanCount === 1)
@@ -1364,11 +1387,24 @@ function renderGameOverStats() {
       `<td>${st.eliminations}</td>` +
       `</tr>`;
   }).join('');
+  // Missiopelissä paljasta kaikkien salaiset tavoitteet ja täyttyikö ne.
+  let missions = '';
+  if (state.options?.missions) {
+    const items = state.players.map((p, i) => {
+      const done = missionComplete(state, i);
+      return `<li class="${i === state.winner ? 'winner' : ''}">` +
+        `<span class="st-dot" style="background:${p.color}"></span>` +
+        `<strong>${esc(p.name)}:</strong> ${esc(missionText(p.mission))} ` +
+        `<span class="mission-flag">${done ? '✓' : '✗'}</span></li>`;
+    }).join('');
+    missions = `<div class="mission-reveal"><h4>🎯 Salaiset tavoitteet</h4><ul>${items}</ul></div>`;
+  }
   wrap.innerHTML =
     `<table class="stats-table">` +
     `<thead><tr><th>Pelaaja</th><th>Valloitukset</th><th>Taistelut V/H</th><th>Sarjat</th><th>Pudotukset</th></tr></thead>` +
     `<tbody>${rows}</tbody></table>` +
-    `<p class="stats-turns">Vuoroja pelattu: ${state.turnCount}</p>`;
+    `<p class="stats-turns">Vuoroja pelattu: ${state.turnCount}</p>` +
+    missions;
 }
 
 // ---------------------------------------------------------------------------

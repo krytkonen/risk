@@ -861,6 +861,15 @@ input[type=range] { width: 100%; margin: 16px 0 6px; accent-color: var(--accent)
 }
 .stats-turns { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
 
+/* Loppuruudun salaisten tavoitteiden paljastus. */
+.mission-reveal { margin: 10px 0 0; text-align: left; }
+.mission-reveal h4 { margin: 0 0 5px; font-size: 12.5px; color: var(--text); }
+.mission-reveal ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.mission-reveal li { font-size: 12px; color: var(--muted); line-height: 1.35; }
+.mission-reveal li.winner { color: var(--accent); }
+.mission-reveal .st-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: baseline; }
+.mission-reveal .mission-flag { font-weight: 800; }
+
 @media (min-width: 720px) {
   #log { height: 80px; }
   #log.expanded { height: 40vh; }

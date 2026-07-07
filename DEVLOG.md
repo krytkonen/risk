@@ -627,3 +627,24 @@ kuvakaappauksilla. 103 testiä vihreää.
 - LESSON: FFA-optimointi HEIKENSI 2p:tä (44 %) — portitus elossa olevien määrään
   ratkaisi. Strategiaheuristiikat kannattaa kytkeä KONTEKSTIIN (pelaajamäärä),
   ei soveltaa universaalisti. Sim-kohina ±3 % (N=24) → päätökset N≥40:llä.
+
+### Iter E — Salaiset tavoitteet (missiot) omana moodinaan
+- PLAN: valinnainen moodi jossa jokaisella pelaajalla oma salainen voittotavoite;
+  voitto tavoitteella TAI herruudella. Kriteeri: kaikki tavoitteet LAUDASTA
+  johdettavissa (ei erillistä seurantaa), pelit päättyvät aina, serialisoituu.
+- EXECUTE (game.js): options.missions. assignMissions arpoo siemennetysti:
+  continents (2 nimettyä), anyContinents (N), territories (K), territoriesArmed
+  (K alueella ≥2). missionComplete() + missionText(). Missiovoitto checkWinissä
+  (valloituksen jälkeen) JA endTurnissa (armeijapohjaiset). Herruus toimii yhä.
+  UI (main.js/index.html/css): "🎯 Salaiset tavoitteet" -kytkin, aloitustoast +
+  valikon "Oma tavoite", loppuruudun paljastus (kaikkien tavoitteet + ✓/✗).
+- REVIEW: 111 testiä vihreää (8 uutta: arvonta, kaikkien tyyppien tunnistus,
+  missiovoitto, herruus-yhteensopivuus, teksti, serialisointi). Kuva
+  setup_missions.png: kytkin renderöityy siististi.
+- VERIFY (all-AI 4p missiopelit, 120 peliä/6 karttaa): 120/120 päättyi, kaikki
+  missiovoittoon (0 kesken) → tavoitteet toimivat oikeassa pelissä ja pelit
+  päättyvät. Missiot ovat herruutta nopeampi voittopolku (odotettua).
+- LESSON: laudasta-johdettavat tavoitteet (ei eliminointi-fallbackia) välttävät
+  hauraat reunatapaukset ja ovat triviaalisti testattavia; win-tarkistus PITÄÄ
+  laittaa BÅDE valloituksen jälkeen ETTÄ vuoron lopussa (armeijapohjaiset täyttyvät
+  vahvistus/linnoitusvaiheessa, ei valloituksessa).
