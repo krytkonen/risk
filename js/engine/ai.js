@@ -258,7 +258,7 @@ function aiReinforceKenraali(state, me, owned, targets) {
   // (2) GARRISON ENSIN: puolusta koko perimeter niin ettei jää ilmaisia
   // läpimurtoja. Enintään puolet vahvistuksista → loput hyökkäyskärkeen.
   const borders = owned.filter((id) => isBorder(state, id, me));
-  garrisonBorders(state, me, borders, 0.6);
+  garrisonBorders(state, me, borders, 0.4);
   if (state.reinforcements <= 0) return;
 
   // (3) Loput hyökkäyskärkeen: puolustettavin manner. Jos hallussa → laajenna
@@ -348,7 +348,14 @@ export function bestAttack(state) {
         // kaappaa hänen korttinsa ja poistaa vastustajan. KENRAALI on tiukempi
         // (≥0.55): ei vuoda pinojaan tasaväkisiin taisteluihin → paksummat rajat.
         const wp = calcBlitzWinProb(from.armies, to.armies);
-        if (wp < (diff === 'kenraali' ? 0.55 : 0.4)) continue;
+        // KENRAALI, KORTTITALOUS: kunnes tämän vuoron kortti on ansaittu (≥1
+        // valtaus), hyökkää herkemmin (≥0.45) → varmista kortti joka vuoro
+        // (kasvava sarjabonus on Riskin suurin voimavara). Kortin jälkeen tiukka
+        // (≥0.55) → säilytä pinot paksuina rajoina.
+        const wpFloor = diff === 'kenraali'
+          ? (state.conqueredThisTurn ? 0.5 : 0.42)
+          : 0.4;
+        if (wp < wpFloor) continue;
         const defenderLast = to.owner != null && ownedBy(state, to.owner).length === 1;
         score += wp * 3 + (defenderLast ? 5 : 0);
       }
