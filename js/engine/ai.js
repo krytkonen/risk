@@ -13,8 +13,15 @@ import {
   isBlizzard, sameTeam,
 } from './game.js';
 import { findSet } from './cards.js';
+import { calcBlitzWinProb } from './combat.js';
 
 const noop = async () => {};
+
+// Nykyisen AI-pelaajan vaikeustaso (per-pelaaja, oletus pelin optiosta).
+function difficultyOf(state) {
+  const p = state.players[state.current];
+  return p?.difficulty || state.options?.difficulty || 'normaali';
+}
 
 // Vihollisnaapurit: ei lumimyrskyn sulkemia eikä omia/liittolaisten alueita.
 function enemyNeighbors(state, id, me) {
@@ -47,8 +54,9 @@ function aiTradeCards(state) {
   }
 }
 
-function aiReinforce(state) {
+export function aiReinforce(state) {
   const me = state.current;
+  const diff = difficultyOf(state);
   aiTradeCards(state);
   if (state.reinforcements <= 0) return;
 
@@ -56,15 +64,47 @@ function aiReinforce(state) {
   const borders = owned.filter((id) => isBorder(state, id, me));
   const targets = borders.length ? borders : owned;
 
-  // Valitse hyökkäyskärki: raja-alue, jolta heikointa vihollisnaapuria vastaan
-  // saa parhaan ylivoiman. Keskitetään vahvistukset sinne läpimurron takaamiseksi.
+  // HELPPO: hajota vahvistukset tasan kaikille raja-alueille → ei keskitettyä
+  // hyökkäyskärkeä → offensiivi jää heikoksi ja peli on ihmiselle voitettava.
+  if (diff === 'helppo') {
+    let i = 0;
+    while (state.reinforcements > 0) { placeArmies(state, targets[i % targets.length], 1); i++; }
+    return;
+  }
+
+  // VAIKEA: varaa puolustusosuus uhatuimmalle rajalle jos vihollispaine ylittää
+  // oman voiman selvästi → ei menetä alueita heikkoon selustaan. Loput kärkeen.
+  if (diff === 'vaikea') {
+    let guardId = null, worst = 0;
+    for (const id of targets) {
+      const deficit = enemyPressure(state, id, me) - state.territories[id].armies;
+      if (deficit > worst) { worst = deficit; guardId = id; }
+    }
+    if (guardId && worst > 2) {
+      const reserve = Math.min(state.reinforcements - 1, Math.ceil(worst / 2));
+      if (reserve > 0) placeArmies(state, guardId, reserve);
+    }
+  }
+
+  // NORMAALI & VAIKEA: keskitä loput yhteen kärkeen. Kärki = raja-alue jolta saa
+  // parhaan ylivoiman heikointa vihollisnaapuria vastaan → varma läpimurto.
+  // VAIKEA lisää mannerprogressin: suosii kärkeä joka johtaa mantereeseen jonka
+  // se omistaa jo suurelta osin → viimeistelee bonukset nopeasti → lumipallo.
   let spearhead = targets[0];
   let bestScore = -Infinity;
   for (const id of targets) {
     const weakest = weakestEnemyNeighbor(state, id, me);
     const own = state.territories[id].armies;
-    // Suosi pehmeää kohdetta (pieni weakest) ja olemassa olevaa voimaa.
-    const score = own - (isFinite(weakest) ? weakest : 0);
+    let score = own - (isFinite(weakest) ? weakest : 0);
+    if (diff === 'vaikea') {
+      let bestProg = 0;
+      for (const n of enemyNeighbors(state, id, me)) {
+        const terrs = continentTerritories(TERRITORIES[n].continent);
+        const ownedCount = terrs.filter((c) => state.territories[c].owner === me).length;
+        bestProg = Math.max(bestProg, ownedCount / terrs.length);
+      }
+      score += bestProg * 12; // painota vahvasti mantereen viimeistelyä (lumipallo)
+    }
     if (score > bestScore) { bestScore = score; spearhead = id; }
   }
   placeArmies(state, spearhead, state.reinforcements);
@@ -74,6 +114,11 @@ function aiReinforce(state) {
 
 export function bestAttack(state) {
   const me = state.current;
+  const diff = difficultyOf(state);
+  // HELPPO hyökkää vain selvällä ylivoimalla (>=3) eikä osaa arvostaa
+  // mannerbonusta → jättää monta hyvää valtausta tekemättä. VAIKEA/NORMAALI
+  // hyökkää jo pienellä ylivoimalla.
+  const minAdvantage = diff === 'helppo' ? 3 : 1;
   let best = null;
   for (const fromId of ownedBy(state, me)) {
     const from = state.territories[fromId];
@@ -84,16 +129,26 @@ export function bestAttack(state) {
       if (to.owner === me) continue;
       if (sameTeam(state, me, to.owner)) continue; // liittolaiseen ei kosketa
       const advantage = from.armies - to.armies;
-      // Hyökkää aina kun on ylivoima (myös pieni): keskitetty kärki etenee.
-      if (advantage >= 1) {
+      if (advantage < minAdvantage) continue;
+      let score = advantage + (to.armies <= 2 ? 1 : 0);
+      if (diff !== 'helppo') {
         // Manner-bonus: jos tämä valtaus VIIMEISTELISI mantereen (kaikki muut
         // sen alueet jo omia), suosi vahvasti — bonusarmeijat ovat iso etu.
         const cont = TERRITORIES[toId].continent;
         const completes = continentTerritories(cont)
           .every((c) => c === toId || state.territories[c].owner === me);
-        const score = advantage + (to.armies <= 2 ? 1 : 0) + (completes ? 4 : 0);
-        if (!best || score > best.score) best = { fromId, toId, score };
+        if (completes) score += (diff === 'vaikea' ? 8 : 4); // Vaikea painottaa bonusta enemmän
       }
+      if (diff === 'vaikea') {
+        // Käytä oikeaa voittotodennäköisyyttä: älä tuhlaa joukkoja huonoihin
+        // kertoimiin, ja priorisoi vihollisen ELIMINOINTI (viimeinen alue) →
+        // kaappaa hänen korttinsa ja poistaa vastustajan.
+        const wp = calcBlitzWinProb(from.armies, to.armies);
+        if (wp < 0.4) continue;
+        const defenderLast = to.owner != null && ownedBy(state, to.owner).length === 1;
+        score += wp * 3 + (defenderLast ? 5 : 0);
+      }
+      if (!best || score > best.score) best = { fromId, toId, score };
     }
   }
   return best;

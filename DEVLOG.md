@@ -532,3 +532,33 @@ tasapaino), ei avoimessa graafisessa silmukassa.
   parit joissa on edes yksi maasärmä (esim. central|east: poland–ukraine oikeuttaa
   sillan Italia–Balkan-merisärmästä huolimatta). (3) DSF=1 + ~1500px pitää kuvat
   alle 32MB → kuva-review toimii taas; se löysi datan jonka testit hyväksyivät.
+
+## Silmukan jatkokehitelmä: +VERIFY-vaihe (adversariaalinen falsifiointi)
+PLAN → EXECUTE → REVIEW → **VERIFY** → LESSONS → JUMP. VERIFY rakentaa
+objektiivisen kokeen joka YRITTÄÄ todistaa muutoksen rikki (ei "näyttää hyvältä").
+Peli-logiikalle = simulaatio; UI:lle = ennen/jälkeen-kuva + PAGE ERR.
+
+### Kohdennettu 3-iteraation kierros (käyttäjä: "tee pelistä paljon parempi")
+#### Iter A — Tekoälyn vaikeustasot (Helppo / Normaali / Vaikea)
+- PLAN: skaalaa haaste. Kriteeri: mitattava voimasuhde Vaikea > Normaali > Helppo;
+  Normaalin pelityyli ENNALLAAN (ei regressiota). Reunaehto: rajapinta säilyy.
+- EXECUTE: per-pelaaja `difficulty` (game.js options + players + restore).
+  ai.js difficulty-tietoiseksi:
+  - Helppo: hajottaa vahvistukset kaikille rajoille (ei kärkeä), hyökkää vain
+    ylivoimalla ≥3, ei mannerbonustietoisuutta → heikko, voitettava.
+  - Normaali: ennallaan (keskitetty kärki, ylivoima ≥1, mannerbonus +4).
+  - Vaikea: kärki painottaa MANNERPROGRESSIA (lumipallo), varaa puolustusreservin
+    uhatuimmalle rajalle, hyökkää voittotodennäköisyydellä (wp≥0.4, skippaa
+    huonot kertoimet), painottaa viimeistelyä (+8) ja ELIMINOINTIA (+5).
+  UI: "Tekoälyn taso" -valitsin aloitusruutuun (oletus Normaali).
+- REVIEW: 96 testiä vihreää (3 uutta: hyökkäyskuri 3-portainen, vahvistuksen
+  hajonta vs keskitys, oletus+serialisointi). Kuva setup_diff.png: valitsin
+  renderöityy siististi muiden pickereiden tyylillä.
+- VERIFY (tools/ai-duel.mjs, 320 peliä/matchup, molemmat seatit): Vaikea voittaa
+  Helpon 87 %, Normaalin 56.3 % (~2.3σ yli 50 %, tilastollisesti merkitsevä),
+  Normaali Helpon 82 %. → järjestys todistettu. Balanssi (normaali all-AI)
+  ennallaan (normaalin koodipolku bittitarkka).
+- LESSON: 2p-simulaatiossa pelkkä "kuri" (skippaa huonot hyökkäykset) EI erottunut
+  Normaalista (tasan 50.0 % = identtinen peli) — vahvuusero tarvitsi KOMPOUNDAAVAN
+  edun (mannerbonusten lumipallo). Adversariaalinen simulaatio paljasti tämän heti;
+  ilman VERIFYä "Vaikea" olisi ollut vain Normaali eri nimellä.

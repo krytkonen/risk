@@ -217,7 +217,7 @@ function refreshContinueButton() {
 // Pelin aloitus
 // ---------------------------------------------------------------------------
 
-const cfg = { players: 3, humans: 1, mapId: DEFAULT_MAP, fogOfWar: false, blizzard: false, fixedCards: false, scenario: null, maxTurns: 50 };
+const cfg = { players: 3, humans: 1, mapId: DEFAULT_MAP, fogOfWar: false, blizzard: false, fixedCards: false, scenario: null, maxTurns: 50, difficulty: 'normaali' };
 
 function setupHandlers() {
   document.querySelectorAll('[data-step]').forEach((btn) => {
@@ -269,6 +269,14 @@ function setupHandlers() {
     });
   });
   document.querySelector('#len-picker .mode-opt[data-len="50"]')?.classList.add('on');
+  // Tekoälyn vaikeustaso: aseta cfg ja korosta valinta.
+  document.querySelectorAll('#diff-picker .mode-opt').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      cfg.difficulty = btn.dataset.diff;
+      document.querySelectorAll('#diff-picker .mode-opt').forEach((b) => b.classList.toggle('on', b === btn));
+    });
+  });
+  document.querySelector('#diff-picker .mode-opt[data-diff="normaali"]')?.classList.add('on');
   $('menu-rules').addEventListener('click', () => { show('modal-menu', false); show('modal-rules', true); });
   $('rules-close').addEventListener('click', () => show('modal-rules', false));
 
@@ -477,7 +485,7 @@ function startGame() {
     const sc = SCENARIOS[cfg.scenario];
     state = createGame({
       scenario: sc,
-      options: { fogOfWar: cfg.fogOfWar, blizzard: false, fixedCards: cfg.fixedCards, maxTurns: cfg.maxTurns },
+      options: { fogOfWar: cfg.fogOfWar, blizzard: false, fixedCards: cfg.fixedCards, maxTurns: cfg.maxTurns, difficulty: cfg.difficulty },
     });
     enterGame();
     if (sc.intro) toast(sc.intro);
@@ -496,7 +504,7 @@ function startGame() {
   state = createGame({
     players,
     mapId: cfg.mapId,
-    options: { fogOfWar: cfg.fogOfWar, blizzard: cfg.blizzard, fixedCards: cfg.fixedCards, maxTurns: cfg.maxTurns },
+    options: { fogOfWar: cfg.fogOfWar, blizzard: cfg.blizzard, fixedCards: cfg.fixedCards, maxTurns: cfg.maxTurns, difficulty: cfg.difficulty },
   });
   enterGame();
 }

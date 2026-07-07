@@ -81,6 +81,11 @@ export function createGame({ players, seed, mapId, options, scenario }) {
       // ratkaistaan pisteillä (alueet, sitten armeijat) → peli päättyy aina
       // siististi eikä juutu pattitilanteeseen. 0 = ei rajaa.
       maxTurns: Number.isFinite(options?.maxTurns) ? options.maxTurns : 50,
+      // Tekoälyn vaikeustaso: 'helppo' | 'normaali' | 'vaikea'. Vaikuttaa vain
+      // AI-pelaajien pelityyliin (vahvistuksen keskitys, hyökkäyskynnys,
+      // kertoimet). Ihmispelaajiin ei vaikutusta.
+      difficulty: ['helppo', 'normaali', 'vaikea'].includes(options?.difficulty)
+        ? options.difficulty : 'normaali',
     },
     scenarioId: scenario?.id ?? null,
     teamNames: scenario?.teamNames ?? null,
@@ -91,6 +96,11 @@ export function createGame({ players, seed, mapId, options, scenario }) {
       isAI: !!p.isAI,
       team: p.team ?? null,
       reinforcementBonus: p.reinforcementBonus || 0,
+      // Per-pelaaja vaikeus (oletus pelin optiosta). Sallii sekavaikeat pelit
+      // (esim. tasapainosimulaatio) ilman että UI paljastaa sitä.
+      difficulty: ['helppo', 'normaali', 'vaikea'].includes(p.difficulty)
+        ? p.difficulty
+        : (['helppo', 'normaali', 'vaikea'].includes(options?.difficulty) ? options.difficulty : 'normaali'),
       cards: [],
       alive: true,
     })),
@@ -712,7 +722,8 @@ export function restoreGame(saved) {
     seed: data.seed,
     rng,
     options: { fogOfWar: !!data.options?.fogOfWar, blizzard: !!data.options?.blizzard, fixedCards: !!data.options?.fixedCards,
-      maxTurns: Number.isFinite(data.options?.maxTurns) ? data.options.maxTurns : 50 },
+      maxTurns: Number.isFinite(data.options?.maxTurns) ? data.options.maxTurns : 50,
+      difficulty: ['helppo', 'normaali', 'vaikea'].includes(data.options?.difficulty) ? data.options.difficulty : 'normaali' },
     scenarioId: data.scenarioId ?? null,
     teamNames: data.teamNames ?? null,
     winnerTeam: data.winnerTeam ?? null,
