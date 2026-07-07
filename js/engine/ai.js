@@ -261,6 +261,14 @@ export function bestAttack(state) {
   const minAdvantage = diff === 'helppo' ? 3 : 1;
   const hard = diff === 'vaikea' || diff === 'kenraali'; // kertoimet + eliminointi
   const kill = diff === 'kenraali' ? state._kenraaliKill : null;
+  // KENRAALI keskittyy: turvaa kohdemanner ENNEN uusien rintamien avaamista.
+  // Vain MONINPELISSÄ (≥3 elossa): 2p:ssä on yksi rintama, joten "älä avaa uusia
+  // rintamia" ei päde ja aggressiivinen lumipallo on parempi.
+  const multiplayer = state.players.filter((p) => p.alive).length > 2;
+  const tgt = (diff === 'kenraali' && multiplayer) ? state._kenraaliTarget : null;
+  const tgtComplete = tgt
+    ? continentTerritories(tgt).every((c) => state.territories[c].owner === me)
+    : true;
   let best = null;
   for (const fromId of ownedBy(state, me)) {
     const from = state.territories[fromId];
@@ -292,6 +300,12 @@ export function bestAttack(state) {
       }
       // KENRAALI: priorisoi tapettavan korttien haltijan alueita (korttisaalis).
       if (kill != null && to.owner === kill) score += 6;
+      // KENRAALI: kunnes kohdemanner on turvattu, suosi sen alueita ja vältä
+      // uusien rintamien avaamista muualle (vähemmän altistumista FFA:ssa).
+      if (tgt && !tgtComplete) {
+        if (TERRITORIES[toId].continent === tgt) score += 8;
+        else score -= 4;
+      }
       if (!best || score > best.score) best = { fromId, toId, score };
     }
   }
@@ -380,9 +394,11 @@ export async function runAITurn(state, hooks = {}) {
   };
   if (state.phase === PHASES.GAMEOVER) return;
 
-  // KENRAALI: valitse vuoron alussa mahdollinen tapettava korttien haltija.
-  // Transientti (ei serialisoida) — vahvistus ja hyökkäys lukevat tämän.
-  state._kenraaliKill = difficultyOf(state) === 'kenraali' ? pickKillTarget(state, state.current) : null;
+  // KENRAALI: valitse vuoron alussa tapettava korttien haltija JA kohdemanner.
+  // Transientteja (ei serialisoida) — vahvistus ja hyökkäys lukevat nämä.
+  const isKenraali = difficultyOf(state) === 'kenraali';
+  state._kenraaliKill = isKenraali ? pickKillTarget(state, state.current) : null;
+  state._kenraaliTarget = isKenraali ? pickTargetContinent(state, state.current) : null;
 
   aiReinforce(state);
   await h.afterReinforce();

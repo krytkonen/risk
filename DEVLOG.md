@@ -613,3 +613,17 @@ Peli on nyt merkittävästi syvempi: 4 AI-tasoa (Helppo→Kenraali), taistelun
 voitto-osuus-palaute, ja asiantuntija-AI joka hahmottaa puolustettavuuden,
 kapeikot, korttisaaliin ja lumimyrskyn. Kaikki todennettu FFA-simulaatiolla +
 kuvakaappauksilla. 103 testiä vihreää.
+
+## Jatko: "tee kaikki ehdottamasi ideat" (D: hienosäätö, E: missiot, F: kartta)
+### Iter D — Kenraalin FFA-hienosäätö (kohdemanner-fokus)
+- PLAN: nosta Kenraalin FFA-voitto% rikkomatta 2p-tasapainoa. Hypoteesi:
+  avaa liikaa rintamia → pitäisi TURVATA kohdemanner ennen laajentumista.
+- EXECUTE: state._kenraaliTarget (kohdemanner per vuoro). bestAttackissa: kunnes
+  kohdemanner on kokonaan omani, +8 sen alueille ja −4 muille → keskitys.
+  PORTTI: vain kun ≥3 elossa (2p:ssä yksi rintama → lumipallo parempi).
+- VERIFY (ai-duel, N=40): FFA 3p 43.1 %, 4p 36.1 %, 4p+myrsky 34.1 % (ylös
+  baseline 41.7/34.9/32.6:sta, johdonmukaisesti). 2p vs Vaikea 46.9 % (≈ tasan,
+  ei romahdusta). 2p-tikapuut ennallaan. 103 testiä vihreää.
+- LESSON: FFA-optimointi HEIKENSI 2p:tä (44 %) — portitus elossa olevien määrään
+  ratkaisi. Strategiaheuristiikat kannattaa kytkeä KONTEKSTIIN (pelaajamäärä),
+  ei soveltaa universaalisti. Sim-kohina ±3 % (N=24) → päätökset N≥40:llä.
