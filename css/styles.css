@@ -589,6 +589,24 @@ button.notify { border-color: var(--accent); color: var(--accent); }
 button.big { padding: 16px; font-size: 17px; }
 .hint-text { color: var(--muted); font-size: 13px; align-self: center; flex: 2; }
 
+/* Voitto-osuusmerkki hyökkäyspaneelissa: kertoo koko taistelun (blitz)
+   voittotodennäköisyyden ennen iskua → tietoon perustuva päätös. Väri
+   koodaa riskin: vihreä = suosiollinen, keltainen = tasainen, punainen = riski. */
+.win-prob {
+  flex: 0 0 auto;
+  align-self: center;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 5px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+  border: 1px solid currentColor;
+  font-variant-numeric: tabular-nums;
+}
+.win-prob.good { color: #7fe0a0; background: rgba(80,200,120,0.13); }
+.win-prob.even { color: #f0c860; background: rgba(230,190,70,0.13); }
+.win-prob.bad  { color: #ff8a8a; background: rgba(230,90,90,0.14); }
+
 /* ---- Overlays / dialogs ---- */
 .overlay {
   position: fixed;

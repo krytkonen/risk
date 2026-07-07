@@ -10,7 +10,7 @@ import {
 } from './engine/game.js';
 import { isValidSet, setValue } from './engine/cards.js';
 import { runAITurn } from './engine/ai.js';
-import { resolveBalancedBlitz } from './engine/combat.js';
+import { resolveBalancedBlitz, calcBlitzWinProb } from './engine/combat.js';
 import { TERRITORIES, CONTINENTS, MAP_LIST, DEFAULT_MAP } from './data/territories.js';
 import { SCENARIOS, SCENARIO_LIST } from './data/scenarios.js';
 import { buildMap, updateMap, fireTracer, showAttackArrow, hideAttackArrow, PLAYER_COLORS } from './ui/render.js';
@@ -1174,6 +1174,7 @@ function renderControls() {
       const fa = state.territories[ui.selected].armies;
       const ta = state.territories[ui.attackTarget].armies;
       addHint(row, `${TERRITORIES[ui.selected].name}(${fa}) → ${TERRITORIES[ui.attackTarget].name}(${ta})`);
+      addWinProb(row, calcBlitzWinProb(fa, ta));
       addBtn(row, 'Peru', 'ghost', () => { clearSelection(); render(); });
       addBtn(row, 'Nopat', 'danger', doSingleAttack);
       addBtn(row, 'Blitz ⚡', 'danger', doBalancedBlitz);
@@ -1201,6 +1202,22 @@ function addHint(parent, text) {
   const s = document.createElement('span');
   s.className = 'hint-text';
   s.textContent = text;
+  parent.appendChild(s);
+  return s;
+}
+
+/**
+ * Näyttää koko taistelun (blitz) voittotodennäköisyyden hyökkäyspaneelissa.
+ * Väri koodaa riskin: ≥65 % suosiollinen, 40–65 % tasainen, <40 % riski.
+ * Sama luku jota Blitz-ratkaisu käyttää → merkki on rehellinen ennuste.
+ */
+function addWinProb(parent, p) {
+  const pct = Math.round(p * 100);
+  const cls = pct >= 65 ? 'good' : (pct >= 40 ? 'even' : 'bad');
+  const s = document.createElement('span');
+  s.className = `win-prob ${cls}`;
+  s.textContent = `🎯 ${pct}%`;
+  s.title = 'Arvioitu todennäköisyys vallata alue (koko taistelu)';
   parent.appendChild(s);
   return s;
 }

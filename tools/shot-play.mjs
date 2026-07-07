@@ -102,6 +102,9 @@ if (atk && st.phase === 'attack') {
 
   await page.click(`.territory[data-id="${atk.to}"]`);      // valitse kohde (punainen rengas)
   await wait(200);
+  // Koko sivu (sis. alapaneelin) → näkyy hyökkäyspaneeli voitto-osuusmerkkeineen.
+  await page.screenshot({ path: `${prefix}-panel.png` });
+  console.log('Kuva:', `${prefix}-panel.png`, '(hyökkäyspaneeli + voitto-osuus)');
   // Laukaise hyökkäys "Nopat"-napista → cameraFocusIn zoomaa. Yksi kierros ei
   // yleensä valloita (ei valloitusdialogia peittämässä).
   const danger = page.locator('#controls button.danger').first();

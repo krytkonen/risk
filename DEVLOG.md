@@ -562,3 +562,18 @@ Peli-logiikalle = simulaatio; UI:lle = ennen/jälkeen-kuva + PAGE ERR.
   Normaalista (tasan 50.0 % = identtinen peli) — vahvuusero tarvitsi KOMPOUNDAAVAN
   edun (mannerbonusten lumipallo). Adversariaalinen simulaatio paljasti tämän heti;
   ilman VERIFYä "Vaikea" olisi ollut vain Normaali eri nimellä.
+
+#### Iter B — Taistelun voitto-osuus hyökkäyspaneeliin (päätöspalaute)
+- PLAN: muuta sokkohyökkäys tietoon perustuvaksi. Kriteeri: paneeli näyttää
+  koko taistelun voittotod. hyökkääjä+kohde valittuna; luku EI saa yliarvioida.
+- EXECUTE: addWinProb() → 🎯-merkki (calcBlitzWinProb), väri riskin mukaan
+  (≥65 % vihreä / 40–65 % keltainen / <40 % punainen). CSS .win-prob. Sääntöteksti.
+- REVIEW: play-panel.png — "Alaska(5)→Luoteisterritorio(3)  🎯 64%" keltaisena,
+  vastaa calcBlitzWinProb(5,3). Ei PAGE ERR. 99 testiä vihreää.
+- VERIFY (tests/winprob.test.mjs): (1) näytetty% vs REILUJEN noppien toteutunut
+  valloitus (4000 otosta/tapaus) ±3 %-yks. → merkki ei valehtele. (2) Blitz
+  valloittaa VÄHINTÄÄN näytetyn verran → merkki on konservatiivinen kummassakin
+  tilassa. LÖYTÖ: tasapainotettu Blitz vuotaa ~4 %-yks. hyökkääjän eduksi (ei
+  reilu näyte) → siksi merkki näyttää REILUT nopat (rehellinen molemmille tiloille).
+- LESSON: kun kaksi satunnaislähdettä (reilut nopat vs vinoutettu blitz) antavat
+  eri jakauman, näytä KONSERVATIIVISEMPI → merkki ei koskaan lupaa liikaa.
