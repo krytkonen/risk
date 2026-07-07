@@ -57,3 +57,34 @@ test('setActiveMap vaihtaa aktiivisen kartan ja palauttaa oletukseen', () => {
   setActiveMap('classic');
   assert.equal(TERRITORY_IDS.length, 42);
 });
+
+test('landBridges: avaimet viittaavat oikeisiin, VIEREKKÄISIIN mannerpareihin', () => {
+  for (const id of mapIds) {
+    const m = MAPS[id];
+    const bridges = m.landBridges;
+    if (!bridges) continue; // ei pakollinen
+    const conts = m.continents;
+    // Laske kaikki oikeasti vierekkäiset mannerparit kartalla.
+    const adjacentPairs = new Set();
+    for (const tid of Object.keys(m.territories)) {
+      const t = m.territories[tid];
+      for (const n of (t.adj || [])) {
+        const nb = m.territories[n];
+        if (!nb || t.continent === nb.continent) continue;
+        adjacentPairs.add([t.continent, nb.continent].sort().join('|'));
+      }
+    }
+    for (const key of bridges) {
+      const [a, b] = key.split('|');
+      // (a) molemmat mannerid:t ovat olemassa
+      assert.ok(conts[a], `${id}: landBridge tuntematon manner '${a}' (${key})`);
+      assert.ok(conts[b], `${id}: landBridge tuntematon manner '${b}' (${key})`);
+      // (b) avain on aakkosjärjestyksessä (muuten set-vertailu ei osu)
+      assert.equal(key, [a, b].sort().join('|'), `${id}: landBridge-avain ei aakkosjärjestyksessä: ${key}`);
+      // (c) parit ovat oikeasti vierekkäisiä (muuten silta ei tee mitään)
+      assert.ok(adjacentPairs.has(key), `${id}: landBridge '${key}' ei ole vierekkäinen mannerpari`);
+    }
+    // (d) ei duplikaatteja
+    assert.equal(new Set(bridges).size, bridges.length, `${id}: landBridges sisältää duplikaatteja`);
+  }
+});
