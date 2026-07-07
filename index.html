@@ -129,6 +129,7 @@
         </div>
       </div>
       <button id="btn-continue" class="primary big" hidden>Jatka peliä</button>
+      <button id="btn-slots" class="ghost">📁 Tallennukset</button>
       <button id="btn-start" class="primary big">Aloita peli</button>
       <p class="version">Toimii selaimessa ja asennettavissa Android-puhelimeen (PWA).</p>
     </div>
@@ -198,9 +199,20 @@
         <button id="menu-sound" class="ghost">Äänet: Päällä</button>
         <button id="menu-speed" class="ghost">⏩ Nopeuta tekoälyä</button>
         <button id="menu-gfx" class="ghost">Grafiikka: Täysi</button>
+        <button id="menu-slots" class="ghost">💾 Tallennukset</button>
         <button id="menu-rules" class="ghost">Säännöt</button>
         <button id="menu-new" class="ghost">Uusi peli</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Tallennuspaikat (nimetyt, paikalliset) -->
+  <div class="overlay" id="modal-slots" hidden>
+    <div class="dialog">
+      <h2>Tallennukset</h2>
+      <p class="slots-hint">Kolme paikallista tallennuspaikkaa. Automaattitallennus (“Jatka peliä”) toimii silti erikseen.</p>
+      <div class="menu-list" id="slots-list"></div>
+      <button id="slots-close" class="primary big">Sulje</button>
     </div>
   </div>
 

@@ -193,11 +193,17 @@ let placeStack = [];
 // Automaattitallennus
 // ---------------------------------------------------------------------------
 
+let quotaWarned = false; // näytä muisti-täynnä-varoitus vain kerran per istunto
+
 function saveGame() {
   if (!state || state.phase === PHASES.GAMEOVER) return;
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(serializeGame(state)));
-  } catch (_) {}
+  } catch (_) {
+    // Automaattitallennus epäonnistui (yleensä kiintiö täynnä) → kerro
+    // pelaajalle kerran, jottei etene väärässä uskossa että peli on turvassa.
+    if (!quotaWarned) { quotaWarned = true; toast('⚠ Automaattitallennus epäonnistui – laitteen muisti voi olla täynnä.', 4000); }
+  }
 }
 function clearSave() {
   try { localStorage.removeItem(SAVE_KEY); } catch (_) {}
@@ -213,6 +219,95 @@ function refreshContinueButton() {
   const b = $('btn-continue');
   if (b) b.hidden = !loadSavedGame();
 }
+
+// --- Nimetyt paikalliset tallennuspaikat (3 kpl) ---------------------------
+// Erillään automaattitallennuksesta: pelaaja voi säilyttää useita tilanteita.
+// Korvaussuoja: täyden paikan päälle tallennus vaatii toisen napautuksen.
+const SLOT_KEYS = ['risk-slot-0', 'risk-slot-1', 'risk-slot-2'];
+let slotConfirm = -1; // paikka joka odottaa korvausvahvistusta (-1 = ei mikään)
+
+function readSlot(i) {
+  try { const raw = localStorage.getItem(SLOT_KEYS[i]); return raw ? JSON.parse(raw) : null; }
+  catch (_) { return null; }
+}
+function mapNameOf(id) {
+  const m = MAP_LIST.find((x) => x.id === id);
+  return m ? m.name : id;
+}
+function slotLabel(saved) {
+  if (!saved) return 'Tyhjä';
+  return `${mapNameOf(saved.mapId)} · vuoro ${saved.turnCount || 1}`;
+}
+function saveToSlot(i) {
+  if (!state || state.phase === PHASES.GAMEOVER) { toast('Ei aktiivista peliä tallennettavaksi.'); return; }
+  try {
+    localStorage.setItem(SLOT_KEYS[i], JSON.stringify(serializeGame(state)));
+    toast(`Tallennettu paikkaan ${i + 1}.`);
+  } catch (_) {
+    toast('⚠ Tallennus epäonnistui – laitteen muisti voi olla täynnä.', 4000);
+  }
+  slotConfirm = -1;
+  refreshSlots();
+}
+function loadFromSlot(i) {
+  const saved = readSlot(i);
+  if (!saved) { toast('Tyhjä tallennuspaikka.'); return; }
+  try { state = restoreGame(saved); }
+  catch (_) { toast('Tallennus ei kelvannut.'); return; }
+  show('modal-slots', false); show('modal-menu', false);
+  enterGame();
+}
+function deleteSlot(i) {
+  try { localStorage.removeItem(SLOT_KEYS[i]); } catch (_) {}
+  slotConfirm = -1;
+  refreshSlots();
+}
+function refreshSlots() {
+  const list = $('slots-list');
+  if (!list) return;
+  const hasGame = !!state && state.phase !== PHASES.GAMEOVER;
+  list.innerHTML = '';
+  for (let i = 0; i < SLOT_KEYS.length; i++) {
+    const saved = readSlot(i);
+    const row = document.createElement('div');
+    row.className = 'slot-row';
+    const label = document.createElement('span');
+    label.className = 'slot-label';
+    label.textContent = `${i + 1}. ${slotLabel(saved)}`;
+    row.appendChild(label);
+
+    const btns = document.createElement('div');
+    btns.className = 'slot-btns';
+    // Tallenna (korvaussuoja: täysi paikka vaatii vahvistuksen).
+    const save = document.createElement('button');
+    save.className = 'ghost small';
+    const awaiting = slotConfirm === i;
+    save.textContent = awaiting ? 'Korvaa?' : 'Tallenna';
+    save.disabled = !hasGame;
+    save.addEventListener('click', () => {
+      if (saved && slotConfirm !== i) { slotConfirm = i; refreshSlots(); return; }
+      saveToSlot(i);
+    });
+    btns.appendChild(save);
+    // Lataa (vain jos paikassa on peli).
+    if (saved) {
+      const load = document.createElement('button');
+      load.className = 'primary small';
+      load.textContent = 'Lataa';
+      load.addEventListener('click', () => loadFromSlot(i));
+      btns.appendChild(load);
+      const del = document.createElement('button');
+      del.className = 'ghost small';
+      del.textContent = '🗑';
+      del.title = 'Tyhjennä paikka';
+      del.addEventListener('click', () => deleteSlot(i));
+      btns.appendChild(del);
+    }
+    row.appendChild(btns);
+    list.appendChild(row);
+  }
+}
+function openSlots() { slotConfirm = -1; refreshSlots(); show('modal-slots', true); }
 
 // ---------------------------------------------------------------------------
 // Pelin aloitus
@@ -284,6 +379,10 @@ function setupHandlers() {
   document.querySelector('#diff-picker .mode-opt[data-diff="normaali"]')?.classList.add('on');
   $('menu-rules').addEventListener('click', () => { show('modal-menu', false); show('modal-rules', true); });
   $('rules-close').addEventListener('click', () => show('modal-rules', false));
+  // Tallennuspaikat: avattavissa aloitusruudusta (lataus) ja valikosta (tallennus+lataus).
+  $('btn-slots').addEventListener('click', openSlots);
+  $('menu-slots').addEventListener('click', () => { show('modal-menu', false); openSlots(); });
+  $('slots-close').addEventListener('click', () => show('modal-slots', false));
 
   // Kuumatuoliverho (sumu): paljasta kartta vasta kun pelaaja on valmis.
   $('curtain-ready').addEventListener('click', () => {
