@@ -752,3 +752,33 @@ korkean tuoton parannukset selvisivät. Kolme kärkeä toteutettu:
   kuin adversariaalinen VERIFY, mutta suunnitteluvaiheessa. (2) Saavutettavuutta
   EI arvata: CVD-simulaatio antoi määrällisen ΔE-mittarin paletin valintaan.
   117 testiä vihreää; UI todennettu kuvakaappauksin + headless-round-trip.
+
+## Moniagenttipaneeli #2 → 3 mobiili-kosketusiteraatiota (vastaväitteet, ei äänestystä)
+Paneeli (25 agenttia, 6 roolia: aloittelija/kilpapelaaja/mobiili-UX/saavutettavuus/
+retentio/skeptikko). 18 ideaa → jokainen adversariaalisen vastaväitteen läpi →
+synteesi priorisoi. Kärki oli yksiselitteisesti MOBIILIN KOSKETUSKORREKTIUS (halvin,
+tihein, korkein päivittäistaajuus). Kolme itsenäisesti julkaistavaa iteraatiota:
+- IT1 HYÖKKÄYSPALKIN JAKO: kuusi kontrollia yhdellä rivillä → peruuttamaton
+  "Lopeta →" oli toistettavan "Blitz ⚡":n vieressä (vahinkolopetus). Jaettu
+  kahteen riviin (tieto: vihje+voitto-osuus / toiminnot) + .bar-spacer erottaa
+  Lopetan hyökkäysnapeista. VERIFY (headless, hyökkäysvaiheeseen ajettu): 2 riviä,
+  Blitz→Lopeta väli ~34 px (pysty) / ~32 px (vaaka), ei leikkaudu kummassakaan.
+- IT2 PANOROINNIN RAJAUS: yhden käden heitto työnsi kartan pois ruudulta (tyhjä
+  meri). clampView() pitää näkymän KESKIPISTEEN aina kartan sisällä → karttaa ei
+  voi hukata, mutta jokainen reuna-alue panoroituu keskelle. Portitettu !_camActive
+  + view.rot (ei koske hyökkäyskameraa). VERIFY: kaikki 42 aluetta saavutettavissa
+  maksimizoomilla (pysty+vaaka), nurkkaan-heitto pitää kartan näkyvissä (kuvattu),
+  reset toimii. mapBounds(pad) jaettu resetView'n kanssa.
+- IT3 HAAMUNAPAUTUKSEN ESTO + 2 niputettua turvakorjausta: gestureActive-lippu
+  nielaisee pinchin jälkeisen synteettisen clickin (ei vahinkovalintaa); tuore
+  kosketussarja nollaa lipun (deliberaatti napautus toimii). VERIFY (headless):
+  pinch→click nielaistu, puhdas napautus valitsee. + aiReinforce palautuu jos 0
+  aluetta (helppo-haaran while-jumin/PWA-jäätymisen esto, regressiotesti 117→118).
+  + pagehide/visibilitychange → saveGame-huuhtelu (iOS tappaa tausta-PWA:n).
+- LESSON: (1) Vastaväite-ensin-paneeli konvergoi taas halpoihin korkean tuoton
+  korjauksiin ja karsi isot piirteet (medaljit, uramatriisi, AI-liittoutuminen
+  kenraali-benchin riskinä). (2) flex:1-napit reflowaavat koko rivin — erottelu
+  vaatii kiinteän välikkeen, ei pelkkää järjestystä (sama oppi kuin Kumoa-napissa).
+  (3) Kuva-review ratkaisi kiistan: tiukka "alue-keskipiste ruudussa" -mittari näytti
+  vääriä nollia letterbox-artefaktista, mutta kuvakaappaus todisti kartan pysyvän
+  näkyvissä. 118 testiä vihreää; kaikki UI todennettu headless-ajolla + kuvin.
