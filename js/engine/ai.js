@@ -177,6 +177,10 @@ export function aiReinforce(state) {
   const owned = ownedBy(state, me);
   const borders = owned.filter((id) => isBorder(state, id, me));
   const targets = borders.length ? borders : owned;
+  // Turvaverkko: ilman alueita ei ole minne sijoittaa. Estää helppo-haaran
+  // while-silmukan jumiutumisen (targets[i % 0] → undefined ei vähennä
+  // vahvistuksia → PWA jäätyisi) jos current omistaa 0 aluetta.
+  if (!targets.length) return;
 
   // KENRAALI: puolustettavuus- ja korttisaalis-tietoinen keskitys (oma haara).
   if (diff === 'kenraali') { aiReinforceKenraali(state, me, owned, targets); return; }

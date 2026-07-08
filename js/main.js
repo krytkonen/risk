@@ -1729,6 +1729,9 @@ function setupZoom() {
   const svg = $('map');
   let dragging = false, lastX = 0, lastY = 0, downX = 0, downY = 0, traveled = 0;
   let pinchDist = 0;
+  // Estä "haamunapautus" heti pinch-eleen jälkeen: iOS voi syntetisoida clickin
+  // kun toinen sormi nostetaan, mikä valitsisi/purkaisi alueen vahingossa.
+  let gestureActive = false;
 
   const toSvg = (clientX, clientY) => {
     const rect = svg.getBoundingClientRect();
@@ -1760,6 +1763,8 @@ function setupZoom() {
 
   // Estä napautus vain jos sormi/hiiri liikkui selvästi (= raahaus, ei napautus).
   svg.addEventListener('click', (e) => {
+    // Pinch/monisormiele juuri päättynyt → nielaise tämä napautus (ei valintaa).
+    if (gestureActive) { e.stopPropagation(); e.preventDefault(); gestureActive = false; return; }
     const dist = Math.hypot(e.clientX - downX, e.clientY - downY);
     if (dist > 10 || traveled > 14) { e.stopPropagation(); e.preventDefault(); }
   }, true);
@@ -1774,8 +1779,9 @@ function setupZoom() {
   // Kahden sormen pinch-zoom.
   const pts = new Map();
   svg.addEventListener('pointerdown', (e) => {
+    if (pts.size === 0) gestureActive = false; // tuore kosketussarja nollaa lipun (turvaverkko)
     pts.set(e.pointerId, e);
-    if (pts.size >= 2) dragging = false;
+    if (pts.size >= 2) { dragging = false; gestureActive = true; } // pinch alkoi → estä seuraava click
   });
   svg.addEventListener('pointermove', (e) => {
     if (!pts.has(e.pointerId)) return;
@@ -1813,6 +1819,12 @@ function boot() {
   const wake = () => { resumeAudio(); window.removeEventListener('pointerdown', wake); window.removeEventListener('keydown', wake); };
   window.addEventListener('pointerdown', wake);
   window.addEventListener('keydown', wake);
+  // Taustalle siirtyminen: huuhdo autotallennus. iOS voi tappaa taustalle
+  // jääneen PWA:n; ilman tätä tekoälyvuoron jälkeinen tilanne (jossa ihminen ei
+  // ole napauttanut) menettäisi edistyksen. saveGame on idempotentti + GAMEOVER-portitettu.
+  const flush = () => saveGame();
+  window.addEventListener('pagehide', flush);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); });
   // Kevyt debug-/testikoukku (e2e-testit lukevat tilan tästä).
   window.__risk = { getState: () => state, getUi: () => ui, adj: (id) => TERRITORIES[id].adj };
   if ('serviceWorker' in navigator) {

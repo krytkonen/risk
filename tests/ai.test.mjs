@@ -111,3 +111,24 @@ test('bestAttack suosii mantereen viimeistelevää valtausta isommankin ylivoima
   // Ilman manner-bonusta AI valitsisi kilpailevan (ylivoima 6 > 4). Bonus kääntää.
   assert.equal(a.toId, target, `AI:n pitäisi viimeistellä manner (valitsi ${a.fromId}→${a.toId})`);
 });
+
+// Turvaverkko (paneelin niputtama korjaus): aiReinforce ei saa jäätyä jos
+// nykyinen pelaaja omistaa 0 aluetta. Ennen korjausta helppo-haaran
+// while(reinforcements>0)-silmukka indeksoisi targets[i % 0] = undefined,
+// mikä ei vähennä vahvistuksia → ikuinen silmukka (PWA jäätyy).
+import { aiReinforce } from '../js/engine/ai.js';
+test('aiReinforce palautuu välittömästi kun pelaaja omistaa 0 aluetta (ei jäätymistä)', () => {
+  setActiveMap('classic');
+  const players = [
+    { name: 'A', color: '#46f', isAI: true, difficulty: 'helppo' },
+    { name: 'B', color: '#f44', isAI: true, difficulty: 'helppo' },
+  ];
+  const s = createGame({ players, seed: 3, options: { difficulty: 'helppo' } });
+  // Vie kaikki alueet pelaajalle 1 → pelaaja 0 omistaa 0 aluetta.
+  for (const id of TERRITORY_IDS) { s.territories[id].owner = 1; s.territories[id].armies = 1; }
+  s.current = 0;
+  s.phase = PHASES.REINFORCE;
+  s.reinforcements = 5;
+  aiReinforce(s); // ei saa jäädä silmukkaan; palautuu heti
+  assert.equal(s.reinforcements, 5, 'ilman alueita vahvistuksia ei sijoiteta');
+});
