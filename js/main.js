@@ -1657,12 +1657,10 @@ function cancelCamera() {
   _camActive = false; _camBase = null;
 }
 /** Sovittaa näkymän alueiden rajaamaan laatikkoon (padding ~40). */
-function resetView() {
-  cancelCamera();
-  const svg = $('map');
-  const vb = svg?.viewBox?.baseVal;
+/** Kartan sisällön rajat (aluepisteet + valinnainen reunapehmuste) sisältökoordinaatistossa. */
+function mapBounds(pad = 40) {
   const ids = Object.keys(TERRITORIES);
-  if (!vb || !vb.width || !ids.length) { view.scale = 1; view.tx = 0; view.ty = 0; view.rot = 0; applyView(); return; }
+  if (!ids.length) return null;
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const id of ids) {
     const t = TERRITORIES[id];
@@ -1671,14 +1669,45 @@ function resetView() {
     if (t.y < minY) minY = t.y;
     if (t.y > maxY) maxY = t.y;
   }
-  const pad = 40;
-  minX -= pad; maxX += pad; minY -= pad; maxY += pad;
-  const w = Math.max(1, maxX - minX);
-  const h = Math.max(1, maxY - minY);
+  return { minX: minX - pad, minY: minY - pad, maxX: maxX + pad, maxY: maxY + pad };
+}
+
+/**
+ * Rajoittaa panorointia niin ettei karttaa voi heittää pois ruudulta: näkymän
+ * keskipiste pidetään aina kartan sisällä. Kun skaalattu sisältö on näkymää
+ * pienempi, keskitetään akselilla (ei taistella pientä karttaa vastaan).
+ * EI kimmoisaa yliheittoa/animaatiota. Ei koske hyökkäyskameraa (view.rot / _camActive).
+ */
+function clampView() {
+  if (_camActive || view.rot) return;
+  const svg = $('map');
+  const vb = svg?.viewBox?.baseVal;
+  const b = mapBounds(0); // raa'at aluerajat: keskipiste osuu aina oikeaan alueeseen
+  if (!vb || !vb.width || !b) return;
+  const s = view.scale;
+  const contentW = (b.maxX - b.minX) * s;
+  const contentH = (b.maxY - b.minY) * s;
+  // Pidä näkymän KESKIPISTE aina kartan sisällä: karttaa ei voi hukata mereen,
+  // mutta jokainen reuna-alue saadaan panoroitua keskelle (tapattavaksi).
+  const mx = vb.width / 2, my = vb.height / 2;
+  if (contentW <= vb.width) view.tx = (vb.width - contentW) / 2 - b.minX * s; // keskitä
+  else view.tx = clamp(view.tx, mx - b.maxX * s, mx - b.minX * s);
+  if (contentH <= vb.height) view.ty = (vb.height - contentH) / 2 - b.minY * s;
+  else view.ty = clamp(view.ty, my - b.maxY * s, my - b.minY * s);
+}
+
+function resetView() {
+  cancelCamera();
+  const svg = $('map');
+  const vb = svg?.viewBox?.baseVal;
+  const b = mapBounds();
+  if (!vb || !vb.width || !b) { view.scale = 1; view.tx = 0; view.ty = 0; view.rot = 0; applyView(); return; }
+  const w = Math.max(1, b.maxX - b.minX);
+  const h = Math.max(1, b.maxY - b.minY);
   const scale = clamp(Math.min(vb.width / w, vb.height / h), 0.6, 4);
   view.scale = scale;
-  view.tx = (vb.width - w * scale) / 2 - minX * scale;
-  view.ty = (vb.height - h * scale) / 2 - minY * scale;
+  view.tx = (vb.width - w * scale) / 2 - b.minX * scale;
+  view.ty = (vb.height - h * scale) / 2 - b.minY * scale;
   applyView();
 }
 function zoomBy(factor, cx = 500, cy = 350) {
@@ -1688,6 +1717,7 @@ function zoomBy(factor, cx = 500, cy = 350) {
   view.tx = cx - (cx - view.tx) * (ns / view.scale);
   view.ty = cy - (cy - view.ty) * (ns / view.scale);
   view.scale = ns;
+  clampView();
   applyView();
 }
 
@@ -1720,6 +1750,7 @@ function setupZoom() {
     view.tx += dx / rect.width * vb.width;
     view.ty += dy / rect.height * vb.height;
     lastX = e.clientX; lastY = e.clientY;
+    clampView(); // pidä kartta ruudulla (ei voi heittää pois)
     applyView();
   });
   const end = () => { dragging = false; };
