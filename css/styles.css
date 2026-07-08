@@ -588,6 +588,9 @@ button.danger:active { transform: translateY(2px); }
 button.notify { border-color: var(--accent); color: var(--accent); }
 button.big { padding: 16px; font-size: 17px; }
 .hint-text { color: var(--muted); font-size: 13px; align-self: center; flex: 2; }
+/* Väli hyökkäysrivillä: erottaa "Lopeta →" -napin toistettavista
+   hyökkäysnapeista (Nopat/Blitz) → ei vahingossa lopeta hyökkäysvaihetta. */
+.bar-spacer { flex: 0 0 22px; }
 
 /* Voitto-osuusmerkki hyökkäyspaneelissa: kertoo koko taistelun (blitz)
    voittotodennäköisyyden ennen iskua → tietoon perustuva päätös. Väri

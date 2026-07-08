@@ -1307,23 +1307,32 @@ function renderControls() {
     // sijoituksen jälkeen — nappi ei koskaan vaihda toimintoaan paikallaan.
     addBtn(row2, 'Kumoa', 'ghost', undoReinforcement, placeStack.length === 0);
   } else if (state.phase === PHASES.ATTACK) {
-    const row = addRow(c);
+    // Kaksi riviä: (1) pelkkä tieto (vihje + voitto-osuus), (2) toiminnot.
+    // Näin toistettavat hyökkäysnapit (Nopat/Blitz) eivät ahtaudu tiedon kanssa,
+    // ja peruuttamaton "Lopeta →" saa oman erotellun paikkansa (ei vahinkoloppua).
+    const info = addRow(c);
+    const acts = addRow(c);
     if (!ui.selected) {
-      addHint(row, 'Valitse oma alue josta hyökätä');
+      addHint(info, 'Valitse oma alue josta hyökätä');
     } else if (!ui.attackTarget) {
       const a = state.territories[ui.selected].armies;
-      addHint(row, `${TERRITORIES[ui.selected].name} (${a}⚔) — napauta kohdetta (punainen)`);
-      addBtn(row, 'Peru', 'ghost', () => { clearSelection(); render(); });
+      addHint(info, `${TERRITORIES[ui.selected].name} (${a}⚔) — napauta kohdetta (punainen)`);
+      addBtn(acts, 'Peru', 'ghost', () => { clearSelection(); render(); });
     } else {
       const fa = state.territories[ui.selected].armies;
       const ta = state.territories[ui.attackTarget].armies;
-      addHint(row, `${TERRITORIES[ui.selected].name}(${fa}) → ${TERRITORIES[ui.attackTarget].name}(${ta})`);
-      addWinProb(row, calcBlitzWinProb(fa, ta));
-      addBtn(row, 'Peru', 'ghost', () => { clearSelection(); render(); });
-      addBtn(row, 'Nopat', 'danger', doSingleAttack);
-      addBtn(row, 'Blitz ⚡', 'danger', doBalancedBlitz);
+      addHint(info, `${TERRITORIES[ui.selected].name}(${fa}) → ${TERRITORIES[ui.attackTarget].name}(${ta})`);
+      addWinProb(info, calcBlitzWinProb(fa, ta));
+      addBtn(acts, 'Peru', 'ghost', () => { clearSelection(); render(); });
+      addBtn(acts, 'Nopat', 'danger', doSingleAttack);
+      addBtn(acts, 'Blitz ⚡', 'danger', doBalancedBlitz);
     }
-    addBtn(row, 'Lopeta →', 'primary', () => {
+    // Väli erottaa peruuttamattoman vaiheenlopetuksen toistettavista hyökkäys-
+    // napeista, jottei "Blitz ⚡":n vieressä lopeta hyökkäysvaihetta vahingossa.
+    const spacer = document.createElement('div');
+    spacer.className = 'bar-spacer';
+    acts.appendChild(spacer);
+    addBtn(acts, 'Lopeta →', 'primary', () => {
       const r = endAttack(state); if (!r.ok) { toast(r.reason); return; }
       clearSelection(); saveGame(); render();
     });
