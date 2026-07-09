@@ -434,21 +434,28 @@ function ridgePaths(A, B) {
   const dx = B.x - A.x, dy = B.y - A.y;
   const L = Math.hypot(dx, dy);
   if (L < 14) return null;
-  const ax = A.x + dx * 0.15, ay = A.y + dy * 0.15;
-  const bx = A.x + dx * 0.85, by = A.y + dy * 0.85;
-  const ux = dx / L, uy = dy / L, px = -uy, py = ux;
-  const segs = Math.max(2, Math.round((L * 0.7) / 9));
+  const ax = A.x + dx * 0.13, ay = A.y + dy * 0.13;
+  const bx = A.x + dx * 0.87, by = A.y + dy * 0.87;
+  const px = -dy / L, py = dx / L;
+  // Selkeä vuoristoharjanne: teräväkärkiset huiput (ei tasainen siksak) →
+  // lukee heti "ylittämättömäksi rajaksi". Huiput ulospäin, laaksot lievemmin.
+  const segs = Math.max(3, Math.round((L * 0.74) / 8));
   const f = (v) => v.toFixed(1);
-  const zig = (off) => {
+  const caps = []; // lumihuippujen kärjet (kirkas korostus)
+  const zig = (off, amp0) => {
     let d = `M ${f(ax + px * off)} ${f(ay + py * off)}`;
     for (let k = 1; k < segs; k++) {
       const t = k / segs;
-      const amp = (k % 2 ? 3 : -3) + off;
-      d += ` L ${f(ax + (bx - ax) * t + px * amp)} ${f(ay + (by - ay) * t + py * amp)}`;
+      const up = k % 2 === 1;
+      const amp = (up ? amp0 : -amp0 * 0.55) + off;
+      const x = ax + (bx - ax) * t + px * amp;
+      const y = ay + (by - ay) * t + py * amp;
+      d += ` L ${f(x)} ${f(y)}`;
+      if (up && off === 0) caps.push({ x, y });
     }
     return d + ` L ${f(bx + px * off)} ${f(by + py * off)}`;
   };
-  return { d: zig(0), d2: zig(1.2) };
+  return { d: zig(0, 5), d2: zig(1.6, 5), caps };
 }
 
 /**
@@ -1026,14 +1033,26 @@ export function buildMap(svg, onTap) {
       if (!seg) continue;
       const rp = ridgePaths(seg.a, seg.b);
       if (!rp) continue;
+      // Kolme kerrosta: leveä tumma jalusta (varjo), harjanteen tumma runko ja
+      // vaalea rinnevalo → kohoava vuoristo. Lopuksi pienet lumihuiput kärkiin.
       gRidges.appendChild(el('path', {
-        d: rp.d, 'class': 'ridge', fill: 'none', stroke: '#1a2733',
+        d: rp.d, 'class': 'ridge-base', fill: 'none', stroke: '#0b141d',
+        'stroke-opacity': 0.85, 'stroke-width': 5.5, 'stroke-linejoin': 'round', 'stroke-linecap': 'round',
+      }));
+      gRidges.appendChild(el('path', {
+        d: rp.d, 'class': 'ridge', fill: 'none', stroke: '#243444',
         'stroke-width': 3, 'stroke-linejoin': 'round', 'stroke-linecap': 'round',
       }));
       gRidges.appendChild(el('path', {
-        d: rp.d2, 'class': 'ridge-hi', fill: 'none', stroke: '#4a5a68',
-        'stroke-width': 1, 'stroke-linejoin': 'round', 'stroke-linecap': 'round',
+        d: rp.d2, 'class': 'ridge-hi', fill: 'none', stroke: '#6b7f90',
+        'stroke-width': 1.2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round',
       }));
+      for (const c of rp.caps) {
+        gRidges.appendChild(el('circle', {
+          cx: c.x.toFixed(1), cy: c.y.toFixed(1), r: 1.3, 'class': 'ridge-cap',
+          fill: '#eaf2f8', 'fill-opacity': 0.8,
+        }));
+      }
     }
 
     // Otsikkokartussi (nimi + bonus): pilleri mantereen värisellä reunuksella.
