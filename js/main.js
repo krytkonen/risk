@@ -1206,14 +1206,45 @@ function renderHUD() {
   $('turn-badge').classList.toggle('hl', cap > 0 && state.turnCount > cap - 5);
   $('phase-badge').textContent = PHASE_NAMES[state.phase];
   $('cp-name').textContent = p.name;
-  $('cp-dot').style.background = p.color;
-  // Vuorossa olevan pelaajan väri teemavärinä: HUD-reuna + dot-hehku.
+  // Vuorossa olevan pelaajan vaakuna HUD:iin (sama mitali kuin roosterissa).
+  const cpDot = $('cp-dot');
+  cpDot.className = 'crest';
+  cpDot.style.setProperty('--c', p.color);
+  cpDot.style.setProperty('--cl', mixHex(p.color, '#ffffff', 0.55));
+  cpDot.style.setProperty('--cd', mixHex(p.color, '#000000', 0.45));
+  cpDot.innerHTML = `<svg viewBox="0 0 20 20" aria-hidden="true">${CREST_EMBLEMS[state.current % CREST_EMBLEMS.length]}</svg>`;
+  // Vuorossa olevan pelaajan väri teemavärinä: HUD-reuna + hehku.
   $('hud').style.setProperty('--cp-glow', p.color);
   const rb = $('reinforce-badge');
   if (state.phase === PHASES.REINFORCE) {
     rb.hidden = false; rb.textContent = `+${state.reinforcements}`;
     rb.classList.add('hl');
   } else { rb.hidden = true; rb.classList.remove('hl'); }
+}
+
+// Pelaajan vaakuna: pyöreä mitali pelaajan värillä + hänen pip-muotonsa (sama
+// muoto kuin kartan tokeneissa) → tunnistettava tunnus ilman ulkoista grafiikkaa.
+// Muodot vastaavat render.js:n PIP_SHAPES-järjestystä (indeksi % 6).
+const CREST_EMBLEMS = [
+  '<circle cx="10" cy="10" r="5.2"/>',                                   // circle
+  '<rect x="5.2" y="5.2" width="9.6" height="9.6" rx="1.4"/>',            // square
+  '<path d="M10 4 L15.6 15 L4.4 15 Z"/>',                                 // triangle
+  '<path d="M10 3.6 L16.4 10 L10 16.4 L3.6 10 Z"/>',                      // diamond
+  '<path d="M10 3.8 L16 8.2 L13.6 15.2 L6.4 15.2 L4 8.2 Z"/>',            // pentagon
+  '<path d="M10 2.6 L12 7.2 L17 7.6 L13.2 10.9 L14.5 15.8 L10 13 L5.5 15.8 L6.8 10.9 L3 7.6 L8 7.2 Z"/>', // star
+];
+function mixHex(a, b, t) {
+  const pa = a.replace('#', ''), pb = b.replace('#', '');
+  const ai = [0, 2, 4].map((k) => parseInt(pa.slice(k, k + 2), 16));
+  const bi = [0, 2, 4].map((k) => parseInt(pb.slice(k, k + 2), 16));
+  const m = ai.map((v, k) => Math.round(v + (bi[k] - v) * t));
+  return '#' + m.map((v) => v.toString(16).padStart(2, '0')).join('');
+}
+function playerCrest(i, color) {
+  const emblem = CREST_EMBLEMS[i % CREST_EMBLEMS.length];
+  const light = mixHex(color, '#ffffff', 0.55), dark = mixHex(color, '#000000', 0.45);
+  return `<span class="crest" style="--c:${color};--cl:${light};--cd:${dark}">`
+    + `<svg viewBox="0 0 20 20" aria-hidden="true">${emblem}</svg></span>`;
 }
 
 function renderPlayers() {
@@ -1228,7 +1259,7 @@ function renderPlayers() {
     // Vasen väripalkki + aktiivisen hehku pelaajan väristä.
     chip.style.borderLeft = `3px solid ${p.color}`;
     chip.style.setProperty('--chip-glow', p.color);
-    chip.innerHTML = `<span class="dot" style="background:${p.color}"></span>` +
+    chip.innerHTML = playerCrest(i, p.color) +
       `<span>${p.name}</span>` +
       `<span class="pc-stats">${snap[i].territories}⬢ ${snap[i].armies}⚔️ ${snap[i].cards}🃏</span>`;
     panel.appendChild(chip);
