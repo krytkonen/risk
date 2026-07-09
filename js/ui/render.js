@@ -425,40 +425,6 @@ function sharedBorder(cell, si, sj, eps = 0.5) {
 }
 
 /**
- * Vuoristoharjanteen siksak-polut jaetun rajan keskimmäiselle ~70 %:lle:
- * "raja jota ei voi ylittää" saman mantereen ei-naapurien välillä.
- * Palauttaa { d, d2 } (tumma harjanne + vaalea korostus) tai null jos raja
- * on liian lyhyt merkittäväksi.
- */
-function ridgePaths(A, B) {
-  const dx = B.x - A.x, dy = B.y - A.y;
-  const L = Math.hypot(dx, dy);
-  if (L < 14) return null;
-  const ax = A.x + dx * 0.13, ay = A.y + dy * 0.13;
-  const bx = A.x + dx * 0.87, by = A.y + dy * 0.87;
-  const px = -dy / L, py = dx / L;
-  // Selkeä vuoristoharjanne: teräväkärkiset huiput (ei tasainen siksak) →
-  // lukee heti "ylittämättömäksi rajaksi". Huiput ulospäin, laaksot lievemmin.
-  const segs = Math.max(3, Math.round((L * 0.74) / 8));
-  const f = (v) => v.toFixed(1);
-  const caps = []; // lumihuippujen kärjet (kirkas korostus)
-  const zig = (off, amp0) => {
-    let d = `M ${f(ax + px * off)} ${f(ay + py * off)}`;
-    for (let k = 1; k < segs; k++) {
-      const t = k / segs;
-      const up = k % 2 === 1;
-      const amp = (up ? amp0 : -amp0 * 0.55) + off;
-      const x = ax + (bx - ax) * t + px * amp;
-      const y = ay + (by - ay) * t + py * amp;
-      d += ` L ${f(x)} ${f(y)}`;
-      if (up && off === 0) caps.push({ x, y });
-    }
-    return d + ` L ${f(bx + px * off)} ${f(by + py * off)}`;
-  };
-  return { d: zig(0, 5), d2: zig(1.6, 5), caps };
-}
-
-/**
  * Deterministinen pseudokohina -1..1 (sin-hash). Sama (a,b) -> sama arvo,
  * joten rantaviivat ovat pysyviä joka latauksella – ei satunnaisuutta.
  */
@@ -1022,37 +988,28 @@ export function buildMap(svg, onTap) {
       'stroke-opacity': 0.85, 'stroke-width': 2.5, 'stroke-linejoin': 'round',
     }));
 
-    // Vuoristoharjanteet: saman mantereen Voronoi-naapurit jotka EIVÄT ole
-    // pelinaapureita saavat jaetun rajan keskelle tumman siksak-harjanteen
-    // ("raja jota ei voi ylittää"). Jos jaettu raja leikkautui kokonaan pois,
-    // ohitetaan hiljaa.
+    // Merisalmet: saman mantereen Voronoi-naapurit jotka EIVÄT ole pelinaapureita
+    // erotetaan VEDELLÄ (ei vuorella): jaetun rajan päälle kaiverretaan kapea salmi
+    // (syvä vesi + rantavaahto molemmin puolin) → alueet lukevat ERILLISINÄ
+    // rannikkoina, eivät yhtenä maamassana. Selkein "ei yhteyttä" -signaali.
     for (const key of pairs) {
       const [i, j] = key.split('|');
       if (TERRITORIES[i].adj.includes(j)) continue;
       const seg = sharedBorder(cells[i], TERRITORIES[i], TERRITORIES[j]);
       if (!seg) continue;
-      const rp = ridgePaths(seg.a, seg.b);
-      if (!rp) continue;
-      // Kolme kerrosta: leveä tumma jalusta (varjo), harjanteen tumma runko ja
-      // vaalea rinnevalo → kohoava vuoristo. Lopuksi pienet lumihuiput kärkiin.
-      gRidges.appendChild(el('path', {
-        d: rp.d, 'class': 'ridge-base', fill: 'none', stroke: '#0b141d',
-        'stroke-opacity': 0.85, 'stroke-width': 5.5, 'stroke-linejoin': 'round', 'stroke-linecap': 'round',
-      }));
-      gRidges.appendChild(el('path', {
-        d: rp.d, 'class': 'ridge', fill: 'none', stroke: '#243444',
-        'stroke-width': 3, 'stroke-linejoin': 'round', 'stroke-linecap': 'round',
-      }));
-      gRidges.appendChild(el('path', {
-        d: rp.d2, 'class': 'ridge-hi', fill: 'none', stroke: '#6b7f90',
-        'stroke-width': 1.2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round',
-      }));
-      for (const c of rp.caps) {
-        gRidges.appendChild(el('circle', {
-          cx: c.x.toFixed(1), cy: c.y.toFixed(1), r: 1.3, 'class': 'ridge-cap',
-          fill: '#eaf2f8', 'fill-opacity': 0.8,
-        }));
-      }
+      const a = seg.a, b = seg.b;
+      const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy);
+      if (L < 12) continue; // liian lyhyt salmeksi
+      const ux = dx / L, uy = dy / L, px = -uy, py = ux;
+      const ext = 3; // jatka hieman rannikkoon asti, ettei jää maakannasta päihin
+      const a2 = { x: a.x - ux * ext, y: a.y - uy * ext }, b2 = { x: b.x + ux * ext, y: b.y + uy * ext };
+      const line = (o) => `M ${(a2.x + px * o).toFixed(1)} ${(a2.y + py * o).toFixed(1)} L ${(b2.x + px * o).toFixed(1)} ${(b2.y + py * o).toFixed(1)}`;
+      // Syvä vesi (leveä tumma) + salmen vesi (kapeampi hieman vaaleampi).
+      gRidges.appendChild(el('path', { d: line(0), 'class': 'strait-deep', fill: 'none', stroke: '#040d16', 'stroke-opacity': 0.95, 'stroke-width': 11, 'stroke-linecap': 'round' }));
+      gRidges.appendChild(el('path', { d: line(0), 'class': 'strait', fill: 'none', stroke: '#0a1a28', 'stroke-opacity': 0.95, 'stroke-width': 7, 'stroke-linecap': 'round' }));
+      // Rantavaahto molemmin puolin → kaksi selvää rannikkoa.
+      gRidges.appendChild(el('path', { d: line(4.2), 'class': 'strait-foam', fill: 'none', stroke: '#bfe6ef', 'stroke-opacity': 0.32, 'stroke-width': 1.5, 'stroke-linecap': 'round' }));
+      gRidges.appendChild(el('path', { d: line(-4.2), 'class': 'strait-foam', fill: 'none', stroke: '#bfe6ef', 'stroke-opacity': 0.32, 'stroke-width': 1.5, 'stroke-linecap': 'round' }));
     }
 
     // Otsikkokartussi (nimi + bonus): pilleri mantereen värisellä reunuksella.
