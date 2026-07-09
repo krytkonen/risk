@@ -485,11 +485,34 @@ function offsetRadial(pts, cx, cy, d) {
  * Palauttaa { pts, cx, cy } jotta samasta ääriviivasta voi johtaa shelf-/
  * highlight-versiot säteittäisellä siirrolla.
  */
+// Käsin piirretyt AIDOT rannikot (avain `${mapId}:${contId}`). Kun ääriviiva on
+// annettu, se korvaa säde­pyyhkäisyn siluetin → tunnistettava mannermuoto. Solut
+// tessellöidään konveksilla työpolygonilla ja LEIKATAAN tähän ääriviivaan, joten
+// syvät lahdet eivät riko Voronoi-clippausta. PROTOTYYPPI: vain Etelä-Amerikka.
+const REAL_OUTLINES = {
+  'classic:south-america': [
+    [230, 372], [262, 366], [298, 375], [332, 398], [360, 442], [373, 485],
+    [356, 528], [322, 562], [302, 592], [283, 626], [272, 648], [258, 618],
+    [240, 572], [224, 520], [216, 468], [220, 424], [226, 392],
+  ],
+};
+
 function continentOutline(contId, seed, pad = 50) {
   const ids = continentTerritories(contId);
   const points = ids.map((i) => ({ x: TERRITORIES[i].x, y: TERRITORIES[i].y }));
   const cx = points.reduce((s, p) => s + p.x, 0) / points.length;
   const cy = points.reduce((s, p) => s + p.y, 0) / points.length;
+
+  const real = REAL_OUTLINES[`${activeMap()?.id}:${contId}`];
+  if (real && real.length >= 3) {
+    const pts = densifyAndJitter(real.map(([x, y]) => ({ x, y })), seed * 13 + 3, 30, 4);
+    let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
+    for (const p of pts) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); }
+    const q = 34; // konveksi työpolygoni (padattu bbox) tessellointia varten
+    const workPts = [{ x: minX - q, y: minY - q }, { x: maxX + q, y: minY - q }, { x: maxX + q, y: maxY + q }, { x: minX - q, y: maxY + q }];
+    const ox = pts.reduce((s, p) => s + p.x, 0) / pts.length, oy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+    return { pts, workPts, cx: ox, cy: oy, real: true };
+  }
 
   let base;
   if (points.length < 3) {
@@ -575,7 +598,7 @@ function continentOutline(contId, seed, pad = 50) {
       base.push({ x: cx + Math.cos(ang) * r, y: cy + Math.sin(ang) * r });
     }
   }
-  return { pts: densifyAndJitter(base, seed * 13 + 3, 40, 8), cx, cy };
+  return { pts: densifyAndJitter(base, seed * 13 + 3, 40, 8), workPts: null, cx, cy, real: false };
 }
 
 // --- Staattiset merikoristeet (aaltoglyyfit + kompassiruusu) ---------------
@@ -904,6 +927,8 @@ export function buildMap(svg, onTap) {
   // rajautuu tarkasti maamassaan (mereen ei kosketa). Täytetään loopissa.
   const landMask = el('mask', { id: 'land-mask', maskUnits: 'userSpaceOnUse', maskContentUnits: 'userSpaceOnUse', x: 0, y: 0, width: 1000, height: 700 });
   landMask.appendChild(el('rect', { x: 0, y: 0, width: 1000, height: 700, fill: '#000' }));
+  // Säiliö aitojen rannikoiden clip-poluille (lisätään gMap:iin loopin jälkeen).
+  const gClips = el('g', { 'pointer-events': 'none' });
 
   const regionEls = {};
   // Sijoitettujen mannerlabelien suorakaiteet → uudet labelit väistävät myös
@@ -913,9 +938,18 @@ export function buildMap(svg, onTap) {
   contIds.forEach((contId, ci) => {
     const b = continentBounds(contId);
     const color = CONTINENTS[contId].color;
-    const { pts, cx, cy } = continentOutline(contId, ci);
+    const { pts, workPts, cx, cy, real } = continentOutline(contId, ci);
     const path = closedPolyPath(pts);
     const shelfPath = closedPolyPath(offsetRadial(pts, cx, cy, 10));
+    // AITO rannikko: leikkaa alueet ääriviivaan (clip-path). Solut lasketaan
+    // konveksilla työpolygonilla → näkyvä täyttö myötäilee todellista rannikkoa.
+    let regionClip = null;
+    if (real) {
+      const clip = el('clipPath', { id: `cont-clip-${ci}`, clipPathUnits: 'userSpaceOnUse' });
+      clip.appendChild(el('path', { d: path }));
+      gClips.appendChild(clip);
+      regionClip = `url(#cont-clip-${ci})`;
+    }
 
     // Relief-maskiin valkoinen mannerkopio (näyttää tekstuurin vain maalla).
     landMask.appendChild(el('path', { d: path, fill: '#fff' }));
@@ -963,13 +997,15 @@ export function buildMap(svg, onTap) {
     // rosoitetun ääriviivan. Täyttöväri asetetaan updateMapissa omistajan
     // mukaan – tässä vain geometria + neutraali aloitusväri.
     const ids = continentTerritories(contId);
-    const { cells, pairs } = continentCells(ids, pts);
+    const { cells, pairs } = continentCells(ids, workPts || pts);
     for (const tid of ids) {
-      const region = el('path', {
+      const regionAttrs = {
         d: closedPolyPath(cells[tid]), 'class': 'region', 'data-id': tid,
         fill: 'url(#region-grad-neutral)', 'fill-opacity': 0.95,
         stroke: '#0c1826', 'stroke-width': 1.6, 'stroke-linejoin': 'round',
-      });
+      };
+      if (regionClip) regionAttrs['clip-path'] = regionClip; // leikkaa aitoon rannikkoon
+      const region = el('path', regionAttrs);
       region.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); onTap(tid); });
       gRegions.appendChild(region);
       regionEls[tid] = region;
@@ -977,10 +1013,12 @@ export function buildMap(svg, onTap) {
       // Reunusviiste (fake-3D): sama alue ylimääräisenä gradienttiviivana
       // (ylhäältä vaalea, alhaalta tumma) → raja lukee kohotettuna reunana.
       // pointer-events:none → napautukset menevät alla olevaan regioniin.
-      gBevel.appendChild(el('path', {
+      const bevelAttrs = {
         d: closedPolyPath(cells[tid]), 'class': 'region-bevel', 'pointer-events': 'none',
         fill: 'none', stroke: 'url(#bevel-stroke)', 'stroke-width': 1.5, 'stroke-linejoin': 'round',
-      }));
+      };
+      if (regionClip) bevelAttrs['clip-path'] = regionClip;
+      gBevel.appendChild(el('path', bevelAttrs));
     }
 
     // Rantaviiva alueiden PÄÄLLE mantereen värillä: ulkoreuna pysyy terävänä.
@@ -1100,6 +1138,7 @@ export function buildMap(svg, onTap) {
   // reunat pysyvät terävinä. Yksi maskattu+suodatettu rect = halpa (kytketään
   // pois panoroinnin ja lite-tilan ajaksi CSS:llä).
   gMap.appendChild(landMask);
+  gMap.appendChild(gClips);
   gMap.appendChild(el('rect', {
     x: 0, y: 0, width: 1000, height: 700, 'class': 'land-relief',
     filter: 'url(#land-relief)', mask: 'url(#land-mask)', opacity: 0.5, 'pointer-events': 'none',
