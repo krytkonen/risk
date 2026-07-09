@@ -173,7 +173,7 @@ function buildDefs(warmth = 0) {
   // maamassaan (#land-mask) → meri jää koskematta. Antaa alueille
   // materiaalintunnun litteän väripaperin sijaan.
   const relief = el('filter', { id: 'land-relief', x: '0%', y: '0%', width: '100%', height: '100%' });
-  relief.appendChild(el('feTurbulence', { type: 'fractalNoise', baseFrequency: '0.09 0.12', numOctaves: 3, seed: 11, result: 'n' }));
+  relief.appendChild(el('feTurbulence', { type: 'fractalNoise', baseFrequency: '0.055 0.08', numOctaves: 4, seed: 11, result: 'n' }));
   // Tummat rotkot: vain kohinan yläpää → harva tumma pilkutus.
   relief.appendChild(el('feColorMatrix', { in: 'n', type: 'matrix', values: '0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.85 -0.32', result: 'dark' }));
   // Vaaleat huiput: käänteinen alfa → hento valkoinen kohokuvio.
@@ -249,10 +249,11 @@ function buildDefs(warmth = 0) {
   // Sumun peittämä (fog of war) alue: verhottu, sumuinen orbi — ei paljasta
   // omistajaa. Viileä sumusävy, hieman läpikuultava (asetetaan updateMapissa)
   // → tuntematon "häämöttää" sumussa eikä ole kiinteä musta pallo.
-  const fg = el('radialGradient', { id: 'node-grad-fog', cx: '38%', cy: '28%', r: '70%' });
-  fg.appendChild(el('stop', { offset: '0%', 'stop-color': '#46607a' }));
-  fg.appendChild(el('stop', { offset: '55%', 'stop-color': '#293747' }));
-  fg.appendChild(el('stop', { offset: '100%', 'stop-color': '#141d27' }));
+  const fg = el('radialGradient', { id: 'node-grad-fog', cx: '38%', cy: '28%', r: '72%' });
+  fg.appendChild(el('stop', { offset: '0%', 'stop-color': '#5b7590' }));   // sumuinen valoisa ydin
+  fg.appendChild(el('stop', { offset: '35%', 'stop-color': '#41566c' }));
+  fg.appendChild(el('stop', { offset: '68%', 'stop-color': '#25313f' }));
+  fg.appendChild(el('stop', { offset: '100%', 'stop-color': '#111922' }));
   defs.appendChild(fg);
 
   // Lumimyrskyn sulkema alue: jäinen vaalea sini-valkoinen.
@@ -1101,7 +1102,7 @@ export function buildMap(svg, onTap) {
   gMap.appendChild(landMask);
   gMap.appendChild(el('rect', {
     x: 0, y: 0, width: 1000, height: 700, 'class': 'land-relief',
-    filter: 'url(#land-relief)', mask: 'url(#land-mask)', opacity: 0.42, 'pointer-events': 'none',
+    filter: 'url(#land-relief)', mask: 'url(#land-mask)', opacity: 0.5, 'pointer-events': 'none',
   }));
   // Suunnattu maavalaistus (aurinko NW): suurmuotoinen tilavuus, maskattu maahan.
   gMap.appendChild(el('rect', {
