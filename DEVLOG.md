@@ -805,3 +805,24 @@ Käyttäjä: "Risk: Global Domination näyttää paremmalta — paranna, älä k
   mannerten fake-3D-jalusta + syvän veden varjo + rantavaahto). "Paranna, älä
   kopioi" tarkoitti tässä myös "älä rakenna uudelleen mitä on jo hyvää" → keskitys
   aitoihin puutteisiin (selkeys, vaakunat, maasto). 118 testiä vihreää; SW v16→v19.
+
+## Aidot mannermuodot kaikille tosielämän kartoille (RGD-tyyli, oma teema)
+Käyttäjä: "Miten maailmankartat voisi näyttää oikeilta mantereilta (kuten RGD)?
+Kaikki tosielämän kartat, pushaa valmiina."
+- ONGELMA: continentOutline piirsi säde­pyyhkäisyllä TÄHTIKUPEROJA blob-siluetteja
+  (valittu tessellaation robustiuden vuoksi) → ei tunnistettavia mantereita.
+- RATKAISU (putki): käsin piirretty AITO rannikko (REAL_OUTLINES, avain
+  `mapId:contId`) siluetiksi; Voronoi tessellöidään KONVEKSILLA työpolygonilla
+  ja jokainen solu LEIKATAAN aitoon rannikkoon (clip-path). → rannikkoalueet
+  myötäilevät oikeaa rantaviivaa, sisärajat pysyvät automaattisina, syvät lahdet
+  eivät riko tessellaatiota. Mantereet ilman ääriviivaa käyttävät ennallaan
+  säde­polkua (taaksepäin yhteensopiva).
+- MONIOSAISET ÄÄRIVIIVAT: saaret omina osina (Islanti, Brittein saaret,
+  Sisilia, Mauretania jne.) → siluetti/jalusta/varjo/vaahto/clip rakennetaan
+  osista.
+- LIMITYS: samalla maamassalla olevat osiot (esim. Suuren maailman Aasia jaettu
+  kolmeen; aluekarttojen osiot) piirretään lievästi limittäin → ei merirakoja.
+- TEHTY: classic (6 mannerta), suurmaailma (8), afrikka (5), eurooppa (5,
+  saaret), eurooppa2025 (7, Britannia-saari), antiquity (5, Välimeren maailma).
+  Taruvaltakunnat (fantasia) jää tyylitellyksi. 118 testiä vihreää joka kartalla,
+  0 konsolivirhettä, todennettu kuvakaappauksin karttakohtaisesti. SW v19→v26.
