@@ -589,6 +589,33 @@ const REAL_OUTLINES = {
     [455, 510], [510, 500], [580, 505], [630, 530], [625, 570], [595, 600],
     [560, 640], [525, 635], [490, 600], [460, 560], [448, 530],
   ],
+
+  // --- Eurooppa (aluekartta; saaret moniosaisina: [ [osa1], [osa2] ]) ---
+  'europe:nordic': [
+    [[150, 68], [185, 60], [215, 72], [210, 98], [180, 105], [152, 92]], // Islanti
+    [[445, 72], [490, 60], [540, 70], [600, 72], [655, 82], [665, 120], [630, 145],
+     [590, 130], [560, 160], [540, 185], [510, 215], [478, 225], [455, 195], [450, 150], [448, 110]],
+  ],
+  'europe:isles': [
+    [[228, 195], [258, 190], [275, 210], [262, 235], [238, 232], [224, 215]], // Irlanti
+    [[308, 185], [335, 180], [352, 205], [345, 240], [322, 255], [305, 235], [300, 208]], // Britannia
+  ],
+  'europe:west': [
+    [440, 268], [465, 300], [440, 340], [430, 375], [380, 410], [340, 430],
+    [300, 458], [255, 460], [218, 445], [212, 410], [240, 360], [290, 335],
+    [350, 320], [395, 315], [420, 290],
+  ],
+  'europe:central': [
+    [500, 255], [545, 245], [600, 240], [655, 238], [675, 270], [650, 310],
+    [600, 340], [570, 365], [590, 420], [578, 470], [558, 495], [540, 455],
+    [528, 405], [510, 360], [495, 315], [492, 278],
+  ],
+  'europe:east': [
+    [655, 160], [700, 155], [720, 185], [770, 220], [800, 275], [805, 320],
+    [775, 360], [730, 385], [720, 420], [740, 470], [755, 520], [745, 570],
+    [720, 585], [700, 540], [690, 480], [665, 420], [650, 360], [655, 300],
+    [645, 240], [648, 195],
+  ],
 };
 
 function continentOutline(contId, seed, pad = 50) {
@@ -598,14 +625,18 @@ function continentOutline(contId, seed, pad = 50) {
   const cy = points.reduce((s, p) => s + p.y, 0) / points.length;
 
   const real = REAL_OUTLINES[`${activeMap()?.id}:${contId}`];
-  if (real && real.length >= 3) {
-    const pts = densifyAndJitter(real.map(([x, y]) => ({ x, y })), seed * 13 + 3, 30, 4);
+  if (real && real.length >= 2) {
+    // Yksi- tai moniosainen ääriviiva (saaret omina osina, esim. Islanti,
+    // Brittein saaret). parts = lista polygoneja; pts = kaikki pisteet.
+    const rawParts = Array.isArray(real[0][0]) ? real : [real];
+    const parts = rawParts.map((part) => densifyAndJitter(part.map(([x, y]) => ({ x, y })), seed * 13 + 3, 30, 4));
+    const pts = parts.flat();
     let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
     for (const p of pts) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); }
     const q = 34; // konveksi työpolygoni (padattu bbox) tessellointia varten
     const workPts = [{ x: minX - q, y: minY - q }, { x: maxX + q, y: minY - q }, { x: maxX + q, y: maxY + q }, { x: minX - q, y: maxY + q }];
     const ox = pts.reduce((s, p) => s + p.x, 0) / pts.length, oy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
-    return { pts, workPts, cx: ox, cy: oy, real: true };
+    return { parts, pts, workPts, cx: ox, cy: oy, real: true };
   }
 
   let base;
@@ -692,7 +723,8 @@ function continentOutline(contId, seed, pad = 50) {
       base.push({ x: cx + Math.cos(ang) * r, y: cy + Math.sin(ang) * r });
     }
   }
-  return { pts: densifyAndJitter(base, seed * 13 + 3, 40, 8), workPts: null, cx, cy, real: false };
+  const dpts = densifyAndJitter(base, seed * 13 + 3, 40, 8);
+  return { parts: [dpts], pts: dpts, workPts: null, cx, cy, real: false };
 }
 
 // --- Staattiset merikoristeet (aaltoglyyfit + kompassiruusu) ---------------
@@ -1032,9 +1064,11 @@ export function buildMap(svg, onTap) {
   contIds.forEach((contId, ci) => {
     const b = continentBounds(contId);
     const color = CONTINENTS[contId].color;
-    const { pts, workPts, cx, cy, real } = continentOutline(contId, ci);
-    const path = closedPolyPath(pts);
-    const shelfPath = closedPolyPath(offsetRadial(pts, cx, cy, 10));
+    const { parts, pts, workPts, cx, cy, real } = continentOutline(contId, ci);
+    // Polkujen rakennus osista → tukee moniosaisia ääriviivoja (saaret).
+    const partsPathD = (fn) => parts.map((p) => closedPolyPath(fn ? p.map(fn) : p)).join(' ');
+    const path = partsPathD();
+    const shelfPath = parts.map((p) => closedPolyPath(offsetRadial(p, cx, cy, 10))).join(' ');
     // AITO rannikko: leikkaa alueet ääriviivaan (clip-path). Solut lasketaan
     // konveksilla työpolygonilla → näkyvä täyttö myötäilee todellista rannikkoa.
     let regionClip = null;
@@ -1052,11 +1086,11 @@ export function buildMap(svg, onTap) {
     // (7 px tumma "seinä" + 4 px keskisävy) → maamassa kohoaa laattana merestä.
     // Piirretään alueiden ALLE; vain alareunan kaari jää näkyviin niiden takaa.
     gPlinth.appendChild(el('path', {
-      d: closedPolyPath(pts.map((p) => ({ x: p.x, y: p.y + 7 }))),
+      d: partsPathD((p) => ({ x: p.x, y: p.y + 7 })),
       'class': 'cont-plinth', 'pointer-events': 'none', fill: mix(color, '#05101c', 0.7),
     }));
     gPlinth.appendChild(el('path', {
-      d: closedPolyPath(pts.map((p) => ({ x: p.x, y: p.y + 4 }))),
+      d: partsPathD((p) => ({ x: p.x, y: p.y + 4 })),
       'class': 'cont-plinth', 'pointer-events': 'none', fill: mix(color, '#05101c', 0.5),
     }));
 
