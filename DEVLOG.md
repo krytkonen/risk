@@ -782,3 +782,26 @@ tihein, korkein päivittäistaajuus). Kolme itsenäisesti julkaistavaa iteraatio
   (3) Kuva-review ratkaisi kiistan: tiukka "alue-keskipiste ruudussa" -mittari näytti
   vääriä nollia letterbox-artefaktista, mutta kuvakaappaus todisti kartan pysyvän
   näkyvissä. 118 testiä vihreää; kaikki UI todennettu headless-ajolla + kuvin.
+
+## Visuaalinen ohjelma (RGD-inspiroitu, oma tyyli säilyttäen) + karttojen naapuruus-review
+Käyttäjä: "Risk: Global Domination näyttää paremmalta — paranna, älä kopioi."
++ "jotkut näennäisesti vierekkäiset alueet eivät ole yhteydessä; kartat selkeämmiksi."
+- KARTTA-REVIEW (kaikki 7 karttaa, ohjelmallisesti): Type A (vierekkäisiä mutta
+  solut eivät kosketa) = 0 kaikilla → ei "vierekkäinen mutta näyttää erilliseltä"
+  -databugia. Ongelma oli käänteinen (Type B): monet Voronoi-solut koskettavat
+  mutta EIVÄT ole pelinaapureita.
+- SELKEYS: korvattiin ei-naapureiden jaettu raja MERISALMELLA (syvä vesi +
+  rantavaahto molemmin puolin) vuoriston sijaan → alueet lukevat ERILLISINÄ
+  rannikkoina. Piirretään vain ei-adj Voronoi-naapureille (adj-tarkistus ennallaan)
+  → yhdistettyjä alueita ei voi vahingossa erottaa. Todennettu zoomaten.
+- VAAKUNAT: roosterin/HUD:in litteä väripiste → pyöreä mitali pelaajan värillä +
+  hänen pip-muotonsa (sama kuin kartan tokeneissa). Puhdas SVG+CSS, ei ulkoista
+  grafiikkaa. Todennettu koko sivun kuvalla.
+- MAASTO: laajennettiin olemassa oleva land-relief-kohina (matalampi taajuus, 4
+  oktaavia, opacity 0.42→0.5) → maalattu maastontuntu. SAMA jo-portitettu suodatin
+  (piilossa panoroitaessa + pois lite-tilassa; todennettu display:none litessä).
+- SUMU: sumuisempi orbigradientti (valoisa ydin → syvä reuna).
+- Havainto: monta RGD:n vahvuutta oli JO meillä (kaarevat merireitit + satamat,
+  mannerten fake-3D-jalusta + syvän veden varjo + rantavaahto). "Paranna, älä
+  kopioi" tarkoitti tässä myös "älä rakenna uudelleen mitä on jo hyvää" → keskitys
+  aitoihin puutteisiin (selkeys, vaakunat, maasto). 118 testiä vihreää; SW v16→v19.
