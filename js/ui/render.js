@@ -490,37 +490,8 @@ function offsetRadial(pts, cx, cy, d) {
 // tessellöidään konveksilla työpolygonilla ja LEIKATAAN tähän ääriviivaan, joten
 // syvät lahdet eivät riko Voronoi-clippausta. PROTOTYYPPI: vain Etelä-Amerikka.
 const REAL_OUTLINES = {
-  'classic:north-america': [
-    [48, 100], [70, 72], [120, 60], [175, 66], [240, 52], [300, 45], [345, 55],
-    [352, 96], [325, 122], [300, 130], [315, 165], [300, 210], [268, 250],
-    [240, 276], [210, 300], [195, 326], [178, 346], [160, 320], [150, 285],
-    [135, 240], [120, 190], [110, 145], [90, 114],
-  ],
-  'classic:south-america': [
-    [230, 372], [262, 366], [298, 375], [332, 398], [360, 442], [373, 485],
-    [356, 528], [322, 562], [302, 592], [283, 626], [272, 648], [258, 618],
-    [240, 572], [224, 520], [216, 468], [220, 424], [226, 392],
-  ],
-  'classic:europe': [
-    [420, 95], [455, 78], [505, 72], [540, 82], [560, 115], [635, 128],
-    [646, 160], [615, 192], [575, 235], [560, 268], [525, 262], [490, 282],
-    [455, 276], [430, 240], [418, 195], [408, 150], [415, 115],
-  ],
-  'classic:africa': [
-    [480, 385], [520, 366], [575, 360], [602, 378], [626, 420], [640, 456],
-    [666, 530], [660, 562], [635, 560], [612, 546], [590, 582], [560, 602],
-    [535, 576], [520, 520], [505, 470], [478, 424], [468, 400],
-  ],
-  'classic:asia': [
-    [672, 250], [690, 195], [698, 150], [740, 112], [800, 85], [858, 68],
-    [908, 78], [952, 108], [945, 155], [952, 212], [922, 240], [872, 250],
-    [858, 295], [862, 332], [838, 352], [800, 340], [762, 352], [738, 335],
-    [722, 300], [700, 322], [672, 315], [662, 285],
-  ],
-  'classic:australia': [
-    [840, 435], [880, 428], [935, 445], [965, 458], [970, 520], [965, 575],
-    [950, 605], [910, 600], [870, 585], [850, 555], [858, 500], [845, 465],
-  ],
+  // HUOM: classic käyttää nyt GEO-tilaa (aito maamassa + vyöhykkeet kartan
+  // datassa) — sillä ei ole enää käsin piirrettyjä ääriviivoja tässä.
 
   // --- Suuri maailma (maailmankartta, 50 aluetta) ---
   'suurmaailma:pohjois-amerikka': [
@@ -1118,6 +1089,59 @@ export function buildMap(svg, onTap) {
   // Säiliö aitojen rannikoiden clip-poluille (lisätään gMap:iin loopin jälkeen).
   const gClips = el('g', { 'pointer-events': 'none' });
 
+  // --- GEO-TILA: aito maamassa (Natural Earth → tools/geo.mjs) --------------
+  // Kartta jolla on geo.land piirretään YHTENÄ oikeana maailmamaamassana;
+  // mantereet ovat VÄRIVYÖHYKKEITÄ sen päällä (manner = zones[contId] ∩ maa,
+  // sisäkkäisillä clipeillä). Rannikot ovat aitoja kaikkialla, saaret tulevat
+  // datasta, ja mannerten rajat kulkevat oikeista kohdista (Panama, Ural,
+  // Suez, Malakka). Pelialueiden ulkopuolinen maa jää neutraaliksi (RGD-tapa).
+  const GEO = activeMap()?.geo || null;
+  const ZONES = activeMap()?.zones || null;
+  let geoLandD = '';
+  if (GEO && ZONES) {
+    const landParts = GEO.land.map((poly) => poly.map(([x, y]) => ({ x, y })));
+    geoLandD = landParts.map((p) => closedPolyPath(p)).join(' ');
+    // Syvän veden varjo koko maamassalle (leveä→kapea tummat vedot).
+    const shadow = el('g', { 'class': 'cont-depth', 'pointer-events': 'none' });
+    shadow.appendChild(el('path', { d: geoLandD, fill: 'none', stroke: '#020a13', 'stroke-opacity': 0.24, 'stroke-width': 26, 'stroke-linejoin': 'round' }));
+    shadow.appendChild(el('path', { d: geoLandD, fill: 'none', stroke: '#03101d', 'stroke-opacity': 0.32, 'stroke-width': 16, 'stroke-linejoin': 'round' }));
+    shadow.appendChild(el('path', { d: geoLandD, fill: 'none', stroke: '#04121f', 'stroke-opacity': 0.42, 'stroke-width': 9, 'stroke-linejoin': 'round' }));
+    gCont.appendChild(shadow);
+    // Rantavaahto (matala vesi) rannan alle.
+    const foam = el('g', { 'class': 'cont-foam', 'pointer-events': 'none' });
+    foam.appendChild(el('path', { d: geoLandD, fill: 'none', stroke: '#bfe6ef', 'stroke-opacity': 0.1, 'stroke-width': 9, 'stroke-linejoin': 'round' }));
+    foam.appendChild(el('path', { d: geoLandD, fill: 'none', stroke: '#cfeaf3', 'stroke-opacity': 0.22, 'stroke-width': 3.5, 'stroke-linejoin': 'round' }));
+    gCont.appendChild(foam);
+    // Kohotettu laatta (fake-3D-ekstruusio) + neutraali pohjamaa: pelialueiden
+    // ulkopuolinen maa (esim. ei-pelattavat saaret) näkyy tässä sävyssä.
+    gPlinth.appendChild(el('path', {
+      d: GEO.land.map((poly) => closedPolyPath(poly.map(([x, y]) => ({ x, y: y + 6 })))).join(' '),
+      'class': 'cont-plinth', 'pointer-events': 'none', fill: '#0b1826',
+    }));
+    gPlinth.appendChild(el('path', {
+      d: geoLandD, 'class': 'geo-land-base', 'pointer-events': 'none',
+      fill: '#22303e', stroke: '#0a141f', 'stroke-width': 1.2, 'stroke-linejoin': 'round',
+    }));
+    // Relief-tekstuuri koko maamassalle.
+    landMask.appendChild(el('path', { d: geoLandD, fill: '#fff' }));
+    // Leikkauspolku: alueet näkyvät vain maalla.
+    const lc = el('clipPath', { id: 'geo-land-clip', clipPathUnits: 'userSpaceOnUse' });
+    lc.appendChild(el('path', { d: geoLandD }));
+    gClips.appendChild(lc);
+  }
+  /** Onko piste maalla? (even-odd kaikkien maapolygonien yli; vain geo-tilassa) */
+  function pointInLand(x, y) {
+    if (!GEO) return true;
+    let inside = false;
+    for (const poly of GEO.land) {
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const [xi, yi] = poly[i], [xj, yj] = poly[j];
+        if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+      }
+    }
+    return inside;
+  }
+
   const regionEls = {};
   // Sijoitettujen mannerlabelien suorakaiteet → uudet labelit väistävät myös
   // toisiaan, eivät vain nappeja.
@@ -1126,68 +1150,72 @@ export function buildMap(svg, onTap) {
   contIds.forEach((contId, ci) => {
     const b = continentBounds(contId);
     const color = CONTINENTS[contId].color;
-    const { parts, pts, workPts, cx, cy, real } = continentOutline(contId, ci);
-    // Polkujen rakennus osista → tukee moniosaisia ääriviivoja (saaret).
-    const partsPathD = (fn) => parts.map((p) => closedPolyPath(fn ? p.map(fn) : p)).join(' ');
-    const path = partsPathD();
-    const shelfPath = parts.map((p) => closedPolyPath(offsetRadial(p, cx, cy, 10))).join(' ');
-    // AITO rannikko: leikkaa alueet ääriviivaan (clip-path). Solut lasketaan
-    // konveksilla työpolygonilla → näkyvä täyttö myötäilee todellista rannikkoa.
+    // GEO-tila: manner = vyöhyke ∩ aito maamassa. Muut: generoitu siluetti.
+    const zone = (GEO && ZONES && ZONES[contId]) ? ZONES[contId].map(([x, y]) => ({ x, y })) : null;
+    let path = '', shelfPath = '', parts = null, pts = null, workPts = null, cx = 0, cy = 0, real = false;
     let regionClip = null;
-    if (real) {
-      const clip = el('clipPath', { id: `cont-clip-${ci}`, clipPathUnits: 'userSpaceOnUse' });
-      clip.appendChild(el('path', { d: path }));
-      gClips.appendChild(clip);
-      regionClip = `url(#cont-clip-${ci})`;
+    if (zone) {
+      // Vyöhykeleikkuri: mannervärinen rantaviiva piirretään maapoluista
+      // tämän vyöhykkeen sisällä; alueet leikataan maamassaan.
+      const zclip = el('clipPath', { id: `zone-clip-${ci}`, clipPathUnits: 'userSpaceOnUse' });
+      zclip.appendChild(el('path', { d: closedPolyPath(zone) }));
+      gClips.appendChild(zclip);
+      regionClip = 'url(#geo-land-clip)';
+    } else {
+      ({ parts, pts, workPts, cx, cy, real } = continentOutline(contId, ci));
+      // Polkujen rakennus osista → tukee moniosaisia ääriviivoja (saaret).
+      const partsPathD = (fn) => parts.map((p) => closedPolyPath(fn ? p.map(fn) : p)).join(' ');
+      path = partsPathD();
+      shelfPath = parts.map((p) => closedPolyPath(offsetRadial(p, cx, cy, 10))).join(' ');
+      // AITO rannikko: leikkaa alueet ääriviivaan (clip-path). Solut lasketaan
+      // konveksilla työpolygonilla → näkyvä täyttö myötäilee todellista rannikkoa.
+      if (real) {
+        const clip = el('clipPath', { id: `cont-clip-${ci}`, clipPathUnits: 'userSpaceOnUse' });
+        clip.appendChild(el('path', { d: path }));
+        gClips.appendChild(clip);
+        regionClip = `url(#cont-clip-${ci})`;
+      }
+
+      // Relief-maskiin valkoinen mannerkopio (näyttää tekstuurin vain maalla).
+      landMask.appendChild(el('path', { d: path, fill: '#fff' }));
+
+      // Mannerjalustan EKSTRUUSIO (fake-3D): sama ääriviiva siirrettynä alas
+      // (7 px tumma "seinä" + 4 px keskisävy) → maamassa kohoaa laattana merestä.
+      gPlinth.appendChild(el('path', {
+        d: partsPathD((p) => ({ x: p.x, y: p.y + 7 })),
+        'class': 'cont-plinth', 'pointer-events': 'none', fill: mix(color, '#05101c', 0.7),
+      }));
+      gPlinth.appendChild(el('path', {
+        d: partsPathD((p) => ({ x: p.x, y: p.y + 4 })),
+        'class': 'cont-plinth', 'pointer-events': 'none', fill: mix(color, '#05101c', 0.5),
+      }));
+
+      // Syvän veden varjo: maamassa heittää varjon ympäröivään mereen.
+      const shadow = el('g', { 'class': 'cont-depth', 'pointer-events': 'none' });
+      shadow.appendChild(el('path', { d: path, fill: 'none', stroke: '#020a13', 'stroke-opacity': 0.24, 'stroke-width': 30, 'stroke-linejoin': 'round' }));
+      shadow.appendChild(el('path', { d: path, fill: 'none', stroke: '#03101d', 'stroke-opacity': 0.32, 'stroke-width': 20, 'stroke-linejoin': 'round' }));
+      shadow.appendChild(el('path', { d: path, fill: 'none', stroke: '#04121f', 'stroke-opacity': 0.42, 'stroke-width': 12, 'stroke-linejoin': 'round' }));
+      gCont.appendChild(shadow);
+
+      // Mannerjalusta: hieman isompi kopio polusta – "matala vesi".
+      gCont.appendChild(el('path', {
+        d: shelfPath, 'class': 'cont-shelf', 'pointer-events': 'none',
+        fill: '#bfe6ef', 'fill-opacity': 0.06,
+        stroke: '#bfe6ef', 'stroke-opacity': 0.08, 'stroke-width': 5, 'stroke-linejoin': 'round',
+      }));
+
+      // Matalan veden vaahto rannan alle (ei suodattimia).
+      const foam = el('g', { 'class': 'cont-foam', 'pointer-events': 'none' });
+      foam.appendChild(el('path', { d: path, fill: 'none', stroke: '#bfe6ef', 'stroke-opacity': 0.09, 'stroke-width': 13, 'stroke-linejoin': 'round' }));
+      foam.appendChild(el('path', { d: path, fill: 'none', stroke: '#bfe6ef', 'stroke-opacity': 0.15, 'stroke-width': 8, 'stroke-linejoin': 'round' }));
+      foam.appendChild(el('path', { d: path, fill: 'none', stroke: '#cfeaf3', 'stroke-opacity': 0.26, 'stroke-width': 4, 'stroke-linejoin': 'round' }));
+      gCont.appendChild(foam);
     }
 
-    // Relief-maskiin valkoinen mannerkopio (näyttää tekstuurin vain maalla).
-    landMask.appendChild(el('path', { d: path, fill: '#fff' }));
-
-    // Mannerjalustan EKSTRUUSIO (fake-3D): sama ääriviiva siirrettynä alas
-    // (7 px tumma "seinä" + 4 px keskisävy) → maamassa kohoaa laattana merestä.
-    // Piirretään alueiden ALLE; vain alareunan kaari jää näkyviin niiden takaa.
-    gPlinth.appendChild(el('path', {
-      d: partsPathD((p) => ({ x: p.x, y: p.y + 7 })),
-      'class': 'cont-plinth', 'pointer-events': 'none', fill: mix(color, '#05101c', 0.7),
-    }));
-    gPlinth.appendChild(el('path', {
-      d: partsPathD((p) => ({ x: p.x, y: p.y + 4 })),
-      'class': 'cont-plinth', 'pointer-events': 'none', fill: mix(color, '#05101c', 0.5),
-    }));
-
-    // Syvän veden varjo: maamassa heittää varjon ympäröivään mereen → manner
-    // lukee KOHOTETTUNA laattana. Leveät tummat vedot polusta, KAIKKEIN
-    // ALIMMAISENA (leveä+haalea pohjalla, kapea+tumma rannan lähellä päällä).
-    // Aluetäyttö peittää sisäpuoliskon → varjo näkyy vain vedessä. Ei suodatinta.
-    const shadow = el('g', { 'class': 'cont-depth', 'pointer-events': 'none' });
-    shadow.appendChild(el('path', { d: path, fill: 'none', stroke: '#020a13', 'stroke-opacity': 0.24, 'stroke-width': 30, 'stroke-linejoin': 'round' }));
-    shadow.appendChild(el('path', { d: path, fill: 'none', stroke: '#03101d', 'stroke-opacity': 0.32, 'stroke-width': 20, 'stroke-linejoin': 'round' }));
-    shadow.appendChild(el('path', { d: path, fill: 'none', stroke: '#04121f', 'stroke-opacity': 0.42, 'stroke-width': 12, 'stroke-linejoin': 'round' }));
-    gCont.appendChild(shadow);
-
-    // Mannerjalusta: hieman isompi kopio polusta vaaleana merenvaahtosävynä
-    // – "matala vesi" rannikon ympärillä, ilman suodattimia.
-    gCont.appendChild(el('path', {
-      d: shelfPath, 'class': 'cont-shelf', 'pointer-events': 'none',
-      fill: '#bfe6ef', 'fill-opacity': 0.06,
-      stroke: '#bfe6ef', 'stroke-opacity': 0.08, 'stroke-width': 5, 'stroke-linejoin': 'round',
-    }));
-
-    // Matalan veden vaahto: sama polku useana levenevänä vetona rannan alle.
-    // EI suodattimia (suorituskyky) – pelkät vedot riittävät rantavyöhykkeeksi.
-    const foam = el('g', { 'class': 'cont-foam', 'pointer-events': 'none' });
-    foam.appendChild(el('path', { d: path, fill: 'none', stroke: '#bfe6ef', 'stroke-opacity': 0.09, 'stroke-width': 13, 'stroke-linejoin': 'round' }));
-    foam.appendChild(el('path', { d: path, fill: 'none', stroke: '#bfe6ef', 'stroke-opacity': 0.15, 'stroke-width': 8, 'stroke-linejoin': 'round' }));
-    foam.appendChild(el('path', { d: path, fill: 'none', stroke: '#cfeaf3', 'stroke-opacity': 0.26, 'stroke-width': 4, 'stroke-linejoin': 'round' }));
-    gCont.appendChild(foam);
-
-    // Aluesolut: Voronoi-jako mantereen ääriviivan sisällä. Vierekkäiset
-    // solut jakavat täsmälleen saman rajajanan; rannikkosärmät perivät
-    // rosoitetun ääriviivan. Täyttöväri asetetaan updateMapissa omistajan
-    // mukaan – tässä vain geometria + neutraali aloitusväri.
+    // Aluesolut: Voronoi-jako mantereen ääriviivan (tai geo-vyöhykkeen)
+    // sisällä. Täyttöväri asetetaan updateMapissa omistajan mukaan.
     const ids = continentTerritories(contId);
-    const { cells, pairs } = continentCells(ids, workPts || pts);
+    const { cells, pairs } = continentCells(ids, zone || workPts || pts);
     for (const tid of ids) {
       const regionAttrs = {
         d: closedPolyPath(cells[tid]), 'class': 'region', 'data-id': tid,
@@ -1212,10 +1240,20 @@ export function buildMap(svg, onTap) {
     }
 
     // Rantaviiva alueiden PÄÄLLE mantereen värillä: ulkoreuna pysyy terävänä.
-    gCoast.appendChild(el('path', {
-      d: path, 'class': 'coastline', fill: 'none', stroke: color,
-      'stroke-opacity': 0.85, 'stroke-width': 2.5, 'stroke-linejoin': 'round',
-    }));
+    if (zone) {
+      // GEO: aito rannikko mantereen värillä TÄMÄN vyöhykkeen sisällä.
+      const cg = el('g', { 'clip-path': `url(#zone-clip-${ci})`, 'pointer-events': 'none' });
+      cg.appendChild(el('path', {
+        d: geoLandD, 'class': 'coastline', fill: 'none', stroke: color,
+        'stroke-opacity': 0.85, 'stroke-width': 2, 'stroke-linejoin': 'round',
+      }));
+      gCoast.appendChild(cg);
+    } else {
+      gCoast.appendChild(el('path', {
+        d: path, 'class': 'coastline', fill: 'none', stroke: color,
+        'stroke-opacity': 0.85, 'stroke-width': 2.5, 'stroke-linejoin': 'round',
+      }));
+    }
 
     // Merisalmet: saman mantereen Voronoi-naapurit jotka EIVÄT ole pelinaapureita
     // erotetaan VEDELLÄ (ei vuorella): jaetun rajan päälle kaiverretaan kapea salmi
@@ -1228,8 +1266,29 @@ export function buildMap(svg, onTap) {
       if (!seg) continue;
       const a = seg.a, b = seg.b;
       const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy);
-      if (L < 12) continue; // liian lyhyt salmeksi
+      if (L < 12) continue; // liian lyhyt merkittäväksi
       const ux = dx / L, uy = dy / L, px = -uy, py = ux;
+      if (GEO) {
+        // GEO-tila: merellä aito vesi näkyy jo leikkauksen läpi → ei merkkiä.
+        // MAALLA ylittämätön raja piirretään VUORISTONA (maantieteellisesti
+        // rehellinen: esim. Verhojansk Jakutskin/Mongolian välissä).
+        if (!pointInLand((a.x + b.x) / 2, (a.y + b.y) / 2)) continue;
+        const segs = Math.max(3, Math.round(L / 9));
+        let d = `M ${(a.x).toFixed(1)} ${(a.y).toFixed(1)}`;
+        const caps = [];
+        for (let k = 1; k < segs; k++) {
+          const t = k / segs;
+          const amp = k % 2 === 1 ? 4.5 : -2.5;
+          const x = a.x + dx * t + px * amp, y = a.y + dy * t + py * amp;
+          d += ` L ${x.toFixed(1)} ${y.toFixed(1)}`;
+          if (k % 2 === 1) caps.push({ x, y });
+        }
+        d += ` L ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
+        gRidges.appendChild(el('path', { d, 'class': 'ridge-base', fill: 'none', stroke: '#0b141d', 'stroke-opacity': 0.8, 'stroke-width': 5, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+        gRidges.appendChild(el('path', { d, 'class': 'ridge', fill: 'none', stroke: '#2a3a4a', 'stroke-width': 2.4, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+        for (const c of caps) gRidges.appendChild(el('circle', { cx: c.x.toFixed(1), cy: c.y.toFixed(1), r: 1.2, 'class': 'ridge-cap', fill: '#dfe9f2', 'fill-opacity': 0.75 }));
+        continue;
+      }
       const ext = 3; // jatka hieman rannikkoon asti, ettei jää maakannasta päihin
       const a2 = { x: a.x - ux * ext, y: a.y - uy * ext }, b2 = { x: b.x + ux * ext, y: b.y + uy * ext };
       const line = (o) => `M ${(a2.x + px * o).toFixed(1)} ${(a2.y + py * o).toFixed(1)} L ${(b2.x + px * o).toFixed(1)} ${(b2.y + py * o).toFixed(1)}`;
