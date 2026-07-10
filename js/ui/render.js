@@ -660,6 +660,58 @@ function starPath(cx, cy, rOut, rIn, rot) {
   return d + 'Z';
 }
 
+/**
+ * Fantasiakartan merikoristeet: merikäärme tyhjimpään merenselkään ja
+ * "Täällä lohikäärmeitä" -teksti vanhojen karttojen tapaan. Staattista,
+ * matalaopasiteettista mustetta — ei suodattimia eikä animaatiota.
+ */
+function buildFantasyDeco() {
+  const g = el('g', { 'class': 'sea-deco fantasy-deco', 'pointer-events': 'none' });
+  // Etsi kaksi tyhjää merikohtaa käärmeille (kaukana alueista ja toisistaan).
+  const spots = [];
+  for (let x = 120; x <= 880; x += 60) {
+    for (let y = 110; y <= 590; y += 60) {
+      const d = minDistToTerritories(x, y);
+      if (d > 120) spots.push({ x, y, d });
+    }
+  }
+  spots.sort((a, b) => b.d - a.d);
+  const chosen = [];
+  for (const s of spots) {
+    if (chosen.length >= 2) break;
+    if (chosen.every((c) => Math.hypot(c.x - s.x, c.y - s.y) > 260)) chosen.push(s);
+  }
+  chosen.forEach((s, i) => {
+    const sc = i === 0 ? 1 : 0.72; // toinen käärme pienempi
+    const dir = i === 0 ? 1 : -1;  // ja peilattu
+    const serp = el('g', {
+      transform: `translate(${s.x} ${s.y}) scale(${(dir * sc).toFixed(2)} ${sc.toFixed(2)})`,
+      stroke: '#9fd0f0', 'stroke-opacity': 0.32, fill: 'none',
+      'stroke-width': 2.4, 'stroke-linecap': 'round',
+    });
+    // Kolme kyttyrää + kaula + pää + pyrstö. Kyttyrät erillisinä kaarina niin
+    // että runko "sukeltaa" pinnan alle kyttyröiden välissä.
+    serp.appendChild(el('path', { d: 'M -46 0 q 9 -20 18 0' }));
+    serp.appendChild(el('path', { d: 'M -18 0 q 9 -24 18 0' }));
+    serp.appendChild(el('path', { d: 'M 10 0 q 9 -20 18 0' }));
+    serp.appendChild(el('path', { d: 'M 36 0 q 8 -14 14 -16 q 5 -2 8 2' })); // kaula+pää
+    serp.appendChild(el('path', { d: 'M 55 -16 l 6 -6 M 55 -16 l 8 -1', 'stroke-width': 1.6 })); // kita
+    serp.appendChild(el('path', { d: 'M -52 -2 l -8 -8 M -52 -2 l -9 2', 'stroke-width': 1.8 })); // pyrstöevä
+    serp.appendChild(el('circle', { cx: 51, cy: -19, r: 1.1, fill: '#9fd0f0', 'fill-opacity': 0.5, stroke: 'none' }));
+    g.appendChild(serp);
+  });
+  // "Täällä lohikäärmeitä" — tyhjimmän käärmekohdan alle, tai vakiopaikkaan.
+  const t = chosen[0] || { x: 500, y: 640 };
+  const label = el('text', {
+    x: t.x, y: t.y + 34, 'text-anchor': 'middle', 'class': 'fantasy-legend',
+    'font-size': 13, 'font-style': 'italic', fill: '#9fc4e8', 'fill-opacity': 0.4,
+    'letter-spacing': '2', 'pointer-events': 'none',
+  });
+  label.textContent = 'Täällä lohikäärmeitä';
+  g.appendChild(label);
+  return g;
+}
+
 /** Kartan neljä kulmaa lajiteltuna tyhjyyden mukaan (tyhjin ensin). */
 function cornerClearances() {
   const corners = [
@@ -907,6 +959,7 @@ export function buildMap(svg, onTap) {
   // ei suodattimia, ei animaatioita.
   const corners = cornerClearances();
   gMap.appendChild(buildWaveGlyphs());
+  if (activeMap()?.fantasy) gMap.appendChild(buildFantasyDeco());
   gMap.appendChild(buildSeaIslands());
   gMap.appendChild(buildCompassRose(corners[0]));
   const legend = buildContinentLegend(corners);
@@ -1251,7 +1304,13 @@ export function buildMap(svg, onTap) {
   for (const id of TERRITORY_IDS) {
     for (const n of TERRITORIES[id].adj) {
       if (id < n) {
-        if (TERRITORIES[id].continent === TERRITORIES[n].continent) continue;
+        // Saman mantereen naapurit: blob-kartoilla solut koskettavat → ei viivaa.
+        // GEO-kartoilla saman mantereen naapuruus voi ylittää MERTA (esim.
+        // saaristovaltakunta) → piirrä reitti, muuten yhteys olisi näkymätön.
+        if (TERRITORIES[id].continent === TERRITORIES[n].continent) {
+          const a0 = TERRITORIES[id], b0 = TERRITORIES[n];
+          if (!GEO || pointInLand((a0.x + b0.x) / 2, (a0.y + b0.y) / 2)) continue;
+        }
         const a = TERRITORIES[id], b = TERRITORIES[n];
         const dist = Math.hypot(a.x - b.x, a.y - b.y);
         const sea = dist > 220; // pitkä merireitti -> hohtava katkoviiva
