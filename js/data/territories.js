@@ -16,6 +16,7 @@ import taruvaltakunnat from './maps/taruvaltakunnat.js';
 import africa from './maps/africa.js';
 import aasia from './maps/aasia.js';
 import amerikat from './maps/amerikat.js';
+import tyynimeri from './maps/tyynimeri.js';
 
 /** Kaikki saatavilla olevat kartat id:n mukaan. */
 export const MAPS = {
@@ -28,6 +29,7 @@ export const MAPS = {
   [africa.id]: africa,
   [aasia.id]: aasia,
   [amerikat.id]: amerikat,
+  [tyynimeri.id]: tyynimeri,
 };
 
 /** Karttavalikko UI:lle: [{ id, name }]. */
