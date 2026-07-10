@@ -5,6 +5,7 @@
 // särmälistasta (symmetrisiä).
 
 import { fromEdges } from './_util.js';
+import { LAND } from '../geo/eu2025-land.js';
 
 export const continents = {
   suomi:   { name: 'Suomi',          bonus: 3, color: '#4a9fd9' },
@@ -18,51 +19,51 @@ export const continents = {
 
 const base = {
   // --- Suomi ---
-  lappi:         { name: 'Lappi',       gen: 'Lapin',        continent: 'suomi', x: 615, y: 65 },
-  oulu:          { name: 'Oulu',        gen: 'Oulun',        continent: 'suomi', x: 635, y: 140 },
-  'jarvi-suomi': { name: 'Järvi-Suomi', gen: 'Järvi-Suomen', continent: 'suomi', x: 655, y: 215 },
-  'etela-suomi': { name: 'Etelä-Suomi', gen: 'Etelä-Suomen', continent: 'suomi', x: 590, y: 260 },
+  lappi:         { name: 'Lappi',       gen: 'Lapin',        continent: 'suomi', x: 519, y: 116 },
+  oulu:          { name: 'Oulu',        gen: 'Oulun',        continent: 'suomi', x: 519, y: 176 },
+  'jarvi-suomi': { name: 'Järvi-Suomi', gen: 'Järvi-Suomen', continent: 'suomi', x: 539, y: 239 },
+  'etela-suomi': { name: 'Etelä-Suomi', gen: 'Etelä-Suomen', continent: 'suomi', x: 458, y: 248 },
 
   // --- Pohjola ---
-  'pohjois-norja':  { name: 'Pohjois-Norja',  gen: 'Pohjois-Norjan',  continent: 'pohjola', x: 480, y: 60 },
-  'etela-norja':    { name: 'Etelä-Norja',    gen: 'Etelä-Norjan',    continent: 'pohjola', x: 390, y: 165 },
-  'pohjois-ruotsi': { name: 'Pohjois-Ruotsi', gen: 'Pohjois-Ruotsin', continent: 'pohjola', x: 540, y: 130 },
-  'etela-ruotsi':   { name: 'Etelä-Ruotsi',   gen: 'Etelä-Ruotsin',   continent: 'pohjola', x: 480, y: 230 },
-  tanska:           { name: 'Tanska',         gen: 'Tanskan',         continent: 'pohjola', x: 390, y: 290 },
+  'pohjois-norja':  { name: 'Pohjois-Norja',  gen: 'Pohjois-Norjan',  continent: 'pohjola', x: 461, y: 78 },
+  'etela-norja':    { name: 'Etelä-Norja',    gen: 'Etelä-Norjan',    continent: 'pohjola', x: 288, y: 252 },
+  'pohjois-ruotsi': { name: 'Pohjois-Ruotsi', gen: 'Pohjois-Ruotsin', continent: 'pohjola', x: 423, y: 157 },
+  'etela-ruotsi':   { name: 'Etelä-Ruotsi',   gen: 'Etelä-Ruotsin',   continent: 'pohjola', x: 372, y: 283 },
+  tanska:           { name: 'Tanska',         gen: 'Tanskan',         continent: 'pohjola', x: 301, y: 340 },
 
   // --- Itämeren rannikko ---
-  viro:        { name: 'Viro',        gen: 'Viron',         continent: 'itameri', x: 625, y: 330 },
-  latvia:      { name: 'Latvia',      gen: 'Latvian',       continent: 'itameri', x: 600, y: 395 },
-  liettua:     { name: 'Liettua',     gen: 'Liettuan',      continent: 'itameri', x: 560, y: 455 },
-  kaliningrad: { name: 'Kaliningrad', gen: 'Kaliningradin', continent: 'itameri', x: 485, y: 420 },
-  puola:       { name: 'Puola',       gen: 'Puolan',        continent: 'itameri', x: 515, y: 510 },
+  viro:        { name: 'Viro',        gen: 'Viron',         continent: 'itameri', x: 523, y: 302 },
+  latvia:      { name: 'Latvia',      gen: 'Latvian',       continent: 'itameri', x: 466, y: 330 },
+  liettua:     { name: 'Liettua',     gen: 'Liettuan',      continent: 'itameri', x: 514, y: 384 },
+  kaliningrad: { name: 'Kaliningrad', gen: 'Kaliningradin', continent: 'itameri', x: 426, y: 360 },
+  puola:       { name: 'Puola',       gen: 'Puolan',        continent: 'itameri', x: 436, y: 424 },
 
   // --- Länsi-Eurooppa ---
-  britannia: { name: 'Britannia', gen: 'Britannian', continent: 'lansi', x: 165, y: 250 },
-  benelux:   { name: 'Benelux',   gen: 'Beneluxin',  continent: 'lansi', x: 280, y: 330 },
-  saksa:     { name: 'Saksa',     gen: 'Saksan',     continent: 'lansi', x: 390, y: 390 },
-  ranska:    { name: 'Ranska',    gen: 'Ranskan',    continent: 'lansi', x: 230, y: 440 },
+  britannia: { name: 'Britannia', gen: 'Britannian', continent: 'lansi', x: 160, y: 398 },
+  benelux:   { name: 'Benelux',   gen: 'Beneluxin',  continent: 'lansi', x: 243, y: 414 },
+  saksa:     { name: 'Saksa',     gen: 'Saksan',     continent: 'lansi', x: 311, y: 422 },
+  ranska:    { name: 'Ranska',    gen: 'Ranskan',    continent: 'lansi', x: 211, y: 492 },
 
   // --- Etelä-Eurooppa ---
-  'etela-eurooppa': { name: 'Etelä-Eurooppa', gen: 'Etelä-Euroopan', continent: 'etela', x: 320, y: 560 },
-  balkan:           { name: 'Balkan',         gen: 'Balkanin',       continent: 'etela', x: 480, y: 605 },
-  romania:          { name: 'Romania',        gen: 'Romanian',       continent: 'etela', x: 595, y: 560 },
-  turkki:           { name: 'Turkki',         gen: 'Turkin',         continent: 'etela', x: 720, y: 630 },
+  'etela-eurooppa': { name: 'Etelä-Eurooppa', gen: 'Etelä-Euroopan', continent: 'etela', x: 205, y: 565 },
+  balkan:           { name: 'Balkan',         gen: 'Balkanin',       continent: 'etela', x: 442, y: 551 },
+  romania:          { name: 'Romania',        gen: 'Romanian',       continent: 'etela', x: 500, y: 502 },
+  turkki:           { name: 'Turkki',         gen: 'Turkin',         continent: 'etela', x: 603, y: 594 },
 
   // --- Ukraina ---
-  'lansi-ukraina': { name: 'Länsi-Ukraina', gen: 'Länsi-Ukrainan', continent: 'ukraina', x: 630, y: 505 },
-  kiova:           { name: 'Kiova',         gen: 'Kiovan',         continent: 'ukraina', x: 700, y: 445 },
-  odessa:          { name: 'Odessa',        gen: 'Odessan',        continent: 'ukraina', x: 700, y: 560 },
-  'ita-ukraina':   { name: 'Itä-Ukraina',   gen: 'Itä-Ukrainan',   continent: 'ukraina', x: 810, y: 480 },
-  krim:            { name: 'Krim',          gen: 'Krimin',         continent: 'ukraina', x: 790, y: 590 },
+  'lansi-ukraina': { name: 'Länsi-Ukraina', gen: 'Länsi-Ukrainan', continent: 'ukraina', x: 506, y: 446 },
+  kiova:           { name: 'Kiova',         gen: 'Kiovan',         continent: 'ukraina', x: 596, y: 452 },
+  odessa:          { name: 'Odessa',        gen: 'Odessan',        continent: 'ukraina', x: 548, y: 508 },
+  'ita-ukraina':   { name: 'Itä-Ukraina',   gen: 'Itä-Ukrainan',   continent: 'ukraina', x: 660, y: 461 },
+  krim:            { name: 'Krim',          gen: 'Krimin',         continent: 'ukraina', x: 610, y: 514 },
 
   // --- Venäjä ---
-  kuola:          { name: 'Kuolan niemimaa', gen: 'Kuolan niemimaan', continent: 'venaja', x: 760, y: 55 },
-  karjala:        { name: 'Karjala',       gen: 'Karjalan',       continent: 'venaja', x: 745, y: 150 },
-  pietari:        { name: 'Pietari',       gen: 'Pietarin',       continent: 'venaja', x: 720, y: 245 },
-  moskova:        { name: 'Moskova',       gen: 'Moskovan',       continent: 'venaja', x: 855, y: 250 },
-  'valko-venaja': { name: 'Valko-Venäjä',  gen: 'Valko-Venäjän',  continent: 'venaja', x: 700, y: 350 },
-  'etela-venaja': { name: 'Etelä-Venäjä',  gen: 'Etelä-Venäjän',  continent: 'venaja', x: 900, y: 420 },
+  kuola:          { name: 'Kuolan niemimaa', gen: 'Kuolan niemimaan', continent: 'venaja', x: 628, y: 116 },
+  karjala:        { name: 'Karjala',       gen: 'Karjalan',       continent: 'venaja', x: 603, y: 205 },
+  pietari:        { name: 'Pietari',       gen: 'Pietarin',       continent: 'venaja', x: 595, y: 280 },
+  moskova:        { name: 'Moskova',       gen: 'Moskovan',       continent: 'venaja', x: 662, y: 345 },
+  'valko-venaja': { name: 'Valko-Venäjä',  gen: 'Valko-Venäjän',  continent: 'venaja', x: 560, y: 388 },
+  'etela-venaja': { name: 'Etelä-Venäjä',  gen: 'Etelä-Venäjän',  continent: 'venaja', x: 725, y: 469 },
 };
 
 const edges = [
@@ -124,4 +125,18 @@ export const landBridges = [
   'etela|lansi',
 ];
 
-export default { id: 'eurooppa2025', name: 'Eurooppa 2025', continents, territories, landBridges };
+
+// MANNERVYÖHYKKEET (geo-tila): jakavat aidon Pohjois-/Itä-Euroopan oikeita
+// rajoja pitkin (Suomi–Venäjä, Valko-Venäjä–Ukraina, Tonava...). Kaukasus ja
+// ikkunan ulkopuoliset maat jäävät neutraaleiksi.
+export const zones = {
+  suomi: [[500,25],[575,25],[570,180],[555,250],[548,290],[490,295],[450,260],[460,175],[485,105]],
+  pohjola: [[25,25],[500,25],[485,105],[460,175],[450,260],[445,300],[440,330],[415,352],[340,352],[310,355],[25,355]],
+  itameri: [[445,300],[490,295],[548,290],[540,345],[560,415],[470,420],[430,440],[390,430],[408,375],[415,352],[440,330]],
+  lansi: [[25,355],[310,355],[340,352],[415,352],[408,375],[390,430],[345,460],[300,470],[250,500],[180,520],[25,520]],
+  etela: [[25,520],[180,520],[250,500],[300,470],[345,460],[390,430],[430,440],[470,420],[470,455],[530,480],[545,540],[620,555],[700,560],[720,590],[700,632],[25,632]],
+  ukraina: [[470,420],[560,415],[640,405],[695,440],[695,520],[700,560],[620,555],[545,540],[530,480],[470,455]],
+  venaja: [[575,25],[820,25],[820,530],[800,540],[720,520],[695,520],[695,440],[640,405],[560,415],[540,345],[548,290],[555,250],[570,180]],
+};
+
+export default { id: 'eurooppa2025', name: 'Eurooppa 2025', continents, territories, landBridges, geo: { land: LAND }, zones };
