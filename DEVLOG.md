@@ -826,3 +826,33 @@ Kaikki tosielämän kartat, pushaa valmiina."
   saaret), eurooppa2025 (7, Britannia-saari), antiquity (5, Välimeren maailma).
   Taruvaltakunnat (fantasia) jää tyylitellyksi. 118 testiä vihreää joka kartalla,
   0 konsolivirhettä, todennettu kuvakaappauksin karttakohtaisesti. SW v19→v26.
+
+## Kartat rakennettu uudelleen AIDOLLE maantieteelliselle pohjalle (Natural Earth)
+Käyttäjän vertailu RGD:hen oli reilu: käsin approksimoidut blobit ~3-4/10.
+Uusi arkkitehtuuri (RGD:n tapa):
+- tools/geo.mjs: Natural Earth 110m/50m GeoJSON → Miller-projektio ikkunaan →
+  Douglas-Peucker-yksinkertaistus → committoitu js/data/geo/*.js (ei ajonaikaista
+  verkkoriippuvuutta; SW esilataa).
+- GEO-renderöinti: maailma piirretään YHTENÄ aitona maamassana; mantereet ovat
+  VÄRIVYÖHYKKEITÄ sen päällä (vyöhyke ∩ maa sisäkkäisin clip-polyin). Vyöhykkeet
+  kartan datassa; tarkkoja vain maaylityksissä (Panama, Ural/Kaukasus,
+  Suez/Punainenmeri, Malakka, Suomi–Venäjä...). Solut yhä auto-Voronoi,
+  leikattuna aitoon rantaan. Pelialueen ulkopuolinen maa jää neutraaliksi
+  (Uusi-Seelanti classicissa, Venäjä/Anatolia Euroopassa, barbaricum antiikissa,
+  Madagaskar/Arabia Afrikassa) — RGD:n harmaa.
+- KAIKKI alueet siirretty AIDOILLE projisoiduille lat/long-sijainneille;
+  tiheissä ryppäissä (Eurooppa, Baltia, Ukraina) minimisiirrot niin että joka
+  token-pari ≥42 px ja joka labelrivi irti naapuritokeneista (rivi×token-
+  leikkaustesti käsin joka parille).
+- Maalla kulkeva ei-yhteys piirtyy VUORISTONA (maantieteellisesti rehellinen),
+  merellä aito vesi näkyy leikkauksen läpi (ei keinosalmia geo-tilassa).
+- TEHTY: classic, suurmaailma, africa, europe, eurooppa2025 (nato.js), antiquity.
+  Taruvaltakunnat (fantasia) pitää tyylitellyn sädepolun; REAL_OUTLINES-käsidata
+  poistettu kuolleena. 118 testiä vihreää joka kartalla; kaikki moodit (sumu/
+  myrsky/lite) todennettu; SW v27→v32.
+- LESSON: (1) Tarkkuuden katto on POHJADATA — käsin piirtämällä ei ylitä ~4/10;
+  aito data + projektio nostaa ~9/10 samalla rendausputkella. (2) "Manner =
+  vyöhyke ∩ maa" -leikkaus­arkkitehtuuri erottaa geometrian (data) ja tyylin
+  (rendaus) — uusi kartta = ikkuna + solmut + vyöhykkeet, ei piirtämistä.
+  (3) Tiheiden karttojen labelit ovat oma geometriaongelmansa: rivi×token-
+  törmäystesti kannattaa tehdä systemaattisesti, ei silmällä.

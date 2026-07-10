@@ -2,6 +2,7 @@
 // Naapuruudet johdetaan särmälistasta (taatusti symmetrisiä).
 
 import { fromEdges } from './_util.js';
+import { LAND } from '../geo/antiquity-land.js';
 
 export const continents = {
   iberia: { name: 'Iberia',  bonus: 2, color: '#e6b84a' },
@@ -13,34 +14,34 @@ export const continents = {
 
 const base = {
   // --- Iberia ---
-  lusitania:  { name: 'Lusitania',  gen: 'Lusitanian',  continent: 'iberia', x: 95,  y: 380 },
-  hispania:   { name: 'Hispania',   gen: 'Hispanian',   continent: 'iberia', x: 180, y: 355 },
-  mauretania: { name: 'Mauretania', gen: 'Mauretanian', continent: 'iberia', x: 130, y: 520 },
+  lusitania:  { name: 'Lusitania',  gen: 'Lusitanian',  continent: 'iberia', x: 76, y: 350 },
+  hispania:   { name: 'Hispania',   gen: 'Hispanian',   continent: 'iberia', x: 134, y: 335 },
+  mauretania: { name: 'Mauretania', gen: 'Mauretanian', continent: 'iberia', x: 115, y: 460 },
 
   // --- Gallia ---
-  britannia:  { name: 'Britannia',  gen: 'Britannian',  continent: 'gallia', x: 215, y: 110 },
-  belgica:    { name: 'Belgica',    gen: 'Belgican',    continent: 'gallia', x: 320, y: 175 },
-  gallia:     { name: 'Gallia',     gen: 'Gallian',     continent: 'gallia', x: 265, y: 275 },
-  germania:   { name: 'Germania',   gen: 'Germanian',   continent: 'gallia', x: 410, y: 150 },
+  britannia:  { name: 'Britannia',  gen: 'Britannian',  continent: 'gallia', x: 160, y: 182 },
+  belgica:    { name: 'Belgica',    gen: 'Belgican',    continent: 'gallia', x: 243, y: 215 },
+  gallia:     { name: 'Gallia',     gen: 'Gallian',     continent: 'gallia', x: 211, y: 276 },
+  germania:   { name: 'Germania',   gen: 'Germanian',   continent: 'gallia', x: 301, y: 207 },
 
   // --- Italia ---
-  italia:     { name: 'Italia',     gen: 'Italian',     continent: 'italia', x: 440, y: 330 },
-  sisilia:    { name: 'Sisilia',    gen: 'Sisilian',    continent: 'italia', x: 460, y: 455 },
-  karthago:   { name: 'Karthago',   gen: 'Karthagon',   continent: 'italia', x: 360, y: 525 },
-  numidia:    { name: 'Numidia',    gen: 'Numidian',    continent: 'italia', x: 270, y: 575 },
+  italia:     { name: 'Italia',     gen: 'Italian',     continent: 'italia', x: 339, y: 343 },
+  sisilia:    { name: 'Sisilia',    gen: 'Sisilian',    continent: 'italia', x: 376, y: 396 },
+  karthago:   { name: 'Karthago',   gen: 'Karthagon',   continent: 'italia', x: 301, y: 397 },
+  numidia:    { name: 'Numidia',    gen: 'Numidian',    continent: 'italia', x: 217, y: 419 },
 
   // --- Balkan ---
-  dacia:      { name: 'Dacia',      gen: 'Dacian',      continent: 'balkan', x: 580, y: 190 },
-  makedonia:  { name: 'Makedonia',  gen: 'Makedonian',  continent: 'balkan', x: 575, y: 305 },
-  traakia:    { name: 'Traakia',    gen: 'Traakian',    continent: 'balkan', x: 660, y: 250 },
-  kreikka:    { name: 'Kreikka',    gen: 'Kreikan',     continent: 'balkan', x: 610, y: 405 },
+  dacia:      { name: 'Dacia',      gen: 'Dacian',      continent: 'balkan', x: 500, y: 284 },
+  makedonia:  { name: 'Makedonia',  gen: 'Makedonian',  continent: 'balkan', x: 446, y: 334 },
+  traakia:    { name: 'Traakia',    gen: 'Traakian',    continent: 'balkan', x: 519, y: 345 },
+  kreikka:    { name: 'Kreikka',    gen: 'Kreikan',     continent: 'balkan', x: 474, y: 392 },
 
   // --- Itämaat ---
-  anatolia:   { name: 'Anatolia',   gen: 'Anatolian',   continent: 'oriens', x: 765, y: 300 },
-  syyria:     { name: 'Syyria',     gen: 'Syyrian',     continent: 'oriens', x: 850, y: 390 },
-  persia:     { name: 'Persia',     gen: 'Persian',     continent: 'oriens', x: 935, y: 330 },
-  arabia:     { name: 'Arabia',     gen: 'Arabian',     continent: 'oriens', x: 870, y: 520 },
-  egypti:     { name: 'Egypti',     gen: 'Egyptin',     continent: 'oriens', x: 720, y: 530 },
+  anatolia:   { name: 'Anatolia',   gen: 'Anatolian',   continent: 'oriens', x: 596, y: 356 },
+  syyria:     { name: 'Syyria',     gen: 'Syyrian',     continent: 'oriens', x: 660, y: 419 },
+  persia:     { name: 'Persia',     gen: 'Persian',     continent: 'oriens', x: 820, y: 460 },
+  arabia:     { name: 'Arabia',     gen: 'Arabian',     continent: 'oriens', x: 692, y: 538 },
+  egypti:     { name: 'Egypti',     gen: 'Egyptin',     continent: 'oriens', x: 564, y: 525 },
 };
 
 const edges = [
@@ -74,4 +75,15 @@ export const territories = fromEdges(base, edges);
 // Itämaat, Balkan–Gallia) ovat Välimeren ylityksiä → jäävät auki.
 export const landBridges = ['gallia|iberia', 'gallia|italia'];
 
-export default { id: 'antiquity', name: 'Antiikin maailma', continents, territories, landBridges };
+
+// MANNERVYÖHYKKEET (geo-tila): antiikin Välimeren maailma. Pohjoinen
+// barbaricum, Libyan autiomaa ja ikkunan reunat jäävät neutraaleiksi.
+export const zones = {
+  iberia: [[25,290],[150,320],[215,335],[190,380],[165,420],[165,520],[25,520]],
+  gallia: [[25,101],[430,101],[430,240],[360,270],[330,285],[300,290],[270,310],[240,330],[215,335],[180,332],[150,320],[25,290]],
+  italia: [[300,292],[340,288],[370,272],[400,300],[400,360],[380,400],[400,440],[380,490],[320,515],[165,520],[165,420],[190,380],[215,335],[240,330],[270,310]],
+  balkan: [[430,220],[560,220],[560,240],[551,330],[540,360],[520,400],[470,435],[430,430],[400,360],[400,300],[370,272],[400,250],[430,240]],
+  oriens: [[560,240],[600,300],[700,300],[800,290],[870,280],[945,290],[945,632],[510,632],[495,555],[485,480],[470,435],[520,400],[540,360],[551,330]],
+};
+
+export default { id: 'antiquity', name: 'Antiikin maailma', continents, territories, landBridges, geo: { land: LAND }, zones };
