@@ -43,14 +43,14 @@ function loss(t, x, y) {
     // label × label
     L += overlap(x - hw, x + hw, y + LBL_DY - LBL_H / 2, y + LBL_DY + LBL_H / 2, o.x - ohw, o.x + ohw, o.y + LBL_DY - LBL_H / 2, o.y + LBL_DY + LBL_H / 2) * 0.8;
   }
-  L += Math.hypot(x - t.x0, y - t.y0) * 1.2; // ankkuri alkuperäiseen
+  L += Math.hypot(x - t.x0, y - t.y0) * 0.35; // ankkuri alkuperäiseen (löyhä)
   return L;
 }
 
 const DIRS = [];
-for (const r of [6, 12, 20, 30]) for (let k = 0; k < 12; k++) DIRS.push([Math.round(Math.cos((k / 12) * 6.283) * r), Math.round(Math.sin((k / 12) * 6.283) * r)]);
+for (const r of [6, 12, 20, 30, 44, 60]) for (let k = 0; k < 12; k++) DIRS.push([Math.round(Math.cos((k / 12) * 6.283) * r), Math.round(Math.sin((k / 12) * 6.283) * r)]);
 
-for (let round = 0; round < 60; round++) {
+for (let round = 0; round < 150; round++) {
   let moved = false;
   for (const t of T) {
     let bestL = loss(t, t.x, t.y), bx = t.x, by = t.y;
