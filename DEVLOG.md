@@ -856,3 +856,29 @@ Uusi arkkitehtuuri (RGD:n tapa):
   (rendaus) — uusi kartta = ikkuna + solmut + vyöhykkeet, ei piirtämistä.
   (3) Tiheiden karttojen labelit ovat oma geometriaongelmansa: rivi×token-
   törmäystesti kannattaa tehdä systemaattisesti, ei silmällä.
+
+## Neljä uutta karttaa + Taruvaltakuntien fantasiapäivitys (A+D)
+Käyttäjän tilaus: Taruvaltakunnat uusiksi sommiteltuna fantasiamaailmana +
+fantasiateemoitus, ja 4 uutta suurehkoa karttaa vapaalla tyylillä.
+- tools/islands.mjs: seedattu saarisommittelija (sin-harmoninen sädekohina)
+  → fantasiakartat saavat saman geo-arkkitehtuurin kuin aidot kartat.
+  Taruvaltakunnat: 18 käsin sommiteltua polygonia (gen-taru.mjs), 6 teema-
+  vyöhykettä, merikäärme-dekoraatiot + "Täällä lohikäärmeitä" (fantasy: true).
+- UUDET KARTAT: Aasia (40 aluetta, 9 mannerta; Himalaja/Ural vyöhykerajoina),
+  Amerikat (39 aluetta; Alaskasta Patagoniaan, Karibia 2 alueen mantereena),
+  Tyynimeri (33 aluetta; Kaakkois-Aasia→Fidži, puhdas saaristokartta:
+  landBridges tyhjä, reittiviivat kantavat), Saaristomaailma (41 aluetta;
+  fantasia-arkkipelagi: 7 teemaryhmää + iso Sumusaari-keskusmanner,
+  gen-saaristo.mjs).
+- TYÖKALUT jotka tekivät tiheät kartat mahdollisiksi: tools/mapcheck.mjs
+  (token-etäisyydet, label×token-geometria, solmu-vyöhykkeessä/maalla —
+  exit 1 ongelmista) ja tools/mapfix.mjs (ahne mäenkiipeily-optimoija;
+  löyhä ankkuri 0.35 + laajat säteet 60px asti → tiheät ryppäät konvergoivat
+  globaalisti). Työnkulku: geo/gen → mapcheck → mapfix → screenshot-review.
+- 134 testiä vihreää (10 karttaa × moodit); SW v33→v36.
+- LESSON: (1) Saaristokartoissa vyöhykerajat kulkevat salmissa — aidot salmet
+  (Makassar, Ombai, Torres) ovat 3-14 px tässä mittakaavassa, joten rajapisteet
+  lasketaan projisoiduista referenssipisteistä (PTS), ei silmällä. (2) Yhden
+  solmun käsisiirto tiheässä ryppäässä rikkoo naapurin — optimoijan globaali
+  kierros voittaa aina näpertelyn. (3) Fantasiakartta = sama putki, vain
+  maadata generoidaan (islands.mjs) — "geometria datana" kantaa tänne asti.

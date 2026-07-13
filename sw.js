@@ -11,7 +11,7 @@
 // asennetaan, esiväli­muisti haetaan tuoreena ja vanha välimuisti poistetaan,
 // jotta myös asennettu PWA (esim. iOS) saa muutokset heti eikä vasta seuraavalla
 // avauksella. Pidä ASSETS ajan tasalla (kaikki kartat mukana → offline-tuki).
-const CACHE = 'risk-v35';
+const CACHE = 'risk-v36';
 const ASSETS = [
   './',
   './index.html',
@@ -34,6 +34,7 @@ const ASSETS = [
   './js/data/geo/asia-land.js',
   './js/data/geo/americas-land.js',
   './js/data/geo/pacific-land.js',
+  './js/data/geo/saaristo-land.js',
   './js/data/maps/classic.js',
   './js/data/maps/europe.js',
   './js/data/maps/antiquity.js',
@@ -44,6 +45,7 @@ const ASSETS = [
   './js/data/maps/aasia.js',
   './js/data/maps/amerikat.js',
   './js/data/maps/tyynimeri.js',
+  './js/data/maps/saaristomaailma.js',
   './js/engine/rng.js',
   './js/engine/combat.js',
   './js/engine/cards.js',
