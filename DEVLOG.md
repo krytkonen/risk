@@ -882,3 +882,23 @@ fantasiateemoitus, ja 4 uutta suurehkoa karttaa vapaalla tyylillä.
   solmun käsisiirto tiheässä ryppäässä rikkoo naapurin — optimoijan globaali
   kierros voittaa aina näpertelyn. (3) Fantasiakartta = sama putki, vain
   maadata generoidaan (islands.mjs) — "geometria datana" kantaa tänne asti.
+
+## Suomi — pelin suurin kartta (53 aluetta)
+Käyttäjän tilaus: Suomi-kartta, suurempi kuin tähänastinen suurin (Saaristo­maailma 41).
+- tools/geo.mjs: Natural Earth 50m, ikkuna lon 19..32, lat 59.5..70.2. Miller-
+  projektion sisäänrakennettu vaakakatto (scaleX ≤ 2× scaleY) venytti kapean,
+  korkean maan täyttämään kankaan → Suomi näkyy leveänä eikä tikkuna. Ruotsi,
+  Norja ja Venäjä jäävät ikkunaan pelin ulkopuolisena neutraalina harmaana.
+- 53 aluetta aidoilla projisoiduilla kaupunkisijainneilla, 9 suuraluetta
+  (Lappi, Pohjanmaa, Kainuu, Keski-Suomi, Savo, Karjala, Länsi-Suomi,
+  Lounais-Suomi, Uusimaa). Ahvenanmaa (Maarianhamina) on meren takana →
+  reittiyhteys Turkuun. Suuralueet kytketään toisiinsa kapeikoilla.
+- Vyöhykepartitiointi (9 palaa) validointiin mapcheckillä (solmu omassa
+  vyöhykkeessä + maalla) ja mapfixillä; kolme rannikkosolmua (Meri-Lappi,
+  Pietarsaari, Helsinki) napsautettiin yksinkertaistetulle rannalle.
+- 138 testiä vihreää; SW v36→v37.
+- LESSON: (1) Yksittäisen maan kartta on kapea ja korkea — projektion vaaka-
+  katto (×2) täyttää kankaan ilman erillistä venytysparametria. (2) Tiheä etelä
+  (Uusimaa/Lounais-Suomi) on kartan raskain kohta: 7 pientä label-limitystä jäi
+  optimoinnin jälkeen, mutta pilleritaustat pitävät nimet luettavina — visuaali-
+  tarkistus on tässä lopullinen tuomari, ei pelkkä mapcheck-nollatoleranssi.
