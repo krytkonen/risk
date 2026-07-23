@@ -1331,7 +1331,11 @@ export function buildMap(svg, onTap) {
           // Kaaren suunta valitaan deterministisesti seedatulla kohinalla.
           const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
           const px = -(b.y - a.y) / dist, py = (b.x - a.x) / dist;
-          const bow = Math.min(20, 12 + dist * 0.02);
+          // landAdjacency-kartoilla merireitit ovat lyhyitä ja niiden päät jäävät
+          // armeijanapin (r≈21) alle → leveämpi kaari, jotta reitti kaartuu
+          // näkyvästi nappien VÄLISTÄ (muuten se peittyy kokonaan).
+          const bow = landAdjMap ? Math.max(28, Math.min(42, dist * 0.32))
+            : Math.min(20, 12 + dist * 0.02);
           const sign = seededNoise(7, seaEdgeIdx++) >= 0 ? 1 : -1;
           const d = `M ${a.x} ${a.y} Q ${(mx + px * bow * sign).toFixed(1)} ${(my + py * bow * sign).toFixed(1)} ${b.x} ${b.y}`;
           // Purjehdusreitti: pehmeä hehku + katkoviiva + pienet satamapisteet
