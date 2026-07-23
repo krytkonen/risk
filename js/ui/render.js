@@ -1343,18 +1343,21 @@ export function buildMap(svg, onTap) {
           const d = `M ${a.x} ${a.y} Q ${(mx + px * bow * sign).toFixed(1)} ${(my + py * bow * sign).toFixed(1)} ${b.x} ${b.y}`;
           // Purjehdusreitti: pehmeä hehku + katkoviiva + pienet satamapisteet
           // päissä (reitti "kiinnittyy" maahan). Kolme kerrosta, ei suodatinta.
+          // Merireitit ovat monilla kartoilla AINOA yhteysvihje ei-koskettaville
+          // alueille → riittävän näkyvä katkoviiva (tiheämpi + vahvempi kuin ennen,
+          // jottei purjehdusreitti huku taustaan).
           gEdges.appendChild(el('path', {
             d, fill: 'none',
-            'class': 'edge-sea-glow', stroke: '#6fb6e8', 'stroke-opacity': 0.12,
-            'stroke-width': 4, 'stroke-linecap': 'round', 'stroke-dasharray': '2 11',
+            'class': 'edge-sea-glow', stroke: '#6fb6e8', 'stroke-opacity': 0.18,
+            'stroke-width': 5, 'stroke-linecap': 'round', 'stroke-dasharray': '5 6',
           }));
           gEdges.appendChild(el('path', {
             d, fill: 'none',
-            'class': 'edge-sea', stroke: '#9fd0f0', 'stroke-opacity': 0.4,
-            'stroke-width': 1.4, 'stroke-linecap': 'round', 'stroke-dasharray': '2 11',
+            'class': 'edge-sea', stroke: '#bfe3fb', 'stroke-opacity': 0.72,
+            'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-dasharray': '5 6',
           }));
-          gEdges.appendChild(el('circle', { cx: a.x, cy: a.y, r: 2.4, 'class': 'edge-port', fill: '#0a1a28', stroke: '#9fd0f0', 'stroke-opacity': 0.5, 'stroke-width': 1 }));
-          gEdges.appendChild(el('circle', { cx: b.x, cy: b.y, r: 2.4, 'class': 'edge-port', fill: '#0a1a28', stroke: '#9fd0f0', 'stroke-opacity': 0.5, 'stroke-width': 1 }));
+          gEdges.appendChild(el('circle', { cx: a.x, cy: a.y, r: 2.8, 'class': 'edge-port', fill: '#0a1a28', stroke: '#bfe3fb', 'stroke-opacity': 0.75, 'stroke-width': 1.2 }));
+          gEdges.appendChild(el('circle', { cx: b.x, cy: b.y, r: 2.8, 'class': 'edge-port', fill: '#0a1a28', stroke: '#bfe3fb', 'stroke-opacity': 0.75, 'stroke-width': 1.2 }));
         } else {
           // Lyhyt mannerten välinen yhteys: "salmi/silta". Tumma kotelo +
           // vaalea ydin → reitti lukee syvyydellä eikä litteänä kirkkaana
