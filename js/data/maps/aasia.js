@@ -145,6 +145,6 @@ export const zones = {
 };
 
 export default {
-  id: 'aasia', name: 'Aasia', continents, territories, landBridges,
+  id: 'aasia', landAdjacency: true, name: 'Aasia', continents, territories, landBridges,
   geo: { land: LAND }, zones,
 };

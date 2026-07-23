@@ -145,6 +145,6 @@ export const zones = {
 };
 
 export default {
-  id: 'saaristomaailma', name: 'Saaristomaailma', continents, territories, landBridges,
+  id: 'saaristomaailma', landAdjacency: true, name: 'Saaristomaailma', continents, territories, landBridges,
   geo: { land: LAND }, zones, fantasy: true,
 };

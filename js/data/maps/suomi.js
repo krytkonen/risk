@@ -164,12 +164,11 @@ export const zones = {
   uusimaa: [[355,648],[370,622],[430,620],[515,622],[540,615],[560,600],[620,600],[640,642],[610,662],[520,657],[430,662],[355,668]],
 };
 
-export const seaRoutes = [
-  ['maarianhamina', 'turku'], // Ahvenanmaa ↔ Manner-Suomi
-  ['kotka', 'porvoo'],       // Suomenlahden rannikkohyppy
-];
+// Merireitit (ei-koskettavat yhteydet) ovat särmälistan pareja jotka jäävät
+// johdetun maa-naapuruuden ULKOPUOLELLE → render piirtää niille viivan:
+// Ahvenanmaa↔Turku ja Kotka↔Porvoo (Suomenlahden rannikkohyppy).
 
 export default {
-  id: 'suomi', landAdjacency: true, seaRoutes, name: 'Suomi', continents, territories, landBridges,
+  id: 'suomi', landAdjacency: true, name: 'Suomi', continents, territories, landBridges,
   geo: { land: LAND }, zones,
 };

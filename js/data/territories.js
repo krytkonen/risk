@@ -19,6 +19,7 @@ import amerikat from './maps/amerikat.js';
 import tyynimeri from './maps/tyynimeri.js';
 import saaristomaailma from './maps/saaristomaailma.js';
 import suomi from './maps/suomi.js';
+import { applyLandAdjacency } from './land-adjacency.js';
 
 /** Kaikki saatavilla olevat kartat id:n mukaan. */
 export const MAPS = {
@@ -55,6 +56,7 @@ export let TERRITORY_IDS = Object.keys(TERRITORIES);
 export function setActiveMap(mapId) {
   const map = MAPS[mapId];
   if (!map) throw new Error(`Tuntematon kartta: ${mapId}`);
+  applyLandAdjacency(map); // täydennä pelinaapuruus renderöidystä geometriasta
   activeMapId = mapId;
   TERRITORIES = map.territories;
   CONTINENTS = map.continents;

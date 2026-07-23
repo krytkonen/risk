@@ -136,6 +136,6 @@ export const zones = {
 };
 
 export default {
-  id: 'amerikat', name: 'Amerikat', continents, territories, landBridges,
+  id: 'amerikat', landAdjacency: true, name: 'Amerikat', continents, territories, landBridges,
   geo: { land: LAND }, zones,
 };

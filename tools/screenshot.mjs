@@ -36,7 +36,7 @@ const server = createServer(async (req, res) => {
   } catch (e) { res.writeHead(500); res.end(String(e)); }
 });
 
-const port = 8099;
+const port = +(process.env.PORT || 8099);
 await new Promise((r) => server.listen(port, r));
 
 function findChrome() {

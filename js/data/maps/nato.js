@@ -139,4 +139,4 @@ export const zones = {
   venaja: [[575,25],[820,25],[820,530],[800,540],[720,520],[695,520],[695,440],[640,405],[560,415],[540,345],[548,290],[555,250],[570,180]],
 };
 
-export default { id: 'eurooppa2025', name: 'Eurooppa 2025', continents, territories, landBridges, geo: { land: LAND }, zones };
+export default { id: 'eurooppa2025', landAdjacency: true, name: 'Eurooppa 2025', continents, territories, landBridges, geo: { land: LAND }, zones };

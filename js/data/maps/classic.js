@@ -117,6 +117,6 @@ export const zones = {
 };
 
 export default {
-  id: 'classic', name: 'Maailma (klassinen)', continents, territories, landBridges,
+  id: 'classic', landAdjacency: 'same', name: 'Maailma (klassinen)', continents, territories, landBridges,
   geo: { land: LAND }, zones,
 };

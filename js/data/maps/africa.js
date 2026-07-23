@@ -94,4 +94,4 @@ export const zones = {
   etela: [[640,430],[768,470],[790,500],[790,660],[300,660],[300,470],[450,430]],
 };
 
-export default { id: 'africa', name: 'Afrikka', continents, territories, landBridges, geo: { land: LAND }, zones };
+export default { id: 'africa', landAdjacency: true, name: 'Afrikka', continents, territories, landBridges, geo: { land: LAND }, zones };

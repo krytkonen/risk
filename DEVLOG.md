@@ -930,3 +930,26 @@ hyökätä, ja on sekavaa hahmottaa mihin alue on yhteydessä.
   samasta geometriasta jonka pelaaja näkee — "koskettaa ⇒ hyökättävissä" on
   ainoa sääntö joka pysyy selkeänä. Merireitit (ei-koskettavat yhteydet) ovat
   ainoa poikkeus ja ansaitsevat näkyvän viivan.
+
+## Naapuruus-korjaus laajennettu KAIKKIIN karttoihin (ajonaikainen johtaminen)
+Suomen juurisyy (pelinaapuruus ≠ renderöity geometria) koski kaikkia karttoja.
+Yleisratkaisu ilman jokaisen kartan käsin paikkailua:
+- js/data/land-adjacency.js — `deriveLandPairs(map)` rasteroi kartan täsmälleen
+  kuten render (piste → vyöhyke = manner → lähin saman mantereen solmu) ja
+  palauttaa koskettavat parit; memoloidaan karttaan (yksi rasterointi / kartta).
+  `applyLandAdjacency(map)` liittää ne adj-listoihin — kutsutaan setActiveMapissa.
+- Karttalippu ohjaa politiikan:
+  * `landAdjacency: true` → KAIKKI koskettavat parit hyökättävissä (yhden maa-
+    massan alue­kartat: Suomi, Afrikka, Eurooppa, Antiikki, Eurooppa 2025, Aasia,
+    Amerikat, Taru, Tyynimeri, Saaristomaailma). Render piirtää viivan vain
+    EI-koskettaville yhteyksille (merireitit) → ei viivasotkua.
+  * `landAdjacency: 'same'` → vain SAMAN mantereen koskettavat parit lisätään;
+    mantereiden väliset yhteydet pysyvät suunniteltuina kapeikkoina (maailman-
+    kartat klassinen + Suuri maailma, joissa mannerbonusten tasapaino nojaa
+    rajattuihin ylityksiin). Ei uusia viivoja, ei visuaalista muutosta.
+- Tulos (tools + diag): MISSING same-continent = 0 KAIKILLA kartoilla; maailman-
+  karttojen mannerten väliset ylitykset ennallaan. 138 testiä vihreää. SW v40.
+- LESSON: kun sama bugi toistuu monella kartalla, korjaa MEKANISMI älä yksittäisiä
+  karttoja: johda naapuruus samasta geometriasta jonka pelaaja näkee, kerran,
+  ajonaikaisesti (memoloituna) → yksikään kartta ei voi enää ajautua erilleen,
+  ei myöskään tulevat kartat tai solmusiirrot.

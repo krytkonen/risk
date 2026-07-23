@@ -186,4 +186,4 @@ export const zones = {
   oseania: [[694,446],[710,438],[722,410],[733,415],[737,432],[748,445],[756,420],[766,398],[780,372],[985,372],[985,690],[694,690]],
 };
 
-export default { id: 'suurmaailma', name: 'Suuri maailma', continents, territories, landBridges, geo: { land: LAND }, zones };
+export default { id: 'suurmaailma', landAdjacency: 'same', name: 'Suuri maailma', continents, territories, landBridges, geo: { land: LAND }, zones };

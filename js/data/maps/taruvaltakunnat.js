@@ -97,4 +97,4 @@ export const zones = {
   aavikot: [[598,278],[952,278],[952,632],[598,632]],
 };
 
-export default { id: 'taruvaltakunnat', name: 'Taruvaltakunnat', continents, territories, geo: { land: LAND }, zones, fantasy: true };
+export default { id: 'taruvaltakunnat', landAdjacency: true, name: 'Taruvaltakunnat', continents, territories, geo: { land: LAND }, zones, fantasy: true };

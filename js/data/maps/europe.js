@@ -92,4 +92,4 @@ export const zones = {
   east: [[690,262],[800,258],[800,290],[870,290],[870,560],[800,565],[790,580],[770,632],[640,632],[620,570],[575,508],[600,470],[620,445],[700,430],[703,349],[690,330],[660,300]],
 };
 
-export default { id: 'europe', name: 'Eurooppa', continents, territories, landBridges, geo: { land: LAND }, zones };
+export default { id: 'europe', landAdjacency: true, name: 'Eurooppa', continents, territories, landBridges, geo: { land: LAND }, zones };

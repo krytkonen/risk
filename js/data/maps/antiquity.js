@@ -86,4 +86,4 @@ export const zones = {
   oriens: [[560,240],[600,300],[700,300],[800,290],[870,280],[945,290],[945,632],[510,632],[495,555],[485,480],[470,435],[520,400],[540,360],[551,330]],
 };
 
-export default { id: 'antiquity', name: 'Antiikin maailma', continents, territories, landBridges, geo: { land: LAND }, zones };
+export default { id: 'antiquity', landAdjacency: true, name: 'Antiikin maailma', continents, territories, landBridges, geo: { land: LAND }, zones };

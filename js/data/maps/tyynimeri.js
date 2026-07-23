@@ -127,6 +127,6 @@ export const zones = {
 };
 
 export default {
-  id: 'tyynimeri', name: 'Tyynimeri', continents, territories, landBridges,
+  id: 'tyynimeri', landAdjacency: true, name: 'Tyynimeri', continents, territories, landBridges,
   geo: { land: LAND }, zones,
 };

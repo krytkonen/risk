@@ -1306,16 +1306,19 @@ export function buildMap(svg, onTap) {
   // hyökättävissä eikä yhtään "näennäistä" naapuria jää yhdistämättä. Näillä
   // kartoilla maa-naapuruus näkyy koskettavista soluista (EI viivaa), ja vain
   // erikseen merkityt merireitit (seaRoutes, esim. Ahvenanmaa) saavat viivan.
-  const landAdjMap = !!activeMap()?.landAdjacency;
-  const seaRouteSet = new Set((activeMap()?.seaRoutes || [])
-    .map(([a, b]) => (a < b ? `${a}|${b}` : `${b}|${a}`)));
+  // Täys-landAdjacency-kartoilla (arvo === true) pelinaapuruus JOHDETAAN
+  // renderöidystä geometriasta (js/data/land-adjacency.js): maa-kosketus näkyy
+  // suoraan koskettavista väri­soluista (EI viivaa) ja vain EI-koskettavat
+  // yhteydet (merireitit, saaret) saavat viivan → ei viivasotkua. 'same'-
+  // maailmankartat käyttäytyvät kuten ennen (mannerten väliset kapeikot).
+  const fullLandAdj = activeMap()?.landAdjacency === true;
+  const landPairs = fullLandAdj ? (activeMap().__landPairs || new Set()) : null;
   for (const id of TERRITORY_IDS) {
     for (const n of TERRITORIES[id].adj) {
       if (id < n) {
-        if (landAdjMap) {
-          // Yhtenäinen maamassa: piirrä viiva VAIN merireiteille; muut naapuruudet
-          // luetaan suoraan koskettavista väri­soluista → ei viivasotkua.
-          if (!seaRouteSet.has(`${id}|${n}`)) continue;
+        if (fullLandAdj) {
+          // Solut koskettavat maalla → yhteys näkyy jo → ei viivaa.
+          if (landPairs.has(`${id}|${n}`)) continue;
         } else if (TERRITORIES[id].continent === TERRITORIES[n].continent) {
           // Saman mantereen naapurit: blob-kartoilla solut koskettavat → ei viivaa.
           // GEO-kartoilla saman mantereen naapuruus voi ylittää MERTA (esim.
@@ -1325,7 +1328,7 @@ export function buildMap(svg, onTap) {
         }
         const a = TERRITORIES[id], b = TERRITORIES[n];
         const dist = Math.hypot(a.x - b.x, a.y - b.y);
-        const sea = dist > 220 || landAdjMap; // pitkä merireitti / saaristo -> hohtava katkoviiva
+        const sea = dist > 220 || fullLandAdj; // pitkä merireitti / saaristo -> hohtava katkoviiva
         if (sea) {
           // Sea route: loiva kvadraattinen kaari (purjehdusreitin tuntu).
           // Kaaren suunta valitaan deterministisesti seedatulla kohinalla.
@@ -1334,7 +1337,7 @@ export function buildMap(svg, onTap) {
           // landAdjacency-kartoilla merireitit ovat lyhyitä ja niiden päät jäävät
           // armeijanapin (r≈21) alle → leveämpi kaari, jotta reitti kaartuu
           // näkyvästi nappien VÄLISTÄ (muuten se peittyy kokonaan).
-          const bow = landAdjMap ? Math.max(28, Math.min(42, dist * 0.32))
+          const bow = fullLandAdj ? Math.max(28, Math.min(42, dist * 0.32))
             : Math.min(20, 12 + dist * 0.02);
           const sign = seededNoise(7, seaEdgeIdx++) >= 0 ? 1 : -1;
           const d = `M ${a.x} ${a.y} Q ${(mx + px * bow * sign).toFixed(1)} ${(my + py * bow * sign).toFixed(1)} ${b.x} ${b.y}`;
