@@ -2,7 +2,13 @@
 // Aito maantiede (Natural Earth 50m, Miller-ikkuna lon 19..32, lat 59.5..70.2
 // → tools/geo.mjs; vaakasuunnan 2× venytys täyttää kankaan). Solmut aidoilla
 // projisoiduilla kaupunkisijainneilla. Ruotsi/Norja/Venäjä jäävät pelin
-// ulkopuolisena neutraalina maana. Naapuruudet johdetaan särmälistasta.
+// ulkopuolisena neutraalina maana.
+//
+// NAAPURUUS johdetaan renderöidystä geometriasta (tools/adjacency.mjs): peli-
+// naapuruus = ne alueet joiden VYÖHYKE-VORONOI-solut todella koskettavat maalla
+// → jokainen näkyvästi vierekkäinen maakunta on hyökättävissä eikä yhtään
+// "näennäistä" naapuria jää yhdistämättä. landAdjacency:true → maa-naapuruus
+// näkyy koskettavista soluista (ei viivaa) ja vain seaRoutes saa reittiviivan.
 
 import { fromEdges } from './_util.js';
 import { LAND } from '../geo/finland-land.js';
@@ -93,58 +99,41 @@ const base = {
 };
 
 const edges = [
-  // Lappi
-  ['utsjoki', 'inari'], ['inari', 'sodankyla'], ['inari', 'kemijarvi'],
-  ['kasivarsi', 'kittila'], ['kittila', 'sodankyla'], ['kittila', 'rovaniemi'],
-  ['sodankyla', 'rovaniemi'], ['sodankyla', 'kemijarvi'], ['rovaniemi', 'kemijarvi'],
-  ['rovaniemi', 'merilappi'],
-  // Pohjanmaa
-  ['oulu', 'raahe'], ['raahe', 'ylivieska'], ['ylivieska', 'kokkola'],
-  ['kokkola', 'pietarsaari'], ['pietarsaari', 'vaasa'], ['vaasa', 'seinajoki'],
-  ['seinajoki', 'kauhajoki'], ['ylivieska', 'seinajoki'], ['kokkola', 'seinajoki'],
-  // Kainuu
-  ['kuusamo', 'pudasjarvi'], ['kuusamo', 'suomussalmi'], ['pudasjarvi', 'suomussalmi'],
-  ['suomussalmi', 'kuhmo'], ['suomussalmi', 'kajaani'], ['kajaani', 'kuhmo'],
-  ['pudasjarvi', 'kajaani'],
-  // Keski-Suomi
-  ['aanekoski', 'jyvaskyla'], ['jyvaskyla', 'jamsa'], ['aanekoski', 'jamsa'],
-  // Savo
-  ['iisalmi', 'kuopio'], ['kuopio', 'varkaus'], ['varkaus', 'mikkeli'],
-  ['mikkeli', 'savonlinna'], ['kuopio', 'savonlinna'], ['varkaus', 'savonlinna'],
-  // Karjala
-  ['nurmes', 'joensuu'], ['joensuu', 'kitee'], ['joensuu', 'imatra'],
-  ['kitee', 'imatra'], ['imatra', 'lappeenranta'],
-  // Länsi-Suomi
-  ['mantta', 'tampere'], ['tampere', 'sastamala'], ['sastamala', 'kankaanpaa'],
-  ['kankaanpaa', 'pori'], ['pori', 'rauma'], ['sastamala', 'pori'],
-  // Lounais-Suomi
-  ['uusikaupunki', 'turku'], ['turku', 'salo'], ['salo', 'forssa'],
-  ['forssa', 'hameenlinna'], ['hameenlinna', 'lahti'], ['turku', 'forssa'],
-  ['maarianhamina', 'turku'],
-  // Uusimaa
-  ['lohja', 'hyvinkaa'], ['lohja', 'helsinki'], ['hyvinkaa', 'helsinki'],
-  ['helsinki', 'porvoo'], ['porvoo', 'kotka'], ['kotka', 'kouvola'], ['porvoo', 'kouvola'],
-
-  // --- Suuralueiden väliset kytkennät (kapeikot) ---
-  ['merilappi', 'oulu'],        // Lappi–Pohjanmaa
-  ['kemijarvi', 'kuusamo'],     // Lappi–Kainuu
-  ['oulu', 'pudasjarvi'],       // Pohjanmaa–Kainuu
-  ['ylivieska', 'aanekoski'],   // Pohjanmaa–Keski-Suomi
-  ['kauhajoki', 'kankaanpaa'],  // Pohjanmaa–Länsi-Suomi
-  ['kajaani', 'iisalmi'],       // Kainuu–Savo
-  ['kuhmo', 'nurmes'],          // Kainuu–Karjala
-  ['iisalmi', 'nurmes'],        // Savo–Karjala
-  ['savonlinna', 'kitee'],      // Savo–Karjala
-  ['varkaus', 'jyvaskyla'],     // Savo–Keski-Suomi
-  ['mikkeli', 'kouvola'],       // Savo–Uusimaa
-  ['mikkeli', 'lahti'],         // Savo–Lounais-Suomi
-  ['lappeenranta', 'kouvola'],  // Karjala–Uusimaa
-  ['jamsa', 'mantta'],          // Keski-Suomi–Länsi-Suomi
-  ['jamsa', 'lahti'],           // Keski-Suomi–Lounais-Suomi
-  ['tampere', 'hameenlinna'],   // Länsi-Suomi–Lounais-Suomi
-  ['rauma', 'uusikaupunki'],    // Länsi-Suomi–Lounais-Suomi
-  ['hameenlinna', 'hyvinkaa'],  // Lounais-Suomi–Uusimaa
-  ['lahti', 'porvoo'],          // Lounais-Suomi–Uusimaa
+  // JOHDETTU renderöidystä geometriasta (tools/adjacency.mjs): jokainen
+  // näkyvästi koskettava alue on hyökättävissä. + kaksi merireittiä.
+  ['aanekoski', 'iisalmi'], ['aanekoski', 'jamsa'], ['aanekoski', 'jyvaskyla'],
+  ['aanekoski', 'ylivieska'], ['forssa', 'hameenlinna'], ['forssa', 'lohja'],
+  ['forssa', 'salo'], ['forssa', 'sastamala'], ['forssa', 'tampere'],
+  ['hameenlinna', 'helsinki'], ['hameenlinna', 'hyvinkaa'], ['hameenlinna', 'lahti'],
+  ['hameenlinna', 'lohja'], ['hameenlinna', 'mantta'], ['hameenlinna', 'tampere'],
+  ['helsinki', 'hyvinkaa'], ['helsinki', 'lohja'], ['hyvinkaa', 'lahti'],
+  ['hyvinkaa', 'porvoo'], ['iisalmi', 'jyvaskyla'], ['iisalmi', 'kajaani'],
+  ['iisalmi', 'kuopio'], ['iisalmi', 'mikkeli'], ['imatra', 'joensuu'], ['imatra', 'kitee'],
+  ['imatra', 'lappeenranta'], ['imatra', 'savonlinna'], ['inari', 'kemijarvi'],
+  ['inari', 'sodankyla'], ['inari', 'utsjoki'], ['jamsa', 'jyvaskyla'], ['joensuu', 'kitee'],
+  ['joensuu', 'kuhmo'], ['joensuu', 'nurmes'], ['joensuu', 'savonlinna'], ['kajaani', 'kuopio'],
+  ['kajaani', 'nurmes'], ['kajaani', 'pudasjarvi'], ['kajaani', 'suomussalmi'],
+  ['kankaanpaa', 'pori'], ['kankaanpaa', 'rauma'], ['kasivarsi', 'kittila'],
+  ['kasivarsi', 'merilappi'], ['kasivarsi', 'utsjoki'], ['kauhajoki', 'pietarsaari'],
+  ['kauhajoki', 'pori'], ['kauhajoki', 'seinajoki'], ['kauhajoki', 'vaasa'],
+  ['kemijarvi', 'kuusamo'], ['kemijarvi', 'pudasjarvi'], ['kemijarvi', 'rovaniemi'],
+  ['kemijarvi', 'sodankyla'], ['kitee', 'kuhmo'], ['kittila', 'merilappi'],
+  ['kittila', 'rovaniemi'], ['kittila', 'sodankyla'], ['kittila', 'utsjoki'],
+  ['kokkola', 'pietarsaari'], ['kokkola', 'raahe'], ['kokkola', 'seinajoki'],
+  ['kokkola', 'ylivieska'], ['kotka', 'kouvola'], ['kotka', 'porvoo'], ['kouvola', 'lahti'],
+  ['kouvola', 'porvoo'], ['kuhmo', 'kuusamo'], ['kuhmo', 'nurmes'], ['kuhmo', 'suomussalmi'],
+  ['kuopio', 'mikkeli'], ['kuopio', 'nurmes'], ['kuopio', 'savonlinna'], ['kuopio', 'varkaus'],
+  ['kuusamo', 'pudasjarvi'], ['kuusamo', 'suomussalmi'], ['lahti', 'porvoo'],
+  ['lappeenranta', 'varkaus'], ['maarianhamina', 'turku'], ['mantta', 'tampere'],
+  ['merilappi', 'oulu'], ['merilappi', 'rovaniemi'], ['merilappi', 'vaasa'],
+  ['mikkeli', 'varkaus'], ['nurmes', 'savonlinna'], ['nurmes', 'suomussalmi'],
+  ['oulu', 'pudasjarvi'], ['oulu', 'rovaniemi'], ['oulu', 'ylivieska'],
+  ['pietarsaari', 'seinajoki'], ['pori', 'rauma'], ['pori', 'sastamala'], ['pori', 'turku'],
+  ['pudasjarvi', 'rovaniemi'], ['pudasjarvi', 'suomussalmi'], ['raahe', 'ylivieska'],
+  ['rauma', 'turku'], ['rauma', 'uusikaupunki'], ['rovaniemi', 'sodankyla'],
+  ['salo', 'sastamala'], ['salo', 'turku'], ['sastamala', 'seinajoki'],
+  ['sastamala', 'tampere'], ['sastamala', 'turku'], ['savonlinna', 'varkaus'],
+  ['seinajoki', 'tampere'], ['sodankyla', 'utsjoki'], ['turku', 'uusikaupunki'],
 ];
 
 export const territories = fromEdges(base, edges);
@@ -152,11 +141,11 @@ export const territories = fromEdges(base, edges);
 // Koko Suomi on yhtä maamassaa → kaikki naapurisuuralueet ovat maayhteydessä
 // (rannikot koskettavat). Ahvenanmaa (Maarianhamina) on meren takana → sen
 // yhteys Turkuun piirtyy reittinä. "a|b" aakkosjärjestyksessä.
+// Vierekkäiset suuralueparit (johdettu geometriasta): rannikot koskettavat.
 export const landBridges = [
-  'lappi|pohjanmaa', 'kainuu|lappi', 'kainuu|pohjanmaa', 'keski-suomi|pohjanmaa',
-  'lansi-suomi|pohjanmaa', 'kainuu|savo', 'kainuu|karjala', 'karjala|savo',
-  'keski-suomi|savo', 'savo|uusimaa', 'lounais-suomi|savo', 'karjala|uusimaa',
-  'keski-suomi|lansi-suomi', 'keski-suomi|lounais-suomi', 'lansi-suomi|lounais-suomi',
+  'kainuu|karjala', 'kainuu|lappi', 'kainuu|pohjanmaa', 'kainuu|savo',
+  'karjala|savo', 'keski-suomi|pohjanmaa', 'keski-suomi|savo',
+  'lansi-suomi|lounais-suomi', 'lansi-suomi|pohjanmaa', 'lappi|pohjanmaa',
   'lounais-suomi|uusimaa',
 ];
 
@@ -175,7 +164,12 @@ export const zones = {
   uusimaa: [[355,648],[370,622],[430,620],[515,622],[540,615],[560,600],[620,600],[640,642],[610,662],[520,657],[430,662],[355,668]],
 };
 
+export const seaRoutes = [
+  ['maarianhamina', 'turku'], // Ahvenanmaa ↔ Manner-Suomi
+  ['kotka', 'porvoo'],       // Suomenlahden rannikkohyppy
+];
+
 export default {
-  id: 'suomi', name: 'Suomi', continents, territories, landBridges,
+  id: 'suomi', landAdjacency: true, seaRoutes, name: 'Suomi', continents, territories, landBridges,
   geo: { land: LAND }, zones,
 };

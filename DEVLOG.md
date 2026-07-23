@@ -902,3 +902,31 @@ Käyttäjän tilaus: Suomi-kartta, suurempi kuin tähänastinen suurin (Saaristo
   (Uusimaa/Lounais-Suomi) on kartan raskain kohta: 7 pientä label-limitystä jäi
   optimoinnin jälkeen, mutta pilleritaustat pitävät nimet luettavina — visuaali-
   tarkistus on tässä lopullinen tuomari, ei pelkkä mapcheck-nollatoleranssi.
+
+## Juurisyy: pelinaapuruus ≠ renderöity geometria (Suomi)
+Käyttäjän havainto: Suomessa näennäisesti vierekkäisistä maakunnista ei aina voi
+hyökätä, ja on sekavaa hahmottaa mihin alue on yhteydessä.
+- JUURISYY: render.js laskee näkyvät solut VYÖHYKE-VORONOINA (continentCells),
+  mutta pelinaapuruus (TERRITORIES.adj) tulee VAIN käsin kirjoitetusta edges-
+  listasta. Nämä kaksi ovat täysin erilliset → tiheällä kartalla solut voivat
+  koskettaa näkyvästi ilman särmää (näyttää vierekkäiseltä, ei voi hyökätä), ja
+  käsin lisätty särmä voi yhdistää alueet joiden solut EIVÄT kosketa (sekava
+  viiva ei-naapuriin). Suomessa: 46 koskettavaa paria ilman särmää (mm.
+  Käsivarsi|Meri-Lappi 406 px jaettua rajaa!) + 21 särmää ilman kosketusta.
+- RATKAISU (yleinen, uudelleenkäytettävä):
+  1. tools/adjacency.mjs — rasteroi kartan TÄSMÄLLEEN kuten render (piste →
+     vyöhyke = manner → lähin saman mantereen solmu) ja johtaa maanaapuruuden
+     todella koskettavista soluista + diffaa käsin listaan (diagnoosityökalu).
+  2. Suomen edges JOHDETAAN nyt geometriasta → jokainen näkyvästi koskettava
+     maakunta on hyökättävissä. + kaksi eksplisiittistä merireittiä
+     (Ahvenanmaa↔Turku, Kotka↔Porvoo Suomenlahden yli, ettei Kotka jää umpi-
+     kujaksi). Koko graafi yhtenäinen, joka solmu aste ≥ 2 (saari aste 1).
+  3. Karttalippu `landAdjacency: true` + `seaRoutes`: render piirtää viivan
+     VAIN merireiteille; maa-naapuruus luetaan koskettavista väri­soluista →
+     ei enää viivasotkua. Muut kartat kulkevat identtistä vanhaa polkua (lippu
+     pois) → nolla regressiota.
+- LESSON: kun näkyvä geometria ja pelilogiikka lasketaan erikseen, ne ajautuvat
+  erilleen. Oikea korjaus ei ole käsin paikkailla särmiä vaan JOHTAA naapuruus
+  samasta geometriasta jonka pelaaja näkee — "koskettaa ⇒ hyökättävissä" on
+  ainoa sääntö joka pysyy selkeänä. Merireitit (ei-koskettavat yhteydet) ovat
+  ainoa poikkeus ja ansaitsevat näkyvän viivan.
