@@ -3,6 +3,11 @@
 // Ei pelilogiikkaa – vain visualisointi + napautusten välitys.
 
 import { TERRITORIES, TERRITORY_IDS, CONTINENTS, continentTerritories, activeMap } from '../data/territories.js';
+import { themeFor } from './themes/index.js';
+
+// Aktiivisen kartan teematokenit (asetetaan buildMapissa). Tyhjä olio =
+// atlas-oletukset (renderin sisäänrakennetut värit).
+let THEME = {};
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 const NODE_R = 21;
@@ -89,10 +94,11 @@ function buildDefs(warmth = 0) {
 
   // Sävytä meri & vinjetti kartan mielialan mukaan (hienovaraisesti).
   // Lämpimämmissä kartoissa hieman ruskeahko/teal-sävyinen syvyys, viileissä sininen.
-  const seaTop = mix('#1b3e5e', warmth > 0 ? '#244e56' : '#163a60', Math.abs(warmth) * 0.5);
-  const seaMid = mix('#12304c', warmth > 0 ? '#173a3e' : '#0f2c4e', Math.abs(warmth) * 0.5);
-  const seaBot = mix('#081523', warmth > 0 ? '#0a1816' : '#06121f', Math.abs(warmth) * 0.5);
-  const glowCol = warmth > 0 ? '#2a6a6e' : '#1e5a78';
+  // Teema (js/ui/themes/) voi ylikirjoittaa suoraan omilla väreillään.
+  const seaTop = THEME.seaTop || mix('#1b3e5e', warmth > 0 ? '#244e56' : '#163a60', Math.abs(warmth) * 0.5);
+  const seaMid = THEME.seaMid || mix('#12304c', warmth > 0 ? '#173a3e' : '#0f2c4e', Math.abs(warmth) * 0.5);
+  const seaBot = THEME.seaBot || mix('#081523', warmth > 0 ? '#0a1816' : '#06121f', Math.abs(warmth) * 0.5);
+  const glowCol = THEME.seaGlowColor || (warmth > 0 ? '#2a6a6e' : '#1e5a78');
 
   // --- Meri: syvä monipysäkkinen radiaaligradientti (rikkaampi "kulho"-syvyys).
   // Keskusta nostettu kirkkaammaksi, reunat painuvat tummiksi → lauta kaartuu. ---
@@ -112,13 +118,13 @@ function buildDefs(warmth = 0) {
   defs.appendChild(seaGlow);
 
   const seaSheen = el('linearGradient', { id: 'sea-sheen', x1: '0%', y1: '0%', x2: '0%', y2: '100%' });
-  seaSheen.appendChild(el('stop', { offset: '0%', 'stop-color': '#2a5680', 'stop-opacity': 0.35 }));
+  seaSheen.appendChild(el('stop', { offset: '0%', 'stop-color': THEME.sheenTop || '#2a5680', 'stop-opacity': 0.35 }));
   seaSheen.appendChild(el('stop', { offset: '45%', 'stop-color': '#10283f', 'stop-opacity': 0 }));
   seaSheen.appendChild(el('stop', { offset: '100%', 'stop-color': '#040d16', 'stop-opacity': 0.45 }));
   defs.appendChild(seaSheen);
 
   // --- Vinjetti reunoille (tummennus); sävy lämpötilan mukaan. ---
-  const vigCol = warmth > 0 ? mix('#000000', '#1a0c00', Math.abs(warmth) * 0.6) : '#000000';
+  const vigCol = THEME.vignetteColor || (warmth > 0 ? mix('#000000', '#1a0c00', Math.abs(warmth) * 0.6) : '#000000');
   // Kolmiportainen vinjetti antaa "kulhon" reunavarjon (syvyys), ei suodattimia.
   const vignette = el('radialGradient', { id: 'vignette', cx: '50%', cy: '48%', r: '75%' });
   vignette.appendChild(el('stop', { offset: '45%', 'stop-color': vigCol, 'stop-opacity': 0 }));
@@ -140,8 +146,8 @@ function buildDefs(warmth = 0) {
   // Muut kiillot ovat pystysuoria, joten tämä lisää eri akselin. Ei suodatinta,
   // yksi gradientti + maskattu rect (halpa). Lämmin valo, viileä varjo.
   const landLight = el('linearGradient', { id: 'land-light', x1: '0%', y1: '0%', x2: '100%', y2: '100%' });
-  landLight.appendChild(el('stop', { offset: '0%', 'stop-color': '#fdf4d6', 'stop-opacity': 0.13 }));
-  landLight.appendChild(el('stop', { offset: '42%', 'stop-color': '#fdf4d6', 'stop-opacity': 0 }));
+  landLight.appendChild(el('stop', { offset: '0%', 'stop-color': THEME.landLightColor || '#fdf4d6', 'stop-opacity': 0.13 }));
+  landLight.appendChild(el('stop', { offset: '42%', 'stop-color': THEME.landLightColor || '#fdf4d6', 'stop-opacity': 0 }));
   landLight.appendChild(el('stop', { offset: '60%', 'stop-color': '#02060c', 'stop-opacity': 0 }));
   landLight.appendChild(el('stop', { offset: '100%', 'stop-color': '#02060c', 'stop-opacity': 0.17 }));
   defs.appendChild(landLight);
@@ -907,6 +913,7 @@ export function buildMap(svg, onTap) {
   const BH = (vb0 && vb0.height) || 700;
   svg.setAttribute('viewBox', `0 0 ${BW} ${BH}`);
 
+  THEME = themeFor(activeMap()?.id);
   const warmth = mapWarmth();
   svg.appendChild(buildDefs(warmth));
 
@@ -923,7 +930,7 @@ export function buildMap(svg, onTap) {
   svg.appendChild(el('rect', { x: 0, y: 0, width: BW, height: BH, fill: 'url(#board-sheen)', 'pointer-events': 'none' }));
 
   // Hienot leveys-/pituuspiiriviivat (hillitty mustetta).
-  const gridCol = '#7fa6c8';
+  const gridCol = THEME.gridInk || '#7fa6c8';
   const gGrid = el('g', { id: 'g-grid', 'pointer-events': 'none' });
   for (let x = 100; x < BW; x += 100) {
     gGrid.appendChild(el('line', { x1: x, y1: 0, x2: x, y2: BH, stroke: gridCol, 'stroke-opacity': 0.045, 'stroke-width': 1 }));
@@ -935,7 +942,7 @@ export function buildMap(svg, onTap) {
   svg.appendChild(el('rect', { x: 0, y: 0, width: BW, height: BH, fill: 'url(#vignette)', 'pointer-events': 'none' }));
 
   // Neatline: kaksoiskehys atlaksen tapaan, hillitty muste.
-  const frameCol = '#9fc4e8';
+  const frameCol = THEME.frameInk || '#9fc4e8';
   svg.appendChild(el('rect', { x: 10, y: 10, width: BW - 20, height: BH - 20, fill: 'none', stroke: frameCol, 'stroke-opacity': 0.18, 'stroke-width': 2, 'pointer-events': 'none' }));
   svg.appendChild(el('rect', { x: 16, y: 16, width: BW - 32, height: BH - 32, fill: 'none', stroke: frameCol, 'stroke-opacity': 0.1, 'stroke-width': 1, 'pointer-events': 'none' }));
 
@@ -970,6 +977,18 @@ export function buildMap(svg, onTap) {
   gMap.appendChild(buildCompassRose(corners[0]));
   const legend = buildContinentLegend(corners);
   if (legend) gMap.appendChild(legend);
+
+  // Teemakohtainen ambientkoriste (esim. laakeriseppele, jäävuoret, riimut):
+  // halpaa viivapiirrosta maailman koordinaateissa. sea-deco-luokka → lite
+  // piilottaa saman kytkimen kautta kuin muutkin koristeet.
+  if (typeof THEME.deco === 'function') {
+    const tg = THEME.deco({ el, mix });
+    if (tg) {
+      tg.setAttribute('class', `${tg.getAttribute('class') || ''} sea-deco theme-deco`.trim());
+      tg.setAttribute('pointer-events', 'none');
+      gMap.appendChild(tg);
+    }
+  }
 
   // Mantereet maamassan muotoisina: rosoitettu orgaaninen "rantaviiva"
   // (tihennetty + seedattu jitter, pelkkää polkudataa), mannerjalusta
@@ -1011,8 +1030,8 @@ export function buildMap(svg, onTap) {
     gCont.appendChild(shadow);
     // Rantavaahto (matala vesi) rannan alle.
     const foam = el('g', { 'class': 'cont-foam', 'pointer-events': 'none' });
-    foam.appendChild(el('path', { d: geoLandD, fill: 'none', stroke: '#bfe6ef', 'stroke-opacity': 0.1, 'stroke-width': 9, 'stroke-linejoin': 'round' }));
-    foam.appendChild(el('path', { d: geoLandD, fill: 'none', stroke: '#cfeaf3', 'stroke-opacity': 0.22, 'stroke-width': 3.5, 'stroke-linejoin': 'round' }));
+    foam.appendChild(el('path', { d: geoLandD, fill: 'none', stroke: THEME.foam || '#bfe6ef', 'stroke-opacity': 0.1, 'stroke-width': 9, 'stroke-linejoin': 'round' }));
+    foam.appendChild(el('path', { d: geoLandD, fill: 'none', stroke: THEME.foamBright || '#cfeaf3', 'stroke-opacity': 0.22, 'stroke-width': 3.5, 'stroke-linejoin': 'round' }));
     gCont.appendChild(foam);
     // Kohotettu laatta (fake-3D-ekstruusio) + neutraali pohjamaa: pelialueiden
     // ulkopuolinen maa (esim. ei-pelattavat saaret) näkyy tässä sävyssä.
@@ -1022,7 +1041,7 @@ export function buildMap(svg, onTap) {
     }));
     gPlinth.appendChild(el('path', {
       d: geoLandD, 'class': 'geo-land-base', 'pointer-events': 'none',
-      fill: '#22303e', stroke: '#0a141f', 'stroke-width': 1.2, 'stroke-linejoin': 'round',
+      fill: THEME.landBase || '#22303e', stroke: THEME.landStroke || '#0a141f', 'stroke-width': 1.2, 'stroke-linejoin': 'round',
     }));
     // Relief-tekstuuri koko maamassalle.
     landMask.appendChild(el('path', { d: geoLandD, fill: '#fff' }));
@@ -1102,15 +1121,15 @@ export function buildMap(svg, onTap) {
       // Mannerjalusta: hieman isompi kopio polusta – "matala vesi".
       gCont.appendChild(el('path', {
         d: shelfPath, 'class': 'cont-shelf', 'pointer-events': 'none',
-        fill: '#bfe6ef', 'fill-opacity': 0.06,
-        stroke: '#bfe6ef', 'stroke-opacity': 0.08, 'stroke-width': 5, 'stroke-linejoin': 'round',
+        fill: THEME.foam || '#bfe6ef', 'fill-opacity': 0.06,
+        stroke: THEME.foam || '#bfe6ef', 'stroke-opacity': 0.08, 'stroke-width': 5, 'stroke-linejoin': 'round',
       }));
 
       // Matalan veden vaahto rannan alle (ei suodattimia).
       const foam = el('g', { 'class': 'cont-foam', 'pointer-events': 'none' });
-      foam.appendChild(el('path', { d: path, fill: 'none', stroke: '#bfe6ef', 'stroke-opacity': 0.09, 'stroke-width': 13, 'stroke-linejoin': 'round' }));
-      foam.appendChild(el('path', { d: path, fill: 'none', stroke: '#bfe6ef', 'stroke-opacity': 0.15, 'stroke-width': 8, 'stroke-linejoin': 'round' }));
-      foam.appendChild(el('path', { d: path, fill: 'none', stroke: '#cfeaf3', 'stroke-opacity': 0.26, 'stroke-width': 4, 'stroke-linejoin': 'round' }));
+      foam.appendChild(el('path', { d: path, fill: 'none', stroke: THEME.foam || '#bfe6ef', 'stroke-opacity': 0.09, 'stroke-width': 13, 'stroke-linejoin': 'round' }));
+      foam.appendChild(el('path', { d: path, fill: 'none', stroke: THEME.foam || '#bfe6ef', 'stroke-opacity': 0.15, 'stroke-width': 8, 'stroke-linejoin': 'round' }));
+      foam.appendChild(el('path', { d: path, fill: 'none', stroke: THEME.foamBright || '#cfeaf3', 'stroke-opacity': 0.26, 'stroke-width': 4, 'stroke-linejoin': 'round' }));
       gCont.appendChild(foam);
     }
 
@@ -1186,9 +1205,9 @@ export function buildMap(svg, onTap) {
           if (k % 2 === 1) caps.push({ x, y });
         }
         d += ` L ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
-        gRidges.appendChild(el('path', { d, 'class': 'ridge-base', fill: 'none', stroke: '#0b141d', 'stroke-opacity': 0.8, 'stroke-width': 5, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
-        gRidges.appendChild(el('path', { d, 'class': 'ridge', fill: 'none', stroke: '#2a3a4a', 'stroke-width': 2.4, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
-        for (const c of caps) gRidges.appendChild(el('circle', { cx: c.x.toFixed(1), cy: c.y.toFixed(1), r: 1.2, 'class': 'ridge-cap', fill: '#dfe9f2', 'fill-opacity': 0.75 }));
+        gRidges.appendChild(el('path', { d, 'class': 'ridge-base', fill: 'none', stroke: THEME.ridgeBase || '#0b141d', 'stroke-opacity': 0.8, 'stroke-width': 5, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+        gRidges.appendChild(el('path', { d, 'class': 'ridge', fill: 'none', stroke: THEME.ridge || '#2a3a4a', 'stroke-width': 2.4, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+        for (const c of caps) gRidges.appendChild(el('circle', { cx: c.x.toFixed(1), cy: c.y.toFixed(1), r: 1.2, 'class': 'ridge-cap', fill: THEME.ridgeCap || '#dfe9f2', 'fill-opacity': 0.75 }));
         continue;
       }
       const ext = 3; // jatka hieman rannikkoon asti, ettei jää maakannasta päihin
@@ -1198,8 +1217,8 @@ export function buildMap(svg, onTap) {
       gRidges.appendChild(el('path', { d: line(0), 'class': 'strait-deep', fill: 'none', stroke: '#040d16', 'stroke-opacity': 0.95, 'stroke-width': 11, 'stroke-linecap': 'round' }));
       gRidges.appendChild(el('path', { d: line(0), 'class': 'strait', fill: 'none', stroke: '#0a1a28', 'stroke-opacity': 0.95, 'stroke-width': 7, 'stroke-linecap': 'round' }));
       // Rantavaahto molemmin puolin → kaksi selvää rannikkoa.
-      gRidges.appendChild(el('path', { d: line(4.2), 'class': 'strait-foam', fill: 'none', stroke: '#bfe6ef', 'stroke-opacity': 0.32, 'stroke-width': 1.5, 'stroke-linecap': 'round' }));
-      gRidges.appendChild(el('path', { d: line(-4.2), 'class': 'strait-foam', fill: 'none', stroke: '#bfe6ef', 'stroke-opacity': 0.32, 'stroke-width': 1.5, 'stroke-linecap': 'round' }));
+      gRidges.appendChild(el('path', { d: line(4.2), 'class': 'strait-foam', fill: 'none', stroke: THEME.foam || '#bfe6ef', 'stroke-opacity': 0.32, 'stroke-width': 1.5, 'stroke-linecap': 'round' }));
+      gRidges.appendChild(el('path', { d: line(-4.2), 'class': 'strait-foam', fill: 'none', stroke: THEME.foam || '#bfe6ef', 'stroke-opacity': 0.32, 'stroke-width': 1.5, 'stroke-linecap': 'round' }));
     }
 
     // Otsikkokartussi (nimi + bonus): pilleri mantereen värisellä reunuksella.
@@ -1354,16 +1373,16 @@ export function buildMap(svg, onTap) {
           // jottei purjehdusreitti huku taustaan).
           gEdges.appendChild(el('path', {
             d, fill: 'none',
-            'class': 'edge-sea-glow', stroke: '#6fb6e8', 'stroke-opacity': 0.18,
+            'class': 'edge-sea-glow', stroke: THEME.routeGlowCol || '#6fb6e8', 'stroke-opacity': 0.18,
             'stroke-width': 5, 'stroke-linecap': 'round', 'stroke-dasharray': '5 6',
           }));
           gEdges.appendChild(el('path', {
             d, fill: 'none',
-            'class': 'edge-sea', stroke: '#bfe3fb', 'stroke-opacity': 0.72,
+            'class': 'edge-sea', stroke: THEME.routeCore || '#bfe3fb', 'stroke-opacity': 0.72,
             'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-dasharray': '5 6',
           }));
-          gEdges.appendChild(el('circle', { cx: a.x, cy: a.y, r: 2.8, 'class': 'edge-port', fill: '#0a1a28', stroke: '#bfe3fb', 'stroke-opacity': 0.75, 'stroke-width': 1.2 }));
-          gEdges.appendChild(el('circle', { cx: b.x, cy: b.y, r: 2.8, 'class': 'edge-port', fill: '#0a1a28', stroke: '#bfe3fb', 'stroke-opacity': 0.75, 'stroke-width': 1.2 }));
+          gEdges.appendChild(el('circle', { cx: a.x, cy: a.y, r: 2.8, 'class': 'edge-port', fill: THEME.portFill || '#0a1a28', stroke: THEME.routeCore || '#bfe3fb', 'stroke-opacity': 0.75, 'stroke-width': 1.2 }));
+          gEdges.appendChild(el('circle', { cx: b.x, cy: b.y, r: 2.8, 'class': 'edge-port', fill: THEME.portFill || '#0a1a28', stroke: THEME.routeCore || '#bfe3fb', 'stroke-opacity': 0.75, 'stroke-width': 1.2 }));
         } else {
           // Lyhyt mannerten välinen yhteys: "salmi/silta". Tumma kotelo +
           // vaalea ydin → reitti lukee syvyydellä eikä litteänä kirkkaana

@@ -11,7 +11,7 @@
 // asennetaan, esiväli­muisti haetaan tuoreena ja vanha välimuisti poistetaan,
 // jotta myös asennettu PWA (esim. iOS) saa muutokset heti eikä vasta seuraavalla
 // avauksella. Pidä ASSETS ajan tasalla (kaikki kartat mukana → offline-tuki).
-const CACHE = 'risk-v42';
+const CACHE = 'risk-v43';
 const ASSETS = [
   './',
   './index.html',
@@ -55,6 +55,14 @@ const ASSETS = [
   './js/engine/game.js',
   './js/engine/ai.js',
   './js/ui/render.js',
+  './js/ui/themes/index.js',
+  './js/ui/themes/atlas.js',
+  './js/ui/themes/pergamentti.js',
+  './js/ui/themes/savanni.js',
+  './js/ui/themes/talvi.js',
+  './js/ui/themes/jade.js',
+  './js/ui/themes/taru.js',
+  './js/ui/themes/laguuni.js',
 ];
 
 self.addEventListener('install', (e) => {
