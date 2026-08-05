@@ -37,13 +37,13 @@ export default {
   deco({ el, mix }) {
     const g = el('g', { class: 'talvi-deco' });
 
-    // Revontulet: 3 loivaa, päällekkäistä nauhaa pohjoisessa (yläosa on
-    // pohjoista päin karttaprojektiota), vihertävän turkoosin sävyissä,
-    // hyvin matala opasiteetti ettei häiritse merilukua.
+    // Revontulet: 3 loivaa, päällekkäistä nauhaa aivan pohjoisreunalla
+    // (Lapin maamassa peittää keskiosan — nauhat jäävät näkyviin sivuilla
+    // avoveden kaistaleella), vihertävän turkoosin sävyissä, matala opasiteetti.
     const auroraPaths = [
-      'M 60 60 Q 260 10 480 55 T 940 40',
-      'M 40 95 Q 300 45 520 90 T 960 80',
-      'M 90 130 Q 340 80 560 125 T 900 115',
+      'M 30 22 Q 260 -6 480 18 T 970 14',
+      'M 20 40 Q 300 12 520 36 T 980 30',
+      'M 35 56 Q 340 30 560 52 T 950 46',
     ];
     const auroraColors = ['#7be3c2', '#5fd0c9', '#8fe6d6'];
     auroraPaths.forEach((d, i) => {
@@ -51,21 +51,22 @@ export default {
         d,
         fill: 'none',
         stroke: auroraColors[i % auroraColors.length],
-        'stroke-width': 10 - i * 1.5,
+        'stroke-width': 7 - i,
         'stroke-linecap': 'round',
-        'stroke-opacity': 0.14 - i * 0.02,
+        'stroke-opacity': 0.26 - i * 0.04,
       }));
     });
 
-    // Jäälautat Perämerellä (x 150-400, y 350-500): pieniä epäsäännöllisiä
-    // ääriviivoja, vaaleanjäisiä, hyvin himmeitä.
+    // Jäälautat Perämerellä: avoveden kaistale Pohjanmaan rannikon
+    // länsipuolella (x < ~150, todellisen Suomi-kartan länsirannikko kulkee
+    // noin x 210-500 kohdalla), pieniä epäsäännöllisiä ääriviivoja.
     const floes = [
-      { cx: 190, cy: 380, r: 16 },
-      { cx: 250, cy: 420, r: 22 },
-      { cx: 210, cy: 460, r: 13 },
-      { cx: 330, cy: 400, r: 18 },
-      { cx: 300, cy: 470, r: 11 },
-      { cx: 370, cy: 450, r: 15 },
+      { cx: 90, cy: 400, r: 15 },
+      { cx: 130, cy: 440, r: 20 },
+      { cx: 95, cy: 480, r: 12 },
+      { cx: 150, cy: 510, r: 16 },
+      { cx: 115, cy: 545, r: 10 },
+      { cx: 70, cy: 460, r: 13 },
     ];
     floes.forEach(({ cx, cy, r }, i) => {
       const wobble = i % 2 === 0 ? 1 : -1;
@@ -77,10 +78,10 @@ export default {
       g.appendChild(el('path', {
         d,
         fill: '#dff2fa',
-        'fill-opacity': 0.06,
+        'fill-opacity': 0.09,
         stroke: '#eef9ff',
-        'stroke-opacity': 0.18,
-        'stroke-width': 1,
+        'stroke-opacity': 0.3,
+        'stroke-width': 1.2,
       }));
     });
 
