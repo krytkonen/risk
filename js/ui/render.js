@@ -897,41 +897,47 @@ function pipPath(shape, cx, cy, r) {
 /** Rakentaa staattisen kartan kerran (mantereet + viivat + napit). */
 export function buildMap(svg, onTap) {
   while (svg.firstChild) svg.removeChild(svg.firstChild);
-  svg.setAttribute('viewBox', '0 0 1000 700');
+  // Lauta = näkymä: viewBoxin koon asettaa isäntä (main.js fitViewBox
+  // sovittaa sen kartta-alueen kuvasuhteeseen ENNEN buildMapia) — meri,
+  // ruudukko, vinjetti ja neatline-kehys piirretään koko viewBoxiin, joten
+  // lauta täyttää ruudun joka laitteella eikä letterbox-kaistoja synny.
+  // Ilman asetettua viewBoxia (testit, työkalut) oletus on 1000×700.
+  const vb0 = svg.viewBox && svg.viewBox.baseVal;
+  const BW = (vb0 && vb0.width) || 1000;
+  const BH = (vb0 && vb0.height) || 700;
+  svg.setAttribute('viewBox', `0 0 ${BW} ${BH}`);
 
   const warmth = mapWarmth();
   svg.appendChild(buildDefs(warmth));
 
-  // Bleed-meri: ulottuu reilusti viewBoxin yli, jotta pystyruudun letterbox-
-  // kaistaleet (SVG:n meet-sovitus) täyttyvät syvällä merellä eikä litteää
-  // taustaseinää näy. Ei transformoidu (svg:n lapsi, ei #g-map) → pysyy
-  // ruudulla paikallaan. Yksi rect = halpa.
-  svg.appendChild(el('rect', { x: -800, y: -900, width: 2600, height: 2500, fill: mix('#06121f', warmth > 0 ? '#0a1512' : '#050f1b', Math.abs(warmth) * 0.5), 'pointer-events': 'none' }));
+  // Bleed-meri: ulottuu reilusti viewBoxin yli (hyökkäyskameran kääntö voi
+  // paljastaa reunaa). Ei transformoidu (svg:n lapsi, ei #g-map).
+  svg.appendChild(el('rect', { x: -800, y: -900, width: BW + 1600, height: BH + 1800, fill: mix('#06121f', warmth > 0 ? '#0a1512' : '#050f1b', Math.abs(warmth) * 0.5), 'pointer-events': 'none' }));
   // Meri – kerroksittain: pohjagradientti, syvyyshehku, kohina, sävy, ruudukko, vinjetti.
-  svg.appendChild(el('rect', { x: 0, y: 0, width: 1000, height: 700, fill: 'url(#sea)' }));
+  svg.appendChild(el('rect', { x: 0, y: 0, width: BW, height: BH, fill: 'url(#sea)' }));
   // Syvyyshehku nostaa laudan tummasta taustasta.
-  svg.appendChild(el('rect', { x: 0, y: 0, width: 1000, height: 700, fill: 'url(#sea-glow)', opacity: 0.5, 'pointer-events': 'none' }));
-  svg.appendChild(el('rect', { x: 0, y: 0, width: 1000, height: 700, filter: 'url(#sea-noise)', opacity: 0.5, 'pointer-events': 'none' }));
-  svg.appendChild(el('rect', { x: 0, y: 0, width: 1000, height: 700, fill: 'url(#sea-sheen)', 'pointer-events': 'none' }));
+  svg.appendChild(el('rect', { x: 0, y: 0, width: BW, height: BH, fill: 'url(#sea-glow)', opacity: 0.5, 'pointer-events': 'none' }));
+  svg.appendChild(el('rect', { x: 0, y: 0, width: BW, height: BH, filter: 'url(#sea-noise)', opacity: 0.5, 'pointer-events': 'none' }));
+  svg.appendChild(el('rect', { x: 0, y: 0, width: BW, height: BH, fill: 'url(#sea-sheen)', 'pointer-events': 'none' }));
   // Koko laudan valaistuskiilto (meren päällä, maan alla).
-  svg.appendChild(el('rect', { x: 0, y: 0, width: 1000, height: 700, fill: 'url(#board-sheen)', 'pointer-events': 'none' }));
+  svg.appendChild(el('rect', { x: 0, y: 0, width: BW, height: BH, fill: 'url(#board-sheen)', 'pointer-events': 'none' }));
 
   // Hienot leveys-/pituuspiiriviivat (hillitty mustetta).
   const gridCol = '#7fa6c8';
   const gGrid = el('g', { id: 'g-grid', 'pointer-events': 'none' });
-  for (let x = 100; x < 1000; x += 100) {
-    gGrid.appendChild(el('line', { x1: x, y1: 0, x2: x, y2: 700, stroke: gridCol, 'stroke-opacity': 0.045, 'stroke-width': 1 }));
+  for (let x = 100; x < BW; x += 100) {
+    gGrid.appendChild(el('line', { x1: x, y1: 0, x2: x, y2: BH, stroke: gridCol, 'stroke-opacity': 0.045, 'stroke-width': 1 }));
   }
-  for (let y = 100; y < 700; y += 100) {
-    gGrid.appendChild(el('line', { x1: 0, y1: y, x2: 1000, y2: y, stroke: gridCol, 'stroke-opacity': 0.045, 'stroke-width': 1 }));
+  for (let y = 100; y < BH; y += 100) {
+    gGrid.appendChild(el('line', { x1: 0, y1: y, x2: BW, y2: y, stroke: gridCol, 'stroke-opacity': 0.045, 'stroke-width': 1 }));
   }
   svg.appendChild(gGrid);
-  svg.appendChild(el('rect', { x: 0, y: 0, width: 1000, height: 700, fill: 'url(#vignette)', 'pointer-events': 'none' }));
+  svg.appendChild(el('rect', { x: 0, y: 0, width: BW, height: BH, fill: 'url(#vignette)', 'pointer-events': 'none' }));
 
   // Neatline: kaksoiskehys atlaksen tapaan, hillitty muste.
   const frameCol = '#9fc4e8';
-  svg.appendChild(el('rect', { x: 10, y: 10, width: 980, height: 680, fill: 'none', stroke: frameCol, 'stroke-opacity': 0.18, 'stroke-width': 2, 'pointer-events': 'none' }));
-  svg.appendChild(el('rect', { x: 16, y: 16, width: 968, height: 668, fill: 'none', stroke: frameCol, 'stroke-opacity': 0.1, 'stroke-width': 1, 'pointer-events': 'none' }));
+  svg.appendChild(el('rect', { x: 10, y: 10, width: BW - 20, height: BH - 20, fill: 'none', stroke: frameCol, 'stroke-opacity': 0.18, 'stroke-width': 2, 'pointer-events': 'none' }));
+  svg.appendChild(el('rect', { x: 16, y: 16, width: BW - 32, height: BH - 32, fill: 'none', stroke: frameCol, 'stroke-opacity': 0.1, 'stroke-width': 1, 'pointer-events': 'none' }));
 
   // Kulmakoristeet (kulmahaat + pieni filigraani) – atlaksen neatline-tuntu.
   // Staattinen ryhmä suoraan svg:hen (ei panoroidu kartan mukana).
@@ -948,7 +954,7 @@ export function buildMap(svg, onTap) {
     }));
     orn.appendChild(el('circle', { cx: (x + sx * 6).toFixed(1), cy: (y + sy * 6).toFixed(1), r: 1.6, fill: frameCol, 'fill-opacity': 0.4 }));
   };
-  corner(22, 22, 1, 1); corner(978, 22, -1, 1); corner(22, 678, 1, -1); corner(978, 678, -1, -1);
+  corner(22, 22, 1, 1); corner(BW - 22, 22, -1, 1); corner(22, BH - 22, 1, -1); corner(BW - 22, BH - 22, -1, -1);
   svg.appendChild(orn);
 
   const gMap = el('g', { id: 'g-map' });

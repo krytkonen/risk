@@ -953,3 +953,31 @@ Yleisratkaisu ilman jokaisen kartan käsin paikkailua:
   karttoja: johda naapuruus samasta geometriasta jonka pelaaja näkee, kerran,
   ajonaikaisesti (memoloituna) → yksikään kartta ei voi enää ajautua erilleen,
   ei myöskään tulevat kartat tai solmusiirrot.
+
+## UI-parannuskierros (lauta = näkymä, toast-kortti, CTA:t)
+Käyttäjän tilaus: "Tarkista ui ja tee siitä parempi." Kuvakaappaus-katselmus
+(setup / pelinäkymä / puhelin 390×844 / työpöytä 1280×900) löysi viisi vikaa:
+1) JUURISYY tyhjille kaistoille: kiinteä 1000×700-viewBox letterboxasi kartan
+   pystynäytöllä — JA osoitinmatematiikka (toSvg) oletti ettei letterboxia ole
+   → kosketuskoordinaatit vinoutuivat. Korjaus: fitViewBox() sovittaa viewBoxin
+   kartta-alueen kuvasuhteeseen ennen buildMapia, ja lauta (meri, ruudukko,
+   vinjetti, neatline, kulmakoristeet) piirretään viewBoxin kokoiseksi →
+   lauta täyttää ruudun joka laitteella, työpöydällä kartta piirtyy ISOMPANA
+   koko leveyteen. Resize/kääntö sovittaa uudelleen (zoomaus kunnioitetaan).
+2) Valmentajavihje oli puhelimella jättimäinen musta pallo (999px-pyöristys ×
+   7 riviä): toast on nyt vasemmalle tasattu kortti aksenttiraidalla, ja
+   valmentajatekstit lyhennettiin (~puoleen).
+3) Toimintonapit (esim. Kortit/Kumoa) näyttivät disabloiduilta: neutraalit
+   napit saivat panel2-pinnan + reunaviivan + kiillon; tilarivi
+   ("4 armeijaa sijoitettavana") nostettiin luettavaksi (valkoinen, 600).
+4) Karttavalikko oli 12 pelkkää tekstinappia: aluemäärä + ✨fantasia-merkki
+   alarivinä; "Aloita peli" on nyt sticky täysleveä CTA dialogin alareunassa
+   (oli piilossa rullauksen alla — uusi pelaaja ei löytänyt aloitusta).
+5) Pelaajarivin sivurullaus ei näkynyt mistään: oikean reunan maskihäivytys
+   vihjaa jatkosta. Leveällä näytöllä toimintonapit keskitetään (max 760px),
+   eivät veny bannerin levyisiksi.
+- 138 testiä vihreää; SW v42.
+- LESSON: SVG:n "meet"-letterbox + kiinteä viewBox on kaksoisvika: se sekä
+  hukkaa tilaa että vääristää osoitinmuunnoksen. Kun viewBox seuraa säiliön
+  kuvasuhdetta ja lauta piirretään viewBoxin mittoihin, molemmat poistuvat
+  yhdellä mekanismilla — ja sama resetView/clamp-logiikka toimii muuttumatta.

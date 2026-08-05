@@ -97,6 +97,12 @@ body {
   scrollbar-width: none;
 }
 #players-panel::-webkit-scrollbar { display: none; }
+/* Reunahäivytys vihjaa että pelaajarivi rullaa sivusuunnassa (puhelimella
+   kaikki chipit eivät mahdu näkyviin eikä scrollbaria näytetä). */
+#players-panel {
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 28px), transparent);
+}
 .player-chip {
   display: flex;
   align-items: center;
@@ -518,19 +524,26 @@ button.ghost.notify { border-color: var(--accent); color: var(--accent); }
   100% { /* palautuu .att/.def perusväriin */ }
 }
 
+/* Toast/valmentajavihje: kortti eikä pilleri — pitkä teksti rivittyy siistiksi
+   suorakaiteeksi (999px-pyöristys paisui puhelimella jättimäiseksi mustaksi
+   palloksi monirivisenä). Hienovarainen aksenttiraita vasemmassa reunassa. */
 #toast {
   position: absolute;
   bottom: 14px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(0,0,0,0.85);
+  background: rgba(6,17,29,0.93);
+  border: 1px solid rgba(255,255,255,0.14);
+  border-left: 3px solid var(--accent);
   color: #fff;
-  padding: 9px 16px;
-  border-radius: 999px;
+  padding: 9px 14px;
+  border-radius: 12px;
   font-size: 13px;
+  line-height: 1.45;
   pointer-events: none;
-  max-width: 90%;
-  text-align: center;
+  max-width: min(480px, 92%);
+  text-align: left;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.45);
 }
 
 /* ---- Log ---- */
@@ -590,6 +603,13 @@ button.primary {
 }
 button.primary:active { transform: translateY(2px); box-shadow: 0 1px 0 #b8860b; }
 button.ghost { background: transparent; border: 1px solid rgba(255,255,255,0.18); box-shadow: none; }
+/* Neutraalit toimintonapit (esim. +1/+5): eivät saa näyttää disabloiduilta —
+   panelia vaaleampi pinta + reunaviiva + yläkiilto erottavat ne taustasta. */
+#controls button:not(.primary):not(.danger):not(.ghost) {
+  background: var(--panel2);
+  border: 1px solid rgba(255,255,255,0.14);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+}
 /* Vaarallinen hyökkäys: hieman matalampi profiili kuin primaryllä. */
 button.danger {
   background: linear-gradient(180deg, #ff6b6b, var(--danger));
@@ -599,7 +619,9 @@ button.danger {
 button.danger:active { transform: translateY(2px); }
 button.notify { border-color: var(--accent); color: var(--accent); }
 button.big { padding: 16px; font-size: 17px; }
-.hint-text { color: var(--muted); font-size: 13px; align-self: center; flex: 2; }
+/* Tilarivi on pelaajan tärkein ohje ("4 armeijaa sijoitettavana") — luettava
+   ensisilmäyksellä, ei himmeä alaviite. */
+.hint-text { color: var(--text); font-size: 14px; font-weight: 600; align-self: center; flex: 2; }
 /* Väli hyökkäysrivillä: erottaa "Lopeta →" -napin toistettavista
    hyökkäysnapeista (Nopat/Blitz) → ei vahingossa lopeta hyökkäysvaihetta. */
 .bar-spacer { flex: 0 0 22px; }
@@ -696,6 +718,20 @@ button.big { padding: 16px; font-size: 17px; }
     100% { background-position: 220% 0; }
   }
 }
+/* "Aloita peli" pysyy näkyvissä dialogin rullatessa (pitkä asetuslista
+   työnsi sen piiloon → uusi pelaaja ei löytänyt aloitusta). Sticky dialogin
+   alareunaan + varjo erottaa sen rullaavasta sisällöstä. */
+#modal-setup #btn-start {
+  position: sticky;
+  bottom: -22px; /* dialogin padding → nappi istuu aivan alareunassa */
+  z-index: 5;
+  display: block;
+  width: 100%;
+  box-shadow: 0 -12px 16px -6px rgba(4,12,22,0.8), 0 3px 0 #b8860b, 0 4px 10px -2px rgba(0,0,0,0.5);
+}
+/* Muut asetusruudun päänapit samaan täysleveään rytmiin. */
+#modal-setup #btn-continue, #modal-setup #btn-slots { display: block; width: 100%; }
+
 /* Tiiviimpi pystyrytmi pienillä näytöillä (dialogi rullaa silti). */
 #modal-setup .subtitle { margin: 0 0 12px; }
 #modal-setup .field, #modal-setup .field-col { margin: 10px 0; }
@@ -751,6 +787,15 @@ button.big { padding: 16px; font-size: 17px; }
   color: var(--text);
 }
 .map-picker .map-opt.sel { border-color: var(--accent); color: var(--accent); background: #244b70; }
+/* Kartan metarivi (aluemäärä, fantasia-merkki) valintanapin alarivinä. */
+.map-picker .map-opt small {
+  display: block;
+  font-weight: 400;
+  font-size: 10.5px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.map-picker .map-opt.sel small { color: var(--accent); opacity: 0.75; }
 
 /* Pelimoodikytkimet */
 .mode-picker { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -901,6 +946,17 @@ button.small { min-height: 40px; padding: 6px 12px; font-size: 0.85rem; }
   #log { height: 80px; }
   #log.expanded { height: 40vh; }
   .terr-name { font-size: 9px; }
+}
+
+/* Leveä näyttö: toimintonapit eivät veny koko ruudun levyisiksi palkeiksi —
+   keskitetty, käden mittainen rivi lukee nappirivinä eikä bannerina. */
+@media (min-width: 900px) {
+  #controls .controls-row {
+    max-width: 760px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  #log { padding-left: max(12px, calc(50vw - 380px)); padding-right: max(12px, calc(50vw - 380px)); }
 }
 
 /* ---- Vaakanäyttö matalalla puhelimella: kartalle maksimikorkeus ----

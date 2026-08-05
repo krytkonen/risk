@@ -12,7 +12,7 @@ import {
 import { isValidSet, setValue } from './engine/cards.js';
 import { runAITurn } from './engine/ai.js';
 import { resolveBalancedBlitz, calcBlitzWinProb } from './engine/combat.js';
-import { TERRITORIES, CONTINENTS, MAP_LIST, DEFAULT_MAP } from './data/territories.js';
+import { TERRITORIES, CONTINENTS, MAPS, MAP_LIST, DEFAULT_MAP } from './data/territories.js';
 import { SCENARIOS, SCENARIO_LIST } from './data/scenarios.js';
 import { buildMap, updateMap, fireTracer, showAttackArrow, hideAttackArrow, PLAYER_COLORS } from './ui/render.js';
 
@@ -511,6 +511,15 @@ function buildMapPicker() {
     b.type = 'button';
     b.className = 'map-opt' + (m.id === cfg.mapId ? ' sel' : '');
     b.textContent = m.name;
+    // Aluemäärä + tyyppi pienenä alarivinä → kartat erottuvat toisistaan
+    // valikossa (koko ja luonne näkyvät ilman kokeilua).
+    const meta = MAPS[m.id];
+    if (meta) {
+      const small = document.createElement('small');
+      const n = Object.keys(meta.territories).length;
+      small.textContent = `${meta.fantasy ? '✨ ' : ''}${n} aluetta`;
+      b.appendChild(small);
+    }
     b.dataset.map = m.id;
     b.addEventListener('click', () => {
       cfg.mapId = m.id;
@@ -642,6 +651,7 @@ function enterGame() {
   ui.selected = null; ui.attackTarget = null; ui.validTargets = new Set(); ui.busy = false; ui.curtain = false;
   placeStack = [];
   hideTerrPop();
+  fitViewBox(); // ENNEN buildMapia: lauta piirretään viewBoxin kokoiseksi
   const m = buildMap($('map'), onTerritoryTap);
   mapRefs = m.nodeRefs;
   mapG = m.gMap;
@@ -851,13 +861,11 @@ let phaseBannerTimer = null;
 // astuu siihen ensi kertaa. MITÄ + MIKSI, ohitus tallennetaan localStorageen,
 // jottei kokenutta pelaajaa häiritä. (Ei erillistä opastusmoottoria — käytetään
 // samaa toast-komponenttia.)
+// Lyhyet — puhelimella pitkä toast peitti puoli karttaa monirivisenä.
 const COACH_TEXTS = {
-  reinforce: '💡 Vahvistus: napauta omia alueitasi ja sijoita kaikki armeijat. '
-    + 'Keskitä ne rajoille ja mantereisiin — koko mantereen hallinnasta saat bonusarmeijoita joka vuoro.',
-  attack: '💡 Hyökkäys: napauta omaa aluetta (2+ joukkoa), sitten viereistä vihollisaluetta. '
-    + '🎯 voitto-osuus kertoo onnistumistodennäköisyyden — vihreä on turvallinen, punainen riskialtis.',
-  fortify: '💡 Linnoitus: siirrä lopuksi joukkoja yhdellä siirrolla sisämaasta rajalle. '
-    + 'Vahvat rajat kestävät vihollisen hyökkäykset — tai ohita jos kaikki on jo hyvin.',
+  reinforce: '💡 Sijoita armeijat napauttamalla omia alueitasi. Keskitä rajoille — koko mantereesta saat bonusta joka vuoro.',
+  attack: '💡 Napauta omaa aluetta (2+ joukkoa), sitten viereistä vihollista. 🎯 kertoo voittotodennäköisyyden.',
+  fortify: '💡 Siirrä lopuksi joukkoja sisämaasta rajalle (yksi siirto) — tai ohita.',
 };
 
 function maybeCoach(phase) {
@@ -1727,8 +1735,33 @@ function clampView() {
   else view.ty = clamp(view.ty, my - b.maxY * s, my - b.minY * s);
 }
 
+/**
+ * Sovittaa SVG:n viewBoxin kartta-alueen kuvasuhteeseen. Juurisyykorjaus
+ * kahteen ongelmaan: (1) pystynäytöllä kiinteä 1000×700-viewBox letterboxasi
+ * kartan keskelle ja jätti isot tyhjät kaistat ylä-/alapuolelle; (2) osoitin-
+ * matematiikka (toSvg) olettaa ettei letterboxia ole → kosketuskoordinaatit
+ * vinoutuivat. Kun viewBox seuraa elementin kuvasuhdetta, molemmat poistuvat.
+ * Kaikki näkymälogiikka (resetView/clampView/kamera) lukee vb:n dynaamisesti.
+ */
+function fitViewBox() {
+  const svg = $('map'), wrap = $('map-wrap');
+  if (!svg || !wrap) return;
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  if (!w || !h) return;
+  const aspect = w / h;
+  let W = 1000, H = 700;
+  if (aspect < 1000 / 700) H = Math.round(clamp(1000 / aspect, 700, 2600));
+  else W = Math.round(clamp(700 * aspect, 1000, 2600));
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+}
+
+// Onko käyttäjä muuttanut näkymää itse (zoom/pan)? Ohjaa resize-käytöstä:
+// sovitustilassa kartta istutetaan uudelleen, muuten kunnioitetaan zoomia.
+let _userView = false;
+
 function resetView() {
   cancelCamera();
+  _userView = false;
   const svg = $('map');
   const vb = svg?.viewBox?.baseVal;
   const b = mapBounds();
@@ -1741,8 +1774,12 @@ function resetView() {
   view.ty = (vb.height - h * scale) / 2 - b.minY * scale;
   applyView();
 }
-function zoomBy(factor, cx = 500, cy = 350) {
+function zoomBy(factor, cx, cy) {
   cancelCamera(); // käyttäjän zoom ottaa vallan hyökkäyskameralta
+  _userView = true;
+  const vb = $('map')?.viewBox?.baseVal;
+  if (cx == null) cx = vb ? vb.width / 2 : 500;
+  if (cy == null) cy = vb ? vb.height / 2 : 350;
   const ns = clamp(view.scale * factor, 0.6, 4);
   // zoomaa kohdistuspisteen ympäri
   view.tx = cx - (cx - view.tx) * (ns / view.scale);
@@ -1770,6 +1807,27 @@ function setupZoom() {
     return { x: (clientX - rect.left) / rect.width * vb.width, y: (clientY - rect.top) / rect.height * vb.height };
   };
 
+  // Ikkunan koon/asennon muutos: sovita viewBox uuteen kuvasuhteeseen ja
+  // piirrä lauta (meri/kehys) uudelleen sen kokoiseksi. Jos käyttäjä ei ole
+  // itse zoomannut/panoroinut, sovita kartta koko näkymään; muuten säilytä
+  // zoom ja pidä kartta ruudulla clampilla. Kesken taistelun (busy) lautaa
+  // ei rakenneta uudelleen — pelkkä näkymäsovitus riittää siihen asti.
+  let _rsTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(_rsTimer);
+    _rsTimer = setTimeout(() => {
+      if (!state) return;
+      fitViewBox();
+      if (!ui.busy) {
+        const m = buildMap($('map'), onTerritoryTap);
+        mapRefs = m.nodeRefs;
+        mapG = m.gMap;
+        render();
+      }
+      if (_userView) { clampView(); applyView(); } else resetView();
+    }, 150);
+  });
+
   svg.addEventListener('pointerdown', (e) => {
     dragging = true; lastX = e.clientX; lastY = e.clientY;
     downX = e.clientX; downY = e.clientY; traveled = 0;
@@ -1779,6 +1837,7 @@ function setupZoom() {
     const dx = e.clientX - lastX, dy = e.clientY - lastY;
     if (_camActive) cancelCamera(); // raahaus ottaa vallan hyökkäyskameralta
     traveled += Math.abs(dx) + Math.abs(dy);
+    if (traveled > 14) _userView = true; // aito raahaus, ei napautus
     const rect = svg.getBoundingClientRect();
     const vb = svg.viewBox.baseVal;
     view.tx += dx / rect.width * vb.width;
