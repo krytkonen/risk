@@ -77,11 +77,11 @@ export default {
         + `Q ${cx - r * 0.6} ${cy + r * 0.6} ${cx - r} ${cy} Z`;
       g.appendChild(el('path', {
         d,
-        fill: '#dff2fa',
-        'fill-opacity': 0.09,
-        stroke: '#eef9ff',
-        'stroke-opacity': 0.3,
-        'stroke-width': 1.2,
+        fill: '#cfeaf7',
+        'fill-opacity': 0.14,
+        stroke: '#f2fbff',
+        'stroke-opacity': 0.4,
+        'stroke-width': 1.8,
       }));
     });
 

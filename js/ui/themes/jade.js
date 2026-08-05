@@ -36,24 +36,26 @@ export default {
   deco({ el, mix }) {
     const g = el('g', { class: 'jade-deco' });
 
-    // Seigaiha: 4 sarjaa toistuvia yhteiskeskisiä kaaria Intian
-    // valtameren tyhjässä nurkassa (vas. ala, x 60-260, y 560-660).
-    const originX = 60, originY = 560;
-    const cols = 4, rows = 2;
-    const step = 46;
-    const radii = [20, 14, 8];
+    // Seigaiha: yhteiskeskisten kaarien rivistö Intian valtameren avoimessa
+    // kulmassa (kartan mantereet päättyvät Jemeniin n. y≈545; kanvaasi jatkuu
+    // paljon alemmas merenä, joten kuvio istutetaan reilusti rannikon
+    // eteläpuolelle jottei se törmää rantaviivaan tai mannerkartusseihin).
+    const originX = 55, originY = 690;
+    const cols = 5, rows = 3;
+    const step = 52;
+    const radii = [24, 17, 10];
     const strokeCol = '#f6e3a8';
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
         const cx = originX + col * step + (row % 2 ? step / 2 : 0);
-        const cy = originY + row * step * 0.72;
+        const cy = originY + row * step * 0.68;
         radii.forEach((r, ri) => {
           g.appendChild(el('path', {
             d: `M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`,
             fill: 'none',
             stroke: strokeCol,
-            'stroke-width': 1,
-            'stroke-opacity': 0.13 - ri * 0.02,
+            'stroke-width': 1.1,
+            'stroke-opacity': 0.15 - ri * 0.025,
           }));
         });
       }
