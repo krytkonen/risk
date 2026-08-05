@@ -54,7 +54,11 @@ await page.goto(`http://localhost:${port}/index.html`, { waitUntil: 'networkidle
 if (mapName) {
   const ok = await page.evaluate((name) => {
     const btns = [...document.querySelectorAll('#map-picker .map-opt')];
-    const b = btns.find((x) => x.textContent.trim() === name);
+    // Napissa on nimen jälkeen <small>-metarivi ("N aluetta") → vertaa vain
+    // ensimmäiseen tekstisolmuun, ei koko textContentiin. Täsmäys ensin
+    // (erottaa "Eurooppa" ja "Eurooppa 2025"), ei prefix-haparointia.
+    const label = (x) => (x.childNodes[0]?.textContent || x.textContent).trim();
+    const b = btns.find((x) => label(x) === name);
     if (b) { b.click(); return true; }
     return false;
   }, mapName);
