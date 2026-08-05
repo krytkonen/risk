@@ -981,3 +981,31 @@ Käyttäjän tilaus: "Tarkista ui ja tee siitä parempi." Kuvakaappaus-katselmus
   hukkaa tilaa että vääristää osoitinmuunnoksen. Kun viewBox seuraa säiliön
   kuvasuhdetta ja lauta piirretään viewBoxin mittoihin, molemmat poistuvat
   yhdellä mekanismilla — ja sama resetView/clamp-logiikka toimii muuttumatta.
+
+## Monipuolinen grafiikka: karttakohtaiset teemat (orkestroitu 3 agentille)
+Käyttäjän tilaus: suunnittele ja toteuta monipuolinen grafiikka, orkestroi
+subagenteille. Arkkitehtuuri (yksi integraatio, rinnakkaiset toteutukset):
+- js/ui/themes/: teema = token-olio (meri, hehku, kiilto, vinjetti, muste,
+  neutraali maa, vaahto, harjanteet, reitit + deco-koukku) atlas-pohjan
+  päälle; puuttuva token putoaa nykyiseen ilmeeseen → nolla regressiota.
+  render.js lukee tokenit 18 värikohdasta + deco-koukusta. Rekisteri:
+  kartta → teema.
+- ORKESTROINTI: 3 rinnakkaista agenttia, kullakin 2 teematiedostoa OMISSA
+  tiedostoissaan (ei jaettuja muokkauksia) + oma screenshot-portti (8091-93)
+  → ei törmäyksiä; art director -iterointi kuvakaappauksilla; kovat rajat:
+  meri pysyy tummana (luettavuus), ei suodattimia/animaatioita (lite säilyy).
+- TEEMAT: pergamentti (Antiikki: seepiamuste, messinki­kehys, laakeri+triremi),
+  savanni (Afrikka: iltahehku, hiekkamuste, auringonkehrä), talvi (Suomi:
+  jäänsininen, revontulet, jäälautat), jade (Aasia: jade+kulta, seigaiha-
+  aallot, lumihuiput), taru (Taru+Saaristo: indigo-yö, tähtikenttä, hopea),
+  laguuni (Tyynimeri: turkoosi, syaanihehku, koralli­vaahto). Muut kartat
+  pysyvät atlas-ilmeessä.
+- Sivulöydös: karttavalikon <small>-metarivi rikkoi screenshot-työkalun
+  täsmäyshaun → vertaa nyt napin ensimmäiseen tekstisolmuun.
+- 138 testiä vihreää joka välitilassa; SW v42→v44.
+- LESSON: (1) Token-teema jossa "puuttuva = vanha ilme" tekee rinnakkais-
+  toteutuksesta turvallista: agentti ei VOI rikkoa muita karttoja. (2) Tiedosto-
+  omistuksen partitiointi + porttierottelu poistaa rinnakkaisten agenttien
+  konfliktit kokonaan. (3) Deco-sijoittelu vaatii aidon geometrian tarkistuksen
+  (isPointInFill) — "tyhjä meri" silmämääräisesti ei riitä, ja viewBox on
+  laitekohtainen (lauta=näkymä).

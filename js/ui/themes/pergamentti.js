@@ -34,27 +34,26 @@ export default {
   routeGlowCol: '#c99a4a',
   portFill: '#14100a',
 
-  // Ambientkoriste: kreikkalainen meanteri-nauha ylänurkassa + kevyt
-  // triremi-siluetti avomerellä. Molemmat matalan opasiteetin viivapiirrosta.
+  // Ambientkoriste: pieni laakeriseppele-oksa avomeren taskussa (Persian
+  // pohjoispuolella) + kevyt triremi-siluetti Egeanmeren avoveden taskussa
+  // (Kreikan ja Egyptin välissä). Molemmat sijainnit on tarkistettu
+  // isPointInFill-tarkistuksella todelliseen avomereen (eivät jää
+  // maakerroksen alle) — kartan geo-maamassa peittää suurimman osan
+  // 1000×700-kankaasta, joten koristeet EIVÄT voi olla kartan reunoissa.
   deco({ el, mix }) {
     const g = el('g', { id: 'theme-deco-pergamentti' });
     const inkCol = '#d9b872';
 
-    // Meanteri-nauha (kreikkalainen aaltokoriste), oikea yläkulma.
-    const meander = el('g', { transform: 'translate(760,34)', opacity: 0.22 });
-    let d = '';
-    const step = 20, h = 12;
-    for (let i = 0; i < 8; i++) {
-      const x = i * step;
-      d += `M${x},0 L${x},${h} L${x + step * 0.6},${h} L${x + step * 0.6},${h * 0.4} L${x + step * 0.15},${h * 0.4} `;
-    }
-    meander.appendChild(el('path', {
-      d, fill: 'none', stroke: inkCol, 'stroke-width': 1.4, 'stroke-linejoin': 'miter', 'stroke-linecap': 'square',
-    }));
-    g.appendChild(meander);
+    // Pieni laakerinoksa (kaksi vastakkaista lehtiriviä varren ympärillä).
+    const laurel = el('g', { transform: 'translate(828,245)', opacity: 0.24 });
+    laurel.appendChild(el('path', { d: 'M-13,4 Q0,-6 13,4', fill: 'none', stroke: inkCol, 'stroke-width': 1.1, 'stroke-linecap': 'round' }));
+    const leaf = (lx, ly, ang) => `M${lx},${ly} l${(4 * Math.cos(ang)).toFixed(1)},${(4 * Math.sin(ang)).toFixed(1)} l${(-1.6 * Math.sin(ang)).toFixed(1)},${(1.6 * Math.cos(ang)).toFixed(1)} z`;
+    const pts = [[-11, 2.6, -0.5], [-6.5, -1.2, -0.7], [-1.5, -3, -1.0], [4, -3, -2.1], [9, -1, -2.4], [12.5, 2.4, -2.7]];
+    for (const [lx, ly, ang] of pts) laurel.appendChild(el('path', { d: leaf(lx, ly, ang), fill: inkCol, stroke: 'none' }));
+    g.appendChild(laurel);
 
     // Pieni triremi-siluetti avomerellä (runko + masto + purje ääriviivana).
-    const ship = el('g', { transform: 'translate(210,540) scale(1.0)', opacity: 0.16 });
+    const ship = el('g', { transform: 'translate(545,480) scale(0.85)', opacity: 0.18 });
     ship.appendChild(el('path', {
       d: 'M-16,4 Q0,12 16,4 L12,7 Q0,10 -12,7 Z',
       fill: inkCol, stroke: 'none',

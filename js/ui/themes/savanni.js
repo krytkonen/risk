@@ -34,11 +34,14 @@ export default {
   portFill: '#140f0a',
 
   // Ambientkoriste: hyvin himmeä laskeva auringonkiekko avomeren kulmassa,
-  // yksi ympyrä + pari sädeviivaa. Halpaa, ei animaatioita.
+  // yksi ympyrä + pari sädeviivaa. Halpaa, ei animaatioita. Sijainti
+  // tarkistettu isPointInFill-tarkistuksella todelliseen avomereen
+  // (Atlantti Afrikan länsipuolella) — kartan geo-maamassa peittäisi
+  // koristeen jos se olisi maan alla.
   deco({ el, mix }) {
     const g = el('g', { id: 'theme-deco-savanni', opacity: 0.16 });
     const sunCol = '#ffb15c';
-    const cx = 860, cy = 560;
+    const cx = 140, cy = 460;
     g.appendChild(el('circle', { cx, cy, r: 46, fill: sunCol, 'fill-opacity': 0.5 }));
     g.appendChild(el('circle', { cx, cy, r: 46, fill: 'none', stroke: sunCol, 'stroke-opacity': 0.6, 'stroke-width': 1.2 }));
     for (const a of [-30, 0, 30]) {
